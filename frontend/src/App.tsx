@@ -81,7 +81,7 @@ function App() {
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50">
       
       <PanelGroup 
-        direction="horizontal" 
+        orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
       >
         
@@ -126,15 +126,15 @@ function App() {
 
         {/* Right Panel: Property Details & Chat */}
         {modalPropertyId && (
-          <>
-            <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
-            <Panel defaultSize={30} minSize={20} maxSize={50} className="relative h-full bg-white">
-              <PropertyPanel 
-                property={properties.find(p => p.id === modalPropertyId)!} 
-                onClose={() => setModalPropertyId(null)} 
-              />
-            </Panel>
-          </>
+          <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+        )}
+        {modalPropertyId && (
+          <Panel defaultSize={30} minSize={20} maxSize={50} className="relative h-full bg-white">
+            <PropertyPanel 
+              property={properties.find(p => p.id === modalPropertyId)!} 
+              onClose={() => setModalPropertyId(null)} 
+            />
+          </Panel>
         )}
 
         <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />

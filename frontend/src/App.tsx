@@ -20,6 +20,7 @@ function App() {
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(0);
+  const [activeFilters, setActiveFilters] = useState<any>(null);
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -33,6 +34,7 @@ function App() {
 
   async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
     setLoading(true);
+    setActiveFilters(filters || null);
     try {
       const data = await api.getProperties(filters);
       setProperties(data);
@@ -142,6 +144,21 @@ function App() {
                 {maximizedPanel === 'list' ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </button>
             </header>
+
+            {activeFilters && (
+              <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
+                <span className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Filter Applied
+                </span>
+                <button 
+                  onClick={() => loadProperties()}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-white hover:bg-indigo-100 px-3 py-1 rounded-full border border-indigo-200 transition-colors shadow-sm"
+                >
+                  Reset List
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar relative z-0">
               {loading ? (

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 from database import get_db_connection
-from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse
+from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse, AgentAction
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="0.1.0")

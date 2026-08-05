@@ -50,14 +50,21 @@ function MapResizer() {
   return null;
 }
 
-const createCustomIcon = (isActive: boolean) => L.divIcon({
+const createCustomPriceIcon = (rent: number, isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
-  html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-rose-500 scale-125 z-[100] ring-4 ring-rose-300' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+  html: `<div class="relative flex items-center justify-center px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all duration-300 cursor-pointer ${
+    isActive 
+      ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white scale-110 z-[100] ring-4 ring-rose-200 shadow-rose-500/30' 
+      : 'bg-slate-900/90 backdrop-blur-md text-white hover:bg-indigo-600 hover:scale-105 border border-white/40'
+  }">
+          <span>$${rent}</span>
+          <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${
+            isActive ? 'bg-amber-500' : 'bg-slate-900/90'
+          }"></div>
          </div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -32],
+  iconSize: [60, 30],
+  iconAnchor: [30, 30],
+  popupAnchor: [0, -30],
 });
 
 export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize }: MapProps) {
@@ -80,12 +87,15 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
           <Marker 
             key={property.id} 
             position={[property.latitude, property.longitude]}
-            icon={createCustomIcon(selectedPropertyId === property.id)}
+            icon={createCustomPriceIcon(property.weekly_rent, selectedPropertyId === property.id)}
             eventHandlers={{ click: () => onSelectProperty && onSelectProperty(property.id) }}
           >
-            <Popup className="rounded-xl overflow-hidden shadow-lg border-0">
-              <div className="font-semibold text-slate-800 text-base leading-tight">{property.title}</div>
-              <div className="text-indigo-600 font-black mt-1">${property.weekly_rent}/wk</div>
+            <Popup className="rounded-2xl overflow-hidden shadow-xl border-0 p-0">
+              <div className="p-3 font-sans bg-white/95 backdrop-blur-md">
+                <div className="font-bold text-slate-800 text-sm leading-snug">{property.title}</div>
+                <div className="text-slate-500 text-xs mt-0.5">{property.suburb} • {property.distance_to_beach_km.toFixed(1)} km to beach</div>
+                <div className="text-indigo-600 font-extrabold text-sm mt-1.5">${property.weekly_rent}/wk</div>
+              </div>
             </Popup>
           </Marker>
         ))}
@@ -93,11 +103,17 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
         <MapResizer />
       </MapContainer>
 
+      {/* Glass Legend Overlay */}
+      <div className="absolute bottom-4 left-4 z-40 bg-white/80 backdrop-blur-md border border-white/60 px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold text-slate-700">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Sydney Coastal Transit Active</span>
+      </div>
+
       {/* Floating UI overlays on map */}
       {onToggleMaximize && (
         <button
           onClick={onToggleMaximize}
-          className="absolute top-4 right-4 z-50 bg-white/90 backdrop-blur-sm hover:bg-white text-slate-700 p-2.5 rounded-xl shadow-lg border border-slate-200/50 transition-all hover:scale-105 active:scale-95"
+          className="absolute top-4 right-4 z-50 bg-white/90 backdrop-blur-md hover:bg-white text-slate-700 p-2.5 rounded-2xl shadow-lg border border-white/60 transition-all hover:scale-105 active:scale-95"
           title={isMaximized ? "Restore view" : "Enlarge map"}
         >
           {isMaximized ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}

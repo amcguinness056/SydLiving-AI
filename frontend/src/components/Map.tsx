@@ -33,6 +33,19 @@ function MapUpdater({ properties, selectedId }: { properties: Property[], select
   return null;
 }
 
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
 const createCustomIcon = (isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
   html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-indigo-600 scale-125 z-50' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
@@ -72,6 +85,7 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
           </Marker>
         ))}
         <MapUpdater properties={properties} selectedId={selectedPropertyId} />
+        <MapResizer />
       </MapContainer>
     </div>
   );

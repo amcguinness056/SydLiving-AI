@@ -129,7 +129,7 @@ function App() {
           <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         )}
         {modalPropertyId && (
-          <Panel defaultSize="30" minSize="20" maxSize="50" className="relative h-full bg-white">
+          <Panel defaultSize="22" minSize="20" maxSize="35" className="relative h-full bg-white">
             <PropertyPanel 
               property={properties.find(p => p.id === modalPropertyId)!} 
               onClose={() => setModalPropertyId(null)} 

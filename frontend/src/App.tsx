@@ -86,7 +86,7 @@ function App() {
       >
         
         {/* Left Panel: Property List */}
-        <Panel defaultSize={25} minSize={20} maxSize={40} className="flex flex-col relative h-full bg-white/20">
+        <Panel defaultSize="25" minSize="20" maxSize="40" className="flex flex-col relative h-full bg-white/20">
           <header className="flex items-center gap-2 px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0">
             <Sparkles className="w-6 h-6 text-indigo-500" />
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
@@ -129,7 +129,7 @@ function App() {
           <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         )}
         {modalPropertyId && (
-          <Panel defaultSize={30} minSize={20} maxSize={50} className="relative h-full bg-white">
+          <Panel defaultSize="30" minSize="20" maxSize="50" className="relative h-full bg-white">
             <PropertyPanel 
               property={properties.find(p => p.id === modalPropertyId)!} 
               onClose={() => setModalPropertyId(null)} 
@@ -139,7 +139,7 @@ function App() {
 
         <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
 
-        <Panel defaultSize={25} minSize={20} maxSize={40} className="h-full">
+        <Panel defaultSize="25" minSize="20" maxSize="40" className="h-full">
           <ChatPanel 
             messages={messages} 
             isThinking={isThinking} 

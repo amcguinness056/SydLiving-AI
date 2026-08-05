@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Loader2 } from 'lucide-react';
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -65,10 +68,12 @@ export function ChatPanel({ messages, isThinking, onSendMessage }: ChatPanelProp
                 className={`px-4 py-3 rounded-2xl shadow-sm text-sm ${
                   msg.role === 'user' 
                     ? 'bg-indigo-500 text-white rounded-tr-sm' 
-                    : 'bg-white/80 border border-white/40 text-slate-700 rounded-tl-sm backdrop-blur-md'
+                    : 'bg-white/80 border border-white/40 text-slate-700 rounded-tl-sm backdrop-blur-md prose prose-sm prose-slate prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0'
                 }`}
               >
-                {msg.content}
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </div>
           ))

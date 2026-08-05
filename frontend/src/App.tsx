@@ -19,6 +19,7 @@ function App() {
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [rightPanelWidth, setRightPanelWidth] = useState(0);
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,6 +93,14 @@ function App() {
     setModalPropertyId(id);
   };
 
+  const handleLayout = (sizes: number[]) => {
+    if (sizes.length === 3) {
+      setRightPanelWidth(sizes[2]);
+    } else {
+      setRightPanelWidth(0);
+    }
+  };
+
   const getMaximizedClasses = (panelName: MaximizedState) => {
     if (maximizedPanel === panelName) {
       return "fixed inset-4 z-[100] rounded-[2rem] shadow-2xl border border-white/40 overflow-hidden animate-in fade-in zoom-in-95 duration-300";
@@ -112,6 +121,7 @@ function App() {
       <PanelGroup 
         orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
+        onLayout={handleLayout}
       >
         
         {/* Left Panel: Property List */}
@@ -193,7 +203,10 @@ function App() {
       </PanelGroup>
 
       {/* Floating AI Chat Widget */}
-      <div className="fixed bottom-6 right-6 z-[110] flex flex-col items-end gap-4 pointer-events-none">
+      <div 
+        className="fixed bottom-6 z-[110] flex flex-col items-end gap-4 pointer-events-none transition-all duration-300"
+        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : `calc(${rightPanelWidth}vw + 1.5rem)` }}
+      >
         
         {/* Chat Window */}
         {isChatOpen && (

@@ -1,10 +1,11 @@
 import sqlite3
+import traceback
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 from database import get_db_connection
-from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse
+from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse, AgentAction
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="0.1.0")
@@ -75,9 +76,22 @@ def get_commute(
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-        response_data = await agent.process_chat(request.message, request.history)
-        return ChatResponse(**response_data)
+        print(f"--- Chat Request ---")
+        print(f"Message: {request.message}")
+        print(f"History length: {len(request.history)}")
+        
+        # We need to await the process_chat function
+        result = await agent.process_chat(request.message, request.history)
+        
+        print(f"--- Chat Response ---")
+        print(f"Reply: {result['reply']}")
+        print(f"Actions: {result['actions']}")
+        
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[AgentAction(**action) for action in result["actions"]]
+        )
     except Exception as e:
+        print("!!! ERROR IN /api/chat !!!")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
-

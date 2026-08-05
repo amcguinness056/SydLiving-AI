@@ -22,9 +22,29 @@ export interface Commute {
   peak_frequency_mins: number;
 }
 
+export interface AgentAction {
+  action_type: string;
+  data: Record<string, any>;
+}
+
+export interface ChatResponse {
+  reply: string;
+  actions: AgentAction[];
+}
+
 export const api = {
-  getProperties: async (): Promise<Property[]> => {
-    const res = await fetch(`${BASE_URL}/properties`);
+  getProperties: async (filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }): Promise<Property[]> => {
+    let url = `${BASE_URL}/properties`;
+    if (filters) {
+      const params = new URLSearchParams();
+      if (filters.suburb) params.append('suburbs', filters.suburb);
+      if (filters.max_rent) params.append('max_rent', filters.max_rent.toString());
+      if (filters.min_bedrooms) params.append('min_bedrooms', filters.min_bedrooms.toString());
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+    }
+    const res = await fetch(url);
     const data = await res.json();
     return data.results;
   },
@@ -32,5 +52,16 @@ export const api = {
     const res = await fetch(`${BASE_URL}/commute?origin_suburb=${encodeURIComponent(origin)}&destination_cbd_hub=${encodeURIComponent(dest)}`);
     const data = await res.json();
     return data.commutes;
+  },
+  sendChatMessage: async (message: string, history: any[] = []): Promise<ChatResponse> => {
+    const res = await fetch(`${BASE_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message, history })
+    });
+    return await res.json();
   }
 };
+

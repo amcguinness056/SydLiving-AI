@@ -159,6 +159,24 @@ async def process_chat(message: str, history: list) -> dict:
             "actions": actions
         }
     except Exception as e:
-        print("[Agent] FATAL ERROR IN process_chat")
+        print(f"[Agent] ERROR IN process_chat: {str(e)}")
         traceback.print_exc()
-        raise e
+        
+        # Check if it's a 503 or 429
+        error_msg = str(e)
+        if "503" in error_msg or "UNAVAILABLE" in error_msg:
+            return {
+                "reply": "I'm sorry, but my AI brain is currently experiencing very high demand and couldn't process that request right now. Please try again in a few moments!",
+                "actions": []
+            }
+        elif "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return {
+                "reply": "I'm sorry, but we've hit our API rate limits. Please try again in a minute.",
+                "actions": []
+            }
+            
+        # For all other errors, return a generic message
+        return {
+            "reply": f"Oops! I encountered an internal error while processing that: {type(e).__name__}. Please try again.",
+            "actions": []
+        }

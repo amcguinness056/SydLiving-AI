@@ -47,7 +47,7 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
 
   return (
-    <div className="w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20">
+    <div className="w-full h-full relative overflow-hidden bg-slate-200">
       <MapContainer 
         center={defaultCenter} 
         zoom={12} 

@@ -5,6 +5,7 @@ import { PropertyModal } from './components/PropertyModal';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Search, Sparkles } from 'lucide-react';
+import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -79,27 +80,21 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50">
       
-      {/* Left Panel: Explore (Map & Cards) */}
-      <div className="flex-1 flex flex-col gap-4 h-full relative">
-        <header className="flex items-center gap-2 px-4 py-3 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl shadow-sm z-10 relative">
-          <Sparkles className="w-6 h-6 text-indigo-500" />
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
-            SydLiving AI
-          </h1>
-          <div className="ml-auto relative w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Filter suburbs (use chat)..." 
-              className="w-full pl-9 pr-4 py-2 bg-white/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm backdrop-blur-sm"
-              disabled
-            />
-          </div>
-        </header>
+      <PanelGroup 
+        direction="horizontal" 
+        className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
+      >
+        
+        {/* Left Panel: Property List */}
+        <Panel defaultSize={25} minSize={20} maxSize={40} className="flex flex-col relative h-full bg-white/20">
+          <header className="flex items-center gap-2 px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0">
+            <Sparkles className="w-6 h-6 text-indigo-500" />
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
+              SydLiving AI
+            </h1>
+          </header>
 
-        <div className="flex-1 relative flex gap-4 min-h-0">
-          {/* Property List */}
-          <div className="w-96 flex flex-col gap-4 overflow-y-auto pr-2 pb-4 snap-y z-10 relative custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
             {loading ? (
               <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
             ) : properties.length === 0 ? (
@@ -108,41 +103,52 @@ function App() {
               </div>
             ) : (
               properties.map(p => (
-                <div key={p.id} className="snap-start shrink-0">
-                  <PropertyCard 
-                    property={p} 
-                    isActive={selectedId === p.id}
-                    onClick={() => {
-                      setSelectedId(p.id);
-                      setModalPropertyId(p.id);
-                    }}
-                  />
-                </div>
+                <PropertyCard 
+                  key={p.id}
+                  property={p} 
+                  isActive={selectedId === p.id}
+                  onClick={() => {
+                    setSelectedId(p.id);
+                    setModalPropertyId(p.id);
+                  }}
+                />
               ))
             )}
           </div>
-          
-          {/* Map View */}
-          <div className="flex-1 relative z-0">
-            <Map properties={properties} selectedPropertyId={selectedId} />
-          </div>
-        </div>
-      </div>
+        </Panel>
 
-      {/* Right Panel: AI Assistant */}
-      <ChatPanel 
-        messages={messages} 
-        isThinking={isThinking} 
-        onSendMessage={handleSendMessage} 
-      />
+        <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+        
+        {/* Center Panel: Map */}
+        <Panel className="relative h-full bg-slate-200">
+          <Map properties={properties} selectedPropertyId={selectedId} />
+        </Panel>
 
-      {/* Property Modal */}
-      {modalPropertyId && (
-        <PropertyModal 
-          property={properties.find(p => p.id === modalPropertyId)!} 
-          onClose={() => setModalPropertyId(null)} 
-        />
-      )}
+        {/* Right Panel: Property Details & Chat */}
+        {modalPropertyId && (
+          <>
+            <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+            <Panel defaultSize={30} minSize={20} maxSize={50} className="relative h-full bg-white">
+              <PropertyPanel 
+                property={properties.find(p => p.id === modalPropertyId)!} 
+                onClose={() => setModalPropertyId(null)} 
+              />
+            </Panel>
+          </>
+        )}
+
+        <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+
+        <Panel defaultSize={25} minSize={20} maxSize={40} className="h-full">
+          <ChatPanel 
+            messages={messages} 
+            isThinking={isThinking} 
+            onSendMessage={handleSendMessage} 
+          />
+        </Panel>
+
+      </PanelGroup>
+
     </div>
   );
 }

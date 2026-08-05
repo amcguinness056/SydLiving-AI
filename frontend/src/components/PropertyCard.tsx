@@ -14,41 +14,37 @@ export function PropertyCard({ property, className, onClick, isActive }: Propert
     <div
       onClick={onClick}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/20 p-4 transition-all duration-300",
-        "bg-white/40 backdrop-blur-md hover:bg-white/60 hover:shadow-xl cursor-pointer hover:-translate-y-1",
-        isActive && "ring-2 ring-indigo-500 bg-white/70 shadow-lg",
+        "bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md transition-all cursor-pointer flex flex-col shrink-0",
+        isActive && "ring-2 ring-indigo-500 bg-indigo-50/50",
         className
       )}
     >
-      <div className="flex flex-col gap-1 mb-2">
-        <h3 className="text-lg font-semibold text-slate-800 line-clamp-2 leading-tight">{property.title}</h3>
-        <div className="self-start bg-indigo-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+      <div className="flex justify-between items-start gap-2 mb-2">
+        <h3 className="font-semibold text-slate-800 line-clamp-1 text-[15px]">{property.title}</h3>
+        <div className="bg-indigo-600 text-white px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap shrink-0 shadow-sm">
           ${property.weekly_rent}/wk
         </div>
       </div>
       
-      <p className="text-slate-600 text-sm flex items-start mb-4 leading-snug">
-        <MapPin className="w-4 h-4 mr-1 mt-0.5 text-slate-400 flex-shrink-0" />
-        <span className="line-clamp-2">{property.address}</span>
+      <p className="text-slate-500 text-xs flex items-center mb-4">
+        <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400 shrink-0" />
+        <span className="truncate">{property.address}</span>
       </p>
 
-      <div className="flex flex-wrap items-center gap-2 text-slate-700 text-sm font-medium">
-        <div className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-lg">
-          <BedDouble className="w-4 h-4 text-indigo-500" />
-          {property.bedrooms} Bed
+      <div className="flex items-center gap-4 text-slate-600 text-xs font-medium mt-auto">
+        <div className="flex items-center gap-1.5">
+          <BedDouble className="w-4 h-4 text-indigo-400" />
+          {property.bedrooms}
         </div>
-        <div className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-lg">
-          <Bath className="w-4 h-4 text-indigo-500" />
-          {property.bathrooms} Bath
+        <div className="flex items-center gap-1.5">
+          <Bath className="w-4 h-4 text-indigo-400" />
+          {property.bathrooms}
         </div>
-        <div className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-lg">
-          <Waves className="w-4 h-4 text-blue-500" />
+        <div className="flex items-center gap-1.5">
+          <Waves className="w-4 h-4 text-blue-400" />
           {property.distance_to_beach_km.toFixed(1)} km
         </div>
       </div>
-      
-      {/* Decorative gradient blob */}
-      <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-indigo-400/10 rounded-full blur-2xl pointer-events-none" />
     </div>
   );
 }

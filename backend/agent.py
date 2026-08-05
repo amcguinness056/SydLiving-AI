@@ -1,29 +1,34 @@
 import os
 import sqlite3
 import json
+from typing import Optional
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+
+load_dotenv()
+
 from database import get_db_connection
 
-def query_properties_tool(suburb: str = None, max_rent: float = None, min_bedrooms: int = None) -> str:
+def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> str:
     """Queries the local database for properties matching the criteria.
     Args:
-        suburb: A specific suburb to filter by (e.g. 'Coogee').
-        max_rent: Maximum weekly rent in AUD.
-        min_bedrooms: Minimum number of bedrooms.
+        suburb: A specific suburb to filter by, or empty string "" if none.
+        max_rent: Maximum weekly rent in AUD, or 99999.0 if no maximum.
+        min_bedrooms: Minimum number of bedrooms, or 0 if no minimum.
     """
     db = next(get_db_connection())
     try:
         query = "SELECT id, title, suburb, weekly_rent, bedrooms, bathrooms FROM properties WHERE 1=1"
         params = []
         
-        if suburb:
+        if suburb and suburb != "":
             query += " AND suburb = ?"
             params.append(suburb)
-        if max_rent is not None:
+        if max_rent < 99999.0:
             query += " AND weekly_rent <= ?"
             params.append(max_rent)
-        if min_bedrooms is not None:
+        if min_bedrooms > 0:
             query += " AND bedrooms >= ?"
             params.append(min_bedrooms)
             
@@ -68,7 +73,7 @@ async def process_chat(message: str, history: list) -> dict:
             "actions": []
         }
         
-    client = genai.Client()
+    client = genai.Client(api_key=api_key)
     
     # Simple history formatting
     # Note: For production, map history dicts to types.Content properly

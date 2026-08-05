@@ -17,7 +17,9 @@ def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> st
         max_rent: Maximum weekly rent in AUD, or 99999.0 if no maximum.
         min_bedrooms: Minimum number of bedrooms, or 0 if no minimum.
     """
-    db = next(get_db_connection())
+    from database import DB_PATH
+    db = sqlite3.connect(DB_PATH, check_same_thread=False)
+    db.row_factory = sqlite3.Row
     try:
         query = "SELECT id, title, suburb, weekly_rent, bedrooms, bathrooms FROM properties WHERE 1=1"
         params = []
@@ -39,6 +41,10 @@ def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> st
         results = [dict(row) for row in rows]
         # Return structured JSON for the agent
         return json.dumps({"properties": results})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": str(e)})
     finally:
         db.close()
 
@@ -48,7 +54,9 @@ def get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
         origin_suburb: The starting suburb (e.g. 'Coogee').
         destination_cbd_hub: The destination hub (e.g. 'Barangaroo').
     """
-    db = next(get_db_connection())
+    from database import DB_PATH
+    db = sqlite3.connect(DB_PATH, check_same_thread=False)
+    db.row_factory = sqlite3.Row
     try:
         cursor = db.cursor()
         cursor.execute('''

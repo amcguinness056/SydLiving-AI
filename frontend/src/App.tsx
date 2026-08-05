@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
-import { PropertyModal } from './components/PropertyModal';
+import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Search, Sparkles } from 'lucide-react';

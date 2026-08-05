@@ -67,7 +67,7 @@ async def process_chat(message: str, history: list) -> dict:
     """Processes a chat message using Gemini Pro and native tool calling."""
     import traceback
     try:
-        print(f"[Agent] Starting process_chat with model gemini-3.5-flash")
+        print(f"[Agent] Starting process_chat with model gemini-pro-latest")
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             print("[Agent] Error: GEMINI_API_KEY not found")
@@ -84,10 +84,10 @@ async def process_chat(message: str, history: list) -> dict:
         contents = []
         for h in history:
             contents.append(
-                types.Content(role=h["role"], parts=[types.Part.from_text(h["parts"])])
+                types.Content(role=h["role"], parts=[types.Part.from_text(text=h["parts"])])
             )
         contents.append(
-            types.Content(role="user", parts=[types.Part.from_text(message)])
+            types.Content(role="user", parts=[types.Part.from_text(text=message)])
         )
         
         system_instruction = "You are SydLiving AI, an expert relocation assistant for Sydney. Use the provided tools to lookup real property and commute data when asked. Respond in a friendly, concise manner."
@@ -112,31 +112,47 @@ async def process_chat(message: str, history: list) -> dict:
         response = chat.send_message(message)
         print(f"[Agent] Received response from model")
         
-        actions = []
-        
         # Check if the model made a function call to determine if we should trigger UI updates
         # The new SDK automatically resolves the function calls during chat.send_message
-        # We can inspect the chat history to see what tools were called and what they returned
+        # We can inspect the new chat history to see what tools were called
+        actions = []
         if chat.get_history():
-            for content in chat.get_history()[-2:]:
+            # Scan history for function calls, starting from the end
+            # We want to find function calls made in the current turn
+            for content in chat.get_history():
                 if content.role == "model" and content.parts:
                     for part in content.parts:
-                        if part.function_call:
+                        # In the new SDK, part.function_call might be an object
+                        if hasattr(part, 'function_call') and part.function_call:
                             fc = part.function_call
                             print(f"[Agent] Tool call detected: {fc.name}")
+                            
+                            # The args might be a dict directly or an object with an items() method or fields
+                            args_dict = {}
+                            if hasattr(fc.args, 'items'):
+                                args_dict = {k: v for k, v in fc.args.items()}
+                            elif isinstance(fc.args, dict):
+                                args_dict = fc.args
+                            else:
+                                # Sometimes it's an object with attributes
+                                for k in dir(fc.args):
+                                    if not k.startswith('_'):
+                                        args_dict[k] = getattr(fc.args, k)
+                            
+                            # Deduplicate actions
+                            action_type = None
                             if fc.name == "query_properties_tool":
-                                # Dispatch an action to update the UI
-                                args = {k: v for k, v in fc.args.items()}
-                                actions.append({
-                                    "action_type": "update_properties",
-                                    "data": args
-                                })
+                                action_type = "update_properties"
                             elif fc.name == "get_commute_tool":
-                                args = {k: v for k, v in fc.args.items()}
-                                actions.append({
-                                    "action_type": "update_commute",
-                                    "data": args
-                                })
+                                action_type = "update_commute"
+                                
+                            if action_type:
+                                new_action = {
+                                    "action_type": action_type,
+                                    "data": args_dict
+                                }
+                                if new_action not in actions:
+                                    actions.append(new_action)
 
         return {
             "reply": response.text,

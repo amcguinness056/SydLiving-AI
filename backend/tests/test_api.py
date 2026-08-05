@@ -44,3 +44,16 @@ def test_get_commute_no_match():
     assert response.status_code == 200
     data = response.json()
     assert data["commutes"] == []
+
+def test_chat_no_api_key():
+    import os
+    # Ensure key is missing for this test
+    if "GEMINI_API_KEY" in os.environ:
+        del os.environ["GEMINI_API_KEY"]
+    
+    response = client.post("/api/chat", json={"message": "Hello"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "GEMINI_API_KEY is not set" in data["reply"]
+    assert data["actions"] == []
+

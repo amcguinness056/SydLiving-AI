@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 from database import get_db_connection
-from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix
+from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse
+import agent
 
 app = FastAPI(title="SydLiving AI API", version="0.1.0")
 
@@ -70,4 +71,13 @@ def get_commute(
         
     results = [CommuteMatrix(**dict(row)) for row in rows]
     return CommuteResponse(commutes=results)
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    try:
+        response_data = await agent.process_chat(request.message, request.history)
+        return ChatResponse(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 

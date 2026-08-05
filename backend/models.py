@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import List, Optional
 
 class PropertyBase(BaseModel):
     id: str
@@ -17,19 +17,28 @@ class PropertyBase(BaseModel):
 class Property(PropertyBase):
     pass
 
-class CommuteMatrixBase(BaseModel):
+class PropertySearchResponse(BaseModel):
+    results: List[Property]
+    total: int
+
+class CommuteMatrix(BaseModel):
     origin_suburb: str
     destination_cbd_hub: str
     transit_mode: str
     duration_minutes: int
     peak_frequency_mins: int
 
-class CommuteMatrix(CommuteMatrixBase):
-    pass
-
-class PropertySearchResponse(BaseModel):
-    results: List[Property]
-    total: int
-
 class CommuteResponse(BaseModel):
     commutes: List[CommuteMatrix]
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[dict]] = []
+
+class AgentAction(BaseModel):
+    action_type: str  # e.g., "update_properties", "update_commute"
+    data: dict
+
+class ChatResponse(BaseModel):
+    reply: str
+    actions: List[AgentAction] = []

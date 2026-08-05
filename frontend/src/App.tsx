@@ -8,7 +8,7 @@ import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
-type MaximizedState = 'list' | 'map' | 'details' | null;
+type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -97,6 +97,13 @@ function App() {
       return "fixed inset-4 z-[100] rounded-[2rem] shadow-2xl border border-white/40 overflow-hidden animate-in fade-in zoom-in-95 duration-300";
     }
     return "w-full h-full relative";
+  };
+
+  const getChatClasses = () => {
+    if (maximizedPanel === 'chat') {
+      return "fixed inset-4 z-[120] bg-white rounded-[2rem] shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-300";
+    }
+    return "w-[400px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom-8 fade-in duration-300 relative z-10";
   };
 
   return (
@@ -190,21 +197,31 @@ function App() {
         
         {/* Chat Window */}
         {isChatOpen && (
-          <div className="w-[400px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom-8 fade-in duration-300">
+          <div className={getChatClasses()}>
             <div className="h-full relative z-10 bg-white/60 backdrop-blur-3xl flex flex-col">
               <div className="px-5 py-4 border-b border-indigo-100 bg-white/50 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-indigo-500" />
                   <span className="font-bold text-slate-800">SydLiving AI</span>
                 </div>
-                <button 
-                  onClick={() => setIsChatOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => toggleMaximize('chat')}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    title={maximizedPanel === 'chat' ? "Restore view" : "Enlarge chat"}
+                  >
+                    {maximizedPanel === 'chat' ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                  </button>
+                  <button 
+                    onClick={() => setIsChatOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    title="Close chat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex-1 relative">
+              <div className="flex-1 relative overflow-hidden">
                 <ChatPanel 
                   messages={messages} 
                   isThinking={isThinking} 
@@ -218,7 +235,7 @@ function App() {
         {/* Floating Action Button */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
-          className="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group"
+          className="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group relative z-50"
         >
           {isChatOpen ? (
             <X className="w-7 h-7 transition-transform group-hover:rotate-90" />

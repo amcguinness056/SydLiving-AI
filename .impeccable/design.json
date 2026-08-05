@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-05T20:38:30Z",
+  "title": "Design System: SydLiving AI",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Sydney Pacific Indigo",
+        "canonical": "oklch(50% 0.22 275)",
+        "tonalRamp": [
+          "#1e1b4b",
+          "#312e81",
+          "#3730a3",
+          "#4338ca",
+          "#4f46e5",
+          "#6366f1",
+          "#818cf8",
+          "#a5b4fc",
+          "#c7d2fe",
+          "#e0e7ff",
+          "#eef2ff"
+        ]
+      },
+      "accent-coastal": {
+        "role": "secondary",
+        "displayName": "Bondi Coastal Blue",
+        "canonical": "oklch(70% 0.16 230)",
+        "tonalRamp": [
+          "#1e3a8a",
+          "#1d4ed8",
+          "#2563eb",
+          "#3b82f6",
+          "#60a5fa",
+          "#93c5fd",
+          "#bfdbfe",
+          "#dbeafe",
+          "#eff6ff"
+        ]
+      },
+      "neutral-glass": {
+        "role": "neutral",
+        "displayName": "Harbor Mist Glass",
+        "canonical": "rgba(255, 255, 255, 0.4)",
+        "tonalRamp": [
+          "rgba(255,255,255,0.1)",
+          "rgba(255,255,255,0.2)",
+          "rgba(255,255,255,0.3)",
+          "rgba(255,255,255,0.4)",
+          "rgba(255,255,255,0.6)",
+          "rgba(255,255,255,0.8)",
+          "rgba(255,255,255,0.95)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display Title",
+        "purpose": "Brand titles and hero section headings with gradient text clip."
+      },
+      "body": {
+        "displayName": "Body & Assistant Prose",
+        "purpose": "Chat assistant responses, property descriptions, and filter metrics."
+      }
+    },
+    "shadows": [
+      {
+        "name": "glass-panel-shadow",
+        "value": "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+        "purpose": "Master container frame and enlarged panel overlays."
+      },
+      {
+        "name": "floating-widget-glow",
+        "value": "0 20px 25px -5px rgba(79, 70, 229, 0.25)",
+        "purpose": "Floating AI chat action button."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-coastal-spring",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Panel maximization and floating chat slide transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "desktop-split",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Sydney Pacific Indigo primary trigger button for filters, chat, and applications.",
+      "html": "<button class=\"ds-btn-primary\">Apply Filters</button>",
+      "css": ".ds-btn-primary { background: #4f46e5; color: #ffffff; padding: 10px 24px; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; border: none; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); transition: all 0.2s ease; cursor: pointer; } .ds-btn-primary:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3); }"
+    },
+    {
+      "name": "Property Card",
+      "kind": "card",
+      "refersTo": "card-property",
+      "description": "Interactive rental property listing card with price tag and amenity metrics.",
+      "html": "<div class=\"ds-card-property\"><div class=\"ds-card-header\"><h3 class=\"ds-card-title\">Surry Hills Modern Terrace</h3><span class=\"ds-card-price\">$750/wk</span></div><p class=\"ds-card-address\">📍 42 Crown St, Surry Hills</p><div class=\"ds-card-amenities\"><span>🛏️ 2 Beds</span><span>🛁 1 Baths</span><span>🌊 4.2 km beach</span></div></div>",
+      "css": ".ds-card-property { background: #ffffff; border: 1px solid #f1f5f9; border-radius: 1rem; padding: 16px; font-family: Inter, system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease; cursor: pointer; } .ds-card-property:hover { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #cbd5e1; } .ds-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .ds-card-title { font-size: 0.9375rem; font-weight: 600; color: #0f172a; margin: 0; } .ds-card-price { background: #4f46e5; color: #ffffff; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; } .ds-card-address { color: #64748b; font-size: 0.75rem; margin: 0 0 12px 0; } .ds-card-amenities { display: flex; gap: 12px; font-size: 0.75rem; color: #475569; font-weight: 500; }"
+    },
+    {
+      "name": "Glass Chat Bubble (AI Response)",
+      "kind": "custom",
+      "refersTo": "chat-bubble",
+      "description": "Translucent glass response bubble from SydLiving AI assistant.",
+      "html": "<div class=\"ds-chat-bubble\"><span class=\"ds-chat-author\">✨ SydLiving AI</span><p class=\"ds-chat-text\">I found 3 great properties in Surry Hills! Average commute to Martin Place is 14 mins by light rail.</p></div>",
+      "css": ".ds-chat-bubble { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 1rem; border-top-left-radius: 0.25rem; padding: 12px 16px; font-family: Inter, system-ui, sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 320px; } .ds-chat-author { font-size: 0.75rem; font-weight: 700; color: #4f46e5; display: block; margin-bottom: 4px; } .ds-chat-text { font-size: 0.875rem; color: #334155; margin: 0; line-height: 1.4; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Coastal Glass Sanctuary",
+    "overview": "SydLiving AI captures the essence of Sydney's coastal radiance and natural Australian light through ultra-refined glassmorphism, fluid spatial mapping, and organic depth.",
+    "keyCharacteristics": [
+      "Australian coastal radiance with layered glassmorphism.",
+      "Vibrant Sydney Pacific indigo accents balanced by crisp slate neutrals.",
+      "Spatial-first split-screen canvas with resizable panel boundaries.",
+      "Tactile, rounded surface geometry."
+    ],
+    "rules": [
+      {
+        "name": "The 10% Indigo Rule",
+        "body": "Primary indigo is reserved strictly for key interactive triggers, active selected states, and AI sparkles.",
+        "section": "colors"
+      },
+      {
+        "name": "The Frosted Layering Rule",
+        "body": "Never layer solid white containers directly on solid backgrounds; always use backdrop-blur glass filters.",
+        "section": "colors"
+      },
+      {
+        "name": "The Glass Border Rule",
+        "body": "Every translucent panel must carry a hairline white border to delineate glass boundaries.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do wrap primary layout panels in translucent glass layers with backdrop-blur-xl and border border-white/40.",
+      "Do preserve 2rem master container radii across desktop layout viewports.",
+      "Do use Bondi Coastal Blue (#60a5fa) for ocean/beach distance and transit highlights."
+    ],
+    "donts": [
+      "Don't use opaque solid gray or black backgrounds for floating panels.",
+      "Don't use sharp, 0px-radius box corners.",
+      "Don't saturate screens with more than 10% primary indigo."
+    ]
+  }
+}

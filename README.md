@@ -12,6 +12,19 @@ This project is built as a local-first, full-stack prototype:
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS
 - **AI Agent:** Native Tool Calling via Gemini Pro API
 
+```mermaid
+graph TD
+    User([User]) <-->|Natural Language Queries| UI[React 19 Frontend]
+    User <-->|Interactive Map| UI
+    
+    UI <-->|REST API & JSON| API[FastAPI Backend]
+    
+    API <-->|Tool Execution & Search| DB[(SQLite Database)]
+    API <-->|Native Function Calling| LLM((Gemini Pro Agent))
+    
+    DB -->|Properties & Commute Data| API
+    LLM -.->|Determines Tool to Use| API
+```
 ### Core Features (In Development)
 1. **Property Search Endpoint:** Filter by suburb, max rent, min bedrooms.
 2. **Commute Calculation:** Origin to CBD hub total time and route.

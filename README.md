@@ -25,11 +25,11 @@ graph TD
     DB -->|Properties & Commute Data| API
     LLM -.->|Determines Tool to Use| API
 ```
-### Core Features (In Development)
-1. **Property Search Endpoint:** Filter by suburb, max rent, min bedrooms.
-2. **Commute Calculation:** Origin to CBD hub total time and route.
-3. **Agentic Tool Use:** Natural language query execution.
-4. **Interactive Dashboard:** Split-screen UI with a map view (Leaflet) and conversational chat interface.
+### Core Features
+1. **Property Search Endpoint:** Filter by suburb, max rent, min bedrooms. (Backend Complete)
+2. **Commute Calculation:** Origin to CBD hub total time and route. (Backend Complete)
+3. **Agentic Tool Use:** Natural language query execution. (In Development)
+4. **Interactive Dashboard:** Modern Split-screen UI featuring Glassmorphism, a React-Leaflet map view, and a conversational chat interface panel. (UI Layout Complete)
 
 ---
 

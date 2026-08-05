@@ -7,3 +7,18 @@
     @apply bg-slate-50 text-slate-900;
   }
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-300/50 rounded-full hover:bg-slate-400/50;
+}
+
+/* Map override to fit radius */
+.leaflet-container {
+  border-radius: 1.5rem;
+}

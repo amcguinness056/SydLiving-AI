@@ -54,12 +54,12 @@ const createCustomPriceIcon = (rent: number, isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
   html: `<div class="relative flex items-center justify-center px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all duration-300 cursor-pointer ${
     isActive 
-      ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white scale-110 z-[100] ring-4 ring-rose-200 shadow-rose-500/30' 
+      ? 'bg-rose-500 text-white scale-110 z-[100] ring-4 ring-rose-200 shadow-rose-500/30 animate-marker-pulse' 
       : 'bg-slate-900/90 backdrop-blur-md text-white hover:bg-indigo-600 hover:scale-105 border border-white/40'
   }">
           <span>$${rent}</span>
           <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${
-            isActive ? 'bg-amber-500' : 'bg-slate-900/90'
+            isActive ? 'bg-rose-500' : 'bg-slate-900/90'
           }"></div>
          </div>`,
   iconSize: [60, 30],
@@ -104,7 +104,7 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
       </MapContainer>
 
       {/* Glass Legend Overlay */}
-      <div className="absolute bottom-4 left-4 z-40 bg-white/80 backdrop-blur-md border border-white/60 px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold text-slate-700">
+      <div className="absolute bottom-4 left-4 z-40 bg-white/80 backdrop-blur-md border border-white/60 px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold text-slate-700 animate-float-subtle">
         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Sydney Coastal Transit Active</span>
       </div>

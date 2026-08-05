@@ -5,7 +5,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Search, Sparkles } from 'lucide-react';
-import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);

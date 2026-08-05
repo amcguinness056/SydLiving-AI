@@ -1,27 +1,76 @@
 import { useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
-import { api, type Property } from './api/client';
+import { api, type Property, type AgentAction } from './api/client';
+import { ChatPanel, type Message } from './components/ChatPanel';
 import { Search, Sparkles } from 'lucide-react';
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isThinking, setIsThinking] = useState(false);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
 
+  // Initial load
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await api.getProperties();
-        setProperties(data);
-      } catch (err) {
-        console.error("Failed to load properties", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    loadProperties();
   }, []);
+
+  async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
+    setLoading(true);
+    try {
+      const data = await api.getProperties(filters);
+      setProperties(data);
+    } catch (err) {
+      console.error("Failed to load properties", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleAgentAction = (action: AgentAction) => {
+    if (action.action_type === 'update_properties') {
+      loadProperties(action.data);
+    }
+    // We could add update_commute here in the future to show commute routes on the map
+  };
+
+  const handleSendMessage = async (text: string) => {
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
+    setMessages(prev => [...prev, userMsg]);
+    setIsThinking(true);
+
+    try {
+      // Send chat with history format expected by backend
+      const response = await api.sendChatMessage(text, chatHistory);
+      
+      const agentMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: response.reply };
+      setMessages(prev => [...prev, agentMsg]);
+      
+      // Update history for next turn
+      setChatHistory(prev => [
+        ...prev, 
+        { role: 'user', parts: text }, 
+        { role: 'model', parts: response.reply }
+      ]);
+
+      // Process state sync actions
+      if (response.actions && response.actions.length > 0) {
+        response.actions.forEach(action => handleAgentAction(action));
+      }
+
+    } catch (err) {
+      console.error("Failed to send message", err);
+      const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: 'Oops! I had trouble connecting to the server.' };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsThinking(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50">
@@ -37,7 +86,7 @@ function App() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Filter suburbs..." 
+              placeholder="Filter suburbs (use chat)..." 
               className="w-full pl-9 pr-4 py-2 bg-white/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm backdrop-blur-sm"
               disabled
             />
@@ -49,6 +98,10 @@ function App() {
           <div className="w-96 flex flex-col gap-4 overflow-y-auto pr-2 pb-4 snap-y z-10 relative custom-scrollbar">
             {loading ? (
               <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
+            ) : properties.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
+                No properties found matching this criteria. Try asking for something else!
+              </div>
             ) : (
               properties.map(p => (
                 <div key={p.id} className="snap-start shrink-0">
@@ -69,34 +122,16 @@ function App() {
         </div>
       </div>
 
-      {/* Right Panel: AI Assistant (Placeholder for Iteration 6) */}
-      <div className="w-[400px] bg-white/40 backdrop-blur-2xl border border-white/50 rounded-3xl shadow-xl flex flex-col overflow-hidden relative">
-        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
-        
-        <div className="p-6 border-b border-white/20 bg-white/40">
-          <h2 className="font-bold text-slate-800 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-500" />
-            AI Relocation Assistant
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Powered by Gemini Pro</p>
-        </div>
-
-        <div className="flex-1 p-6 flex flex-col items-center justify-center text-center text-slate-400">
-          <div className="w-16 h-16 bg-white/50 rounded-2xl shadow-sm flex items-center justify-center mb-4">
-            <Sparkles className="w-8 h-8 text-indigo-300" />
-          </div>
-          <p className="text-sm">Agent Interface<br/>(Coming in Iteration 6)</p>
-        </div>
-        
-        <div className="p-4 bg-white/40 border-t border-white/20">
-          <div className="bg-white/50 border border-white border-b-0 rounded-t-xl p-3 text-sm text-slate-400 flex items-center">
-            Ask me anything about Sydney rentals...
-          </div>
-        </div>
-      </div>
+      {/* Right Panel: AI Assistant */}
+      <ChatPanel 
+        messages={messages} 
+        isThinking={isThinking} 
+        onSendMessage={handleSendMessage} 
+      />
 
     </div>
   );
 }
 
 export default App;
+

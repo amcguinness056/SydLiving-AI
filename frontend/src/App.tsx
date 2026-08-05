@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
+import { PropertyModal } from './components/PropertyModal';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Search, Sparkles } from 'lucide-react';
@@ -8,6 +9,7 @@ import { Search, Sparkles } from 'lucide-react';
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Chat state
@@ -25,6 +27,8 @@ function App() {
     try {
       const data = await api.getProperties(filters);
       setProperties(data);
+      setSelectedId(null);
+      setModalPropertyId(null);
     } catch (err) {
       console.error("Failed to load properties", err);
     } finally {
@@ -108,7 +112,10 @@ function App() {
                   <PropertyCard 
                     property={p} 
                     isActive={selectedId === p.id}
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => {
+                      setSelectedId(p.id);
+                      setModalPropertyId(p.id);
+                    }}
                   />
                 </div>
               ))
@@ -129,9 +136,15 @@ function App() {
         onSendMessage={handleSendMessage} 
       />
 
+      {/* Property Modal */}
+      {modalPropertyId && (
+        <PropertyModal 
+          property={properties.find(p => p.id === modalPropertyId)!} 
+          onClose={() => setModalPropertyId(null)} 
+        />
+      )}
     </div>
   );
 }
 
 export default App;
-

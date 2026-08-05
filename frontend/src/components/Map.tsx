@@ -17,22 +17,34 @@ interface MapProps {
   selectedPropertyId?: string | null;
 }
 
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ properties, selectedId }: { properties: Property[], selectedId?: string | null }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, 13, { duration: 1.5 });
-  }, [center, map]);
+    if (selectedId) {
+      const p = properties.find(x => x.id === selectedId);
+      if (p) {
+        map.flyTo([p.latitude, p.longitude], 15, { duration: 1.5 });
+      }
+    } else if (properties.length > 0) {
+      const bounds = L.latLngBounds(properties.map(p => [p.latitude, p.longitude]));
+      map.flyToBounds(bounds, { duration: 1.5, padding: [50, 50], maxZoom: 14 });
+    }
+  }, [properties, selectedId, map]);
   return null;
 }
 
+const createCustomIcon = (isActive: boolean) => L.divIcon({
+  className: 'bg-transparent',
+  html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-indigo-600 scale-125 z-50' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+         </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
+
 export function Map({ properties, selectedPropertyId }: MapProps) {
-  // Sydney coordinates
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
-  
-  const selectedProperty = properties.find(p => p.id === selectedPropertyId);
-  const center = selectedProperty 
-    ? [selectedProperty.latitude, selectedProperty.longitude] as [number, number]
-    : defaultCenter;
 
   return (
     <div className="w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20">
@@ -51,14 +63,15 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
           <Marker 
             key={property.id} 
             position={[property.latitude, property.longitude]}
+            icon={createCustomIcon(selectedPropertyId === property.id)}
           >
-            <Popup className="rounded-xl overflow-hidden">
-              <div className="font-semibold text-slate-800">{property.title}</div>
-              <div className="text-indigo-600 font-bold mt-1">${property.weekly_rent}/wk</div>
+            <Popup className="rounded-xl overflow-hidden shadow-lg border-0">
+              <div className="font-semibold text-slate-800 text-base leading-tight">{property.title}</div>
+              <div className="text-indigo-600 font-black mt-1">${property.weekly_rent}/wk</div>
             </Popup>
           </Marker>
         ))}
-        <MapUpdater center={center} />
+        <MapUpdater properties={properties} selectedId={selectedPropertyId} />
       </MapContainer>
     </div>
   );

@@ -34,7 +34,7 @@ export function ChatPanel({ messages, isThinking, onSendMessage }: ChatPanelProp
   };
 
   return (
-    <div className="w-[400px] bg-white/40 backdrop-blur-2xl border border-white/50 rounded-3xl shadow-xl flex flex-col overflow-hidden relative">
+    <div className="w-full h-full bg-white/40 backdrop-blur-2xl flex flex-col overflow-hidden relative border-l border-white/50">
       <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
       
       {/* Header */}

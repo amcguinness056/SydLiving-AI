@@ -1,15 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
+import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Search, Sparkles } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { cn } from './lib/utils';
+
+type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // UI State
+  const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [rightPanelWidth, setRightPanelWidth] = useState(0);
+  const [activeFilters, setActiveFilters] = useState<any>(null);
+
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
@@ -22,9 +34,12 @@ function App() {
 
   async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
     setLoading(true);
+    setActiveFilters(filters || null);
     try {
       const data = await api.getProperties(filters);
       setProperties(data);
+      setSelectedId(null);
+      setModalPropertyId(null);
     } catch (err) {
       console.error("Failed to load properties", err);
     } finally {
@@ -36,7 +51,6 @@ function App() {
     if (action.action_type === 'update_properties') {
       loadProperties(action.data);
     }
-    // We could add update_commute here in the future to show commute routes on the map
   };
 
   const handleSendMessage = async (text: string) => {
@@ -72,66 +86,197 @@ function App() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50">
-      
-      {/* Left Panel: Explore (Map & Cards) */}
-      <div className="flex-1 flex flex-col gap-4 h-full relative">
-        <header className="flex items-center gap-2 px-4 py-3 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl shadow-sm z-10 relative">
-          <Sparkles className="w-6 h-6 text-indigo-500" />
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
-            SydLiving AI
-          </h1>
-          <div className="ml-auto relative w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Filter suburbs (use chat)..." 
-              className="w-full pl-9 pr-4 py-2 bg-white/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm backdrop-blur-sm"
-              disabled
-            />
-          </div>
-        </header>
+  const toggleMaximize = (panel: MaximizedState) => {
+    setMaximizedPanel(prev => prev === panel ? null : panel);
+  };
 
-        <div className="flex-1 relative flex gap-4 min-h-0">
-          {/* Property List */}
-          <div className="w-96 flex flex-col gap-4 overflow-y-auto pr-2 pb-4 snap-y z-10 relative custom-scrollbar">
-            {loading ? (
-              <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
-            ) : properties.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
-                No properties found matching this criteria. Try asking for something else!
+  const handleMapSelect = (id: string) => {
+    setSelectedId(id);
+    setModalPropertyId(id);
+  };
+
+  const handleLayout = (sizes: number[]) => {
+    if (sizes.length === 3) {
+      setRightPanelWidth(sizes[2]);
+    } else {
+      setRightPanelWidth(0);
+    }
+  };
+
+  const getMaximizedClasses = (panelName: MaximizedState) => {
+    if (maximizedPanel === panelName) {
+      return "fixed inset-4 z-[100] rounded-[2rem] shadow-2xl border border-white/40 overflow-hidden animate-in fade-in zoom-in-95 duration-300";
+    }
+    return "w-full h-full relative";
+  };
+
+  const getChatClasses = () => {
+    if (maximizedPanel === 'chat') {
+      return "fixed inset-4 z-[120] bg-white rounded-[2rem] shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-300";
+    }
+    return "w-[400px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom-8 fade-in duration-300 relative z-10";
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50 relative">
+      
+      <PanelGroup 
+        orientation="horizontal" 
+        className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
+        onLayout={handleLayout}
+      >
+        
+        {/* Left Panel: Property List */}
+        <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-white/20">
+          <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl")}>
+            <header className="flex items-center justify-between px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-indigo-500" />
+                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
+                  SydLiving AI
+                </h1>
               </div>
-            ) : (
-              properties.map(p => (
-                <div key={p.id} className="snap-start shrink-0">
+              <button 
+                onClick={() => toggleMaximize('list')}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white/50 rounded-lg transition-colors"
+                title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
+              >
+                {maximizedPanel === 'list' ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              </button>
+            </header>
+
+            {activeFilters && (
+              <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
+                <span className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Filter Applied
+                </span>
+                <button 
+                  onClick={() => loadProperties()}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-white hover:bg-indigo-100 px-3 py-1 rounded-full border border-indigo-200 transition-colors shadow-sm"
+                >
+                  Reset List
+                </button>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar relative z-0">
+              {loading ? (
+                <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
+              ) : properties.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
+                  No properties found matching this criteria. Try asking for something else!
+                </div>
+              ) : (
+                properties.map(p => (
                   <PropertyCard 
+                    key={p.id}
                     property={p} 
                     isActive={selectedId === p.id}
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => {
+                      setSelectedId(p.id);
+                      setModalPropertyId(p.id);
+                      if (maximizedPanel === 'list') setMaximizedPanel(null);
+                    }}
                   />
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-          
-          {/* Map View */}
-          <div className="flex-1 relative z-0">
-            <Map properties={properties} selectedPropertyId={selectedId} />
-          </div>
-        </div>
-      </div>
+        </Panel>
 
-      {/* Right Panel: AI Assistant */}
-      <ChatPanel 
-        messages={messages} 
-        isThinking={isThinking} 
-        onSendMessage={handleSendMessage} 
-      />
+        <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+        
+        {/* Center Panel: Map */}
+        <Panel className="bg-slate-200">
+          <div className={cn(getMaximizedClasses('map'), "bg-slate-200")}>
+            <Map 
+              properties={properties} 
+              selectedPropertyId={selectedId} 
+              onSelectProperty={handleMapSelect}
+              isMaximized={maximizedPanel === 'map'}
+              onToggleMaximize={() => toggleMaximize('map')}
+            />
+          </div>
+        </Panel>
+
+        {/* Right Panel: Property Details */}
+        {modalPropertyId && (
+          <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+        )}
+        {modalPropertyId && (
+          <Panel defaultSize="22" minSize="20" maxSize="35" className="bg-white">
+            <div className={cn(getMaximizedClasses('details'), "bg-white")}>
+              <PropertyPanel 
+                property={properties.find(p => p.id === modalPropertyId)!} 
+                onClose={() => setModalPropertyId(null)} 
+                isMaximized={maximizedPanel === 'details'}
+                onToggleMaximize={() => toggleMaximize('details')}
+              />
+            </div>
+          </Panel>
+        )}
+
+      </PanelGroup>
+
+      {/* Floating AI Chat Widget */}
+      <div 
+        className="fixed bottom-6 z-[110] flex flex-col items-end gap-4 pointer-events-none transition-all duration-300"
+        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : `calc(${rightPanelWidth}vw + 1.5rem)` }}
+      >
+        
+        {/* Chat Window */}
+        {isChatOpen && (
+          <div className={getChatClasses()}>
+            <div className="h-full relative z-10 bg-white/60 backdrop-blur-3xl flex flex-col">
+              <div className="px-5 py-4 border-b border-indigo-100 bg-white/50 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-500" />
+                  <span className="font-bold text-slate-800">SydLiving AI</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => toggleMaximize('chat')}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    title={maximizedPanel === 'chat' ? "Restore view" : "Enlarge chat"}
+                  >
+                    {maximizedPanel === 'chat' ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                  </button>
+                  <button 
+                    onClick={() => setIsChatOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    title="Close chat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 relative overflow-hidden">
+                <ChatPanel 
+                  messages={messages} 
+                  isThinking={isThinking} 
+                  onSendMessage={handleSendMessage} 
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Action Button */}
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group relative z-50"
+        >
+          {isChatOpen ? (
+            <X className="w-7 h-7 transition-transform group-hover:rotate-90" />
+          ) : (
+            <MessageCircle className="w-7 h-7" />
+          )}
+        </button>
+      </div>
 
     </div>
   );
 }
 
 export default App;
-

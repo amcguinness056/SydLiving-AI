@@ -65,72 +65,84 @@ def get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
 
 async def process_chat(message: str, history: list) -> dict:
     """Processes a chat message using Gemini Pro and native tool calling."""
-    
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return {
-            "reply": "Error: GEMINI_API_KEY is not set in the backend environment. Please configure it to enable the AI Agent.",
-            "actions": []
-        }
+    import traceback
+    try:
+        print(f"[Agent] Starting process_chat with model gemini-3.5-flash")
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            print("[Agent] Error: GEMINI_API_KEY not found")
+            return {
+                "reply": "Error: GEMINI_API_KEY is not set in the backend environment. Please configure it to enable the AI Agent.",
+                "actions": []
+            }
+            
+        print("[Agent] Initializing client")
+        client = genai.Client(api_key=api_key)
         
-    client = genai.Client(api_key=api_key)
-    
-    # Simple history formatting
-    # Note: For production, map history dicts to types.Content properly
-    contents = []
-    for h in history:
+        # Simple history formatting
+        # Note: For production, map history dicts to types.Content properly
+        contents = []
+        for h in history:
+            contents.append(
+                types.Content(role=h["role"], parts=[types.Part.from_text(h["parts"])])
+            )
         contents.append(
-            types.Content(role=h["role"], parts=[types.Part.from_text(h["parts"])])
+            types.Content(role="user", parts=[types.Part.from_text(message)])
         )
-    contents.append(
-        types.Content(role="user", parts=[types.Part.from_text(message)])
-    )
-    
-    system_instruction = "You are SydLiving AI, an expert relocation assistant for Sydney. Use the provided tools to lookup real property and commute data when asked. Respond in a friendly, concise manner."
-    
-    tools = [query_properties_tool, get_commute_tool]
-    
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=tools,
-        temperature=0.3,
-    )
-    
-    # We use a chat session to automatically handle the multi-turn tool calling
-    chat = client.chats.create(model="gemini-2.5-pro", config=config)
-    
-    # Pre-load history if the SDK supports it (workaround for basic chat)
-    if history:
-        chat._history = contents[:-1]
         
-    response = chat.send_message(message)
-    
-    actions = []
-    
-    # Check if the model made a function call to determine if we should trigger UI updates
-    # The new SDK automatically resolves the function calls during chat.send_message
-    # We can inspect the chat history to see what tools were called and what they returned
-    if chat.get_history():
-        for content in chat.get_history()[-2:]:
-            if content.role == "model" and content.parts:
-                for part in content.parts:
-                    if part.function_call:
-                        fc = part.function_call
-                        if fc.name == "query_properties_tool":
-                            # Dispatch an action to update the UI
-                            args = {k: v for k, v in fc.args.items()}
-                            actions.append({
-                                "action_type": "update_properties",
-                                "data": args
-                            })
-                        elif fc.name == "get_commute_tool":
-                            args = {k: v for k, v in fc.args.items()}
-                            actions.append({
-                                "action_type": "update_commute",
-                                "data": args
-                            })
+        system_instruction = "You are SydLiving AI, an expert relocation assistant for Sydney. Use the provided tools to lookup real property and commute data when asked. Respond in a friendly, concise manner."
+        
+        tools = [query_properties_tool, get_commute_tool]
+        
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            tools=tools,
+            temperature=0.3,
+        )
+        
+        print(f"[Agent] Creating chat session")
+        # We use a chat session to automatically handle the multi-turn tool calling
+        chat = client.chats.create(model="gemini-3.5-flash", config=config)
+        
+        # Pre-load history if the SDK supports it (workaround for basic chat)
+        if history:
+            chat._history = contents[:-1]
+            
+        print(f"[Agent] Sending message to model: {message}")
+        response = chat.send_message(message)
+        print(f"[Agent] Received response from model")
+        
+        actions = []
+        
+        # Check if the model made a function call to determine if we should trigger UI updates
+        # The new SDK automatically resolves the function calls during chat.send_message
+        # We can inspect the chat history to see what tools were called and what they returned
+        if chat.get_history():
+            for content in chat.get_history()[-2:]:
+                if content.role == "model" and content.parts:
+                    for part in content.parts:
+                        if part.function_call:
+                            fc = part.function_call
+                            print(f"[Agent] Tool call detected: {fc.name}")
+                            if fc.name == "query_properties_tool":
+                                # Dispatch an action to update the UI
+                                args = {k: v for k, v in fc.args.items()}
+                                actions.append({
+                                    "action_type": "update_properties",
+                                    "data": args
+                                })
+                            elif fc.name == "get_commute_tool":
+                                args = {k: v for k, v in fc.args.items()}
+                                actions.append({
+                                    "action_type": "update_commute",
+                                    "data": args
+                                })
 
-    return {
-        "reply": response.text,
-        "actions": actions
-    }
+        return {
+            "reply": response.text,
+            "actions": actions
+        }
+    except Exception as e:
+        print("[Agent] FATAL ERROR IN process_chat")
+        traceback.print_exc()
+        raise e

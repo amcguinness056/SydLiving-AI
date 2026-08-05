@@ -66,6 +66,10 @@ uvicorn main:app --reload
 ```
 The API will be available at `http://localhost:8000`. You can view the interactive API documentation at `http://localhost:8000/docs`.
 
+### API Endpoints
+- `GET /api/properties`: Search properties. Query params: `suburbs` (list of strings), `max_rent` (float), `min_bedrooms` (int).
+- `GET /api/commute`: Get commute matrix. Query params: `origin_suburb` (string), `destination_cbd_hub` (string).
+
 ### 3. Frontend Setup (React + Vite)
 
 ```bash

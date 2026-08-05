@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { type Property } from '../api/client';
+import { Maximize, Minimize } from 'lucide-react';
 
 // Fix Leaflet's default icon path issues in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -15,6 +16,9 @@ L.Icon.Default.mergeOptions({
 interface MapProps {
   properties: Property[];
   selectedPropertyId?: string | null;
+  onSelectProperty?: (id: string) => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 function MapUpdater({ properties, selectedId }: { properties: Property[], selectedId?: string | null }) {
@@ -48,7 +52,7 @@ function MapResizer() {
 
 const createCustomIcon = (isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
-  html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-indigo-600 scale-125 z-50' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
+  html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-rose-500 scale-125 z-[100] ring-4 ring-rose-300' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
          </div>`,
   iconSize: [32, 32],
@@ -56,7 +60,7 @@ const createCustomIcon = (isActive: boolean) => L.divIcon({
   popupAnchor: [0, -32],
 });
 
-export function Map({ properties, selectedPropertyId }: MapProps) {
+export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize }: MapProps) {
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
 
   return (
@@ -65,7 +69,7 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
         center={defaultCenter} 
         zoom={12} 
         scrollWheelZoom={true} 
-        className="w-full h-full"
+        className="w-full h-full z-0"
         zoomControl={false}
       >
         <TileLayer
@@ -77,6 +81,7 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
             key={property.id} 
             position={[property.latitude, property.longitude]}
             icon={createCustomIcon(selectedPropertyId === property.id)}
+            eventHandlers={{ click: () => onSelectProperty && onSelectProperty(property.id) }}
           >
             <Popup className="rounded-xl overflow-hidden shadow-lg border-0">
               <div className="font-semibold text-slate-800 text-base leading-tight">{property.title}</div>
@@ -87,6 +92,17 @@ export function Map({ properties, selectedPropertyId }: MapProps) {
         <MapUpdater properties={properties} selectedId={selectedPropertyId} />
         <MapResizer />
       </MapContainer>
+
+      {/* Floating UI overlays on map */}
+      {onToggleMaximize && (
+        <button
+          onClick={onToggleMaximize}
+          className="absolute top-4 right-4 z-50 bg-white/90 backdrop-blur-sm hover:bg-white text-slate-700 p-2.5 rounded-xl shadow-lg border border-slate-200/50 transition-all hover:scale-105 active:scale-95"
+          title={isMaximized ? "Restore view" : "Enlarge map"}
+        >
+          {isMaximized ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+        </button>
+      )}
     </div>
   );
 }

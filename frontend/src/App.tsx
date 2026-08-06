@@ -5,7 +5,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction, type User } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Sparkles, Maximize, Minimize, MessageCircle, X, LogOut, User as UserIcon, Heart, Briefcase } from 'lucide-react';
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { booleanPointInPolygon, point } from '@turf/turf';
 
@@ -257,7 +257,7 @@ function App() {
       >
         
         {/* Left Panel: Property List */}
-        <Panel defaultSize={25} minSize={20} maxSize={40} className="bg-white/20 flex flex-col h-full">
+        <Panel defaultSize={25} minSize={20} maxSize={40} className="bg-white/20 flex flex-col h-full min-w-0">
           <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl h-full")}>
             <header className="flex flex-col px-4 py-3.5 bg-white/80 backdrop-blur-xl border-b border-white/60 shadow-xs z-10 shrink-0 gap-3">
               <div className="flex items-center justify-between">
@@ -451,8 +451,8 @@ function App() {
         <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         
         {/* Center Panel: Map */}
-        <Panel className="bg-slate-200">
-          <div className={cn(getMaximizedClasses('map'), "bg-slate-200")}>
+        <Panel className="bg-slate-200 min-w-0">
+          <div className={cn(getMaximizedClasses('map'), "bg-slate-200 min-w-0")}>
             <Map 
               properties={displayedProperties} 
               selectedPropertyId={selectedId} 

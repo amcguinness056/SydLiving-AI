@@ -251,9 +251,8 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden relative">
       
-      {/* @ts-ignore */}
       <PanelGroup 
-        orientation="horizontal" 
+        direction="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/50 bg-white/40 backdrop-blur-xl"
       >
         

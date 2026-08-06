@@ -14,7 +14,10 @@ export function PropertyCard({ property, className, onClick, isActive, index = 0
   return (
     <div
       onClick={onClick}
-      style={{ animationDelay: `${index * 60}ms` }}
+      style={{ 
+        animationDelay: `${index * 60}ms`,
+        viewTransitionName: isActive ? 'property-drawer-hero' : undefined
+      }}
       className={cn(
         "bg-white/80 hover:bg-white backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 hover:border-indigo-200 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
         isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 border-indigo-200 shadow-md shadow-indigo-100/50 -translate-y-1",

@@ -113,3 +113,10 @@
 .mode-dawn .leaflet-tile-pane {
   filter: saturate(1.2) hue-rotate(5deg);
 }
+
+/* View Transitions for Shared-Element Card-to-Drawer Morphing */
+::view-transition-old(property-drawer-hero),
+::view-transition-new(property-drawer-hero) {
+  animation-duration: 450ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}

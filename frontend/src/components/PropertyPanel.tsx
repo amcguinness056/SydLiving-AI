@@ -13,7 +13,10 @@ export function PropertyPanel({ property, onClose, isMaximized, onToggleMaximize
     <div className="h-full w-full flex flex-col bg-white/70 backdrop-blur-2xl relative overflow-hidden animate-in slide-in-from-right-8 duration-300">
       
       {/* Header Banner */}
-      <div className="w-full h-52 bg-slate-900 relative shrink-0 overflow-hidden">
+      <div 
+        style={{ viewTransitionName: 'property-drawer-hero' }}
+        className="w-full h-52 bg-slate-900 relative shrink-0 overflow-hidden"
+      >
         {/* Subtle mesh background decoration */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(79,70,229,0.4),transparent)] pointer-events-none" />
         

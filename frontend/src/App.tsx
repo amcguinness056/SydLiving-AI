@@ -92,9 +92,20 @@ function App() {
     setMaximizedPanel(prev => prev === panel ? null : panel);
   };
 
+  const selectPropertyWithTransition = (id: string | null) => {
+    if ('startViewTransition' in document && typeof (document as any).startViewTransition === 'function') {
+      (document as any).startViewTransition(() => {
+        setSelectedId(id);
+        setModalPropertyId(id);
+      });
+    } else {
+      setSelectedId(id);
+      setModalPropertyId(id);
+    }
+  };
+
   const handleMapSelect = (id: string) => {
-    setSelectedId(id);
-    setModalPropertyId(id);
+    selectPropertyWithTransition(id);
   };
 
   const handleLayout = (sizes: number[]) => {
@@ -217,8 +228,7 @@ function App() {
                     index={idx}
                     isActive={selectedId === p.id}
                     onClick={() => {
-                      setSelectedId(p.id);
-                      setModalPropertyId(p.id);
+                      selectPropertyWithTransition(p.id);
                       if (maximizedPanel === 'list') setMaximizedPanel(null);
                     }}
                   />

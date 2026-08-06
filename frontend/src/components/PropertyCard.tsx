@@ -1,4 +1,4 @@
-import { BedDouble, Bath, MapPin, Waves, Navigation, Heart } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves, Heart } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -21,6 +21,12 @@ export function PropertyCard({ property, className, onClick, isActive, isSaved, 
         className
       )}
     >
+      {/* Photo */}
+      <div className="w-full h-36 rounded-xl mb-3 overflow-hidden relative shadow-inner shrink-0 bg-slate-100">
+        <img src={property.photo_url} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60" />
+      </div>
+
       {/* Top row: Title and Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-2">
         <h3 className="font-bold text-slate-800 line-clamp-1 text-[15px]">

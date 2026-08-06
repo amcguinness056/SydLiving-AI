@@ -12,6 +12,8 @@ export interface Property {
   longitude: number;
   distance_to_beach_km: number;
   available_date: string;
+  description: string;
+  photo_url: string;
 }
 
 export interface Commute {

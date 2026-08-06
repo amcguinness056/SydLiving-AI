@@ -28,6 +28,10 @@ def search_properties(
     suburbs: Optional[List[str]] = Query(None, description="List of suburbs to filter by"),
     max_rent: Optional[float] = Query(None, description="Maximum weekly rent in AUD"),
     min_bedrooms: Optional[int] = Query(None, description="Minimum number of bedrooms"),
+    keyword: Optional[str] = Query(None, description="Keyword search in title"),
+    property_type: Optional[str] = Query(None, description="Property type filter"),
+    circle: Optional[str] = Query(None, description="Circle filter: lat,lng,radius_m"),
+    polygon: Optional[str] = Query(None, description="Polygon filter: lat,lng;lat,lng..."),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
     query = "SELECT * FROM properties WHERE 1=1"
@@ -45,12 +49,57 @@ def search_properties(
     if min_bedrooms is not None:
         query += " AND bedrooms >= ?"
         params.append(min_bedrooms)
+
+    if keyword:
+        query += " AND title LIKE ?"
+        params.append(f"%{keyword}%")
+        
+    if property_type:
+        query += " AND title LIKE ?"
+        params.append(f"%{property_type}%")
         
     cursor = db.cursor()
     cursor.execute(query, params)
     rows = cursor.fetchall()
     
     results = [Property(**dict(row)) for row in rows]
+    
+    if circle:
+        try:
+            clat, clng, cradius = map(float, circle.split(','))
+            from math import radians, sin, cos, sqrt, atan2
+            def calc_distance(lat1, lon1, lat2, lon2):
+                R = 6371000 # meters
+                dlat = radians(lat2 - lat1)
+                dlon = radians(lon2 - lon1)
+                a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+                c = 2 * atan2(sqrt(a), sqrt(1-a))
+                return R * c
+            results = [p for p in results if calc_distance(clat, clng, p.latitude, p.longitude) <= cradius]
+        except Exception as e:
+            print("Circle filter error:", e)
+            
+    if polygon:
+        try:
+            points = [tuple(map(float, pt.split(','))) for pt in polygon.split(';') if pt]
+            def point_in_poly(lat, lng, poly):
+                n = len(poly)
+                inside = False
+                p1x, p1y = poly[0]
+                for i in range(1, n + 1):
+                    p2x, p2y = poly[i % n]
+                    if min(p1y, p2y) < lng <= max(p1y, p2y):
+                        if lat <= max(p1x, p2x):
+                            if p1y != p2y:
+                                xinters = (lng - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                            if p1x == p2x or lat <= xinters:
+                                inside = not inside
+                    p1x, p1y = p2x, p2y
+                return inside
+            results = [p for p in results if point_in_poly(p.latitude, p.longitude, points)]
+        except Exception as e:
+            print("Polygon filter error:", e)
+
     return PropertySearchResponse(results=results, total=len(results))
 
 @app.get("/api/commute", response_model=CommuteResponse)

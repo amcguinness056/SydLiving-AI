@@ -33,13 +33,17 @@ export interface ChatResponse {
 }
 
 export const api = {
-  getProperties: async (filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }): Promise<Property[]> => {
+  getProperties: async (filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number, keyword?: string, property_type?: string, circle?: string, polygon?: string }): Promise<Property[]> => {
     let url = `${BASE_URL}/properties`;
     if (filters) {
       const params = new URLSearchParams();
       if (filters.suburb) params.append('suburbs', filters.suburb);
       if (filters.max_rent) params.append('max_rent', filters.max_rent.toString());
       if (filters.min_bedrooms) params.append('min_bedrooms', filters.min_bedrooms.toString());
+      if (filters.keyword) params.append('keyword', filters.keyword);
+      if (filters.property_type) params.append('property_type', filters.property_type);
+      if (filters.circle) params.append('circle', filters.circle);
+      if (filters.polygon) params.append('polygon', filters.polygon);
       if (params.toString()) {
         url += `?${params.toString()}`;
       }

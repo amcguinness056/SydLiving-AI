@@ -19,8 +19,12 @@ function App() {
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [rightPanelWidth, setRightPanelWidth] = useState(0);
   const [activeFilters, setActiveFilters] = useState<any>(null);
+
+  // Search State
+  const [keywordFilter, setKeywordFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [spatialFilter, setSpatialFilter] = useState<{ circle?: string, polygon?: string } | null>(null);
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,7 +36,7 @@ function App() {
     loadProperties();
   }, []);
 
-  async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
+  async function loadProperties(filters?: any) {
     setLoading(true);
     setActiveFilters(filters || null);
     try {
@@ -47,6 +51,17 @@ function App() {
     }
   }
 
+  const applyFilters = () => {
+    const filters = {
+      ...activeFilters,
+      keyword: keywordFilter || undefined,
+      property_type: typeFilter || undefined,
+      circle: spatialFilter?.circle,
+      polygon: spatialFilter?.polygon
+    };
+    loadProperties(filters);
+  };
+
   const handleAgentAction = (action: AgentAction) => {
     if (action.action_type === 'update_properties') {
       loadProperties(action.data);
@@ -59,24 +74,20 @@ function App() {
     setIsThinking(true);
 
     try {
-      // Send chat with history format expected by backend
       const response = await api.sendChatMessage(text, chatHistory);
       
       const agentMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: response.reply };
       setMessages(prev => [...prev, agentMsg]);
       
-      // Update history for next turn
       setChatHistory(prev => [
         ...prev, 
         { role: 'user', parts: text }, 
         { role: 'model', parts: response.reply }
       ]);
 
-      // Process state sync actions
       if (response.actions && response.actions.length > 0) {
         response.actions.forEach(action => handleAgentAction(action));
       }
-
     } catch (err) {
       console.error("Failed to send message", err);
       const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: 'Oops! I had trouble connecting to the server.' };
@@ -95,13 +106,7 @@ function App() {
     setModalPropertyId(id);
   };
 
-  const handleLayout = (sizes: number[]) => {
-    if (sizes.length === 3) {
-      setRightPanelWidth(sizes[2]);
-    } else {
-      setRightPanelWidth(0);
-    }
-  };
+
 
   const getMaximizedClasses = (panelName: MaximizedState) => {
     if (maximizedPanel === panelName) {
@@ -123,12 +128,11 @@ function App() {
       <PanelGroup 
         orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
-        onLayout={handleLayout}
       >
         
         {/* Left Panel: Property List */}
-        <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-white/20">
-          <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl")}>
+        <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-white/20 flex flex-col h-full">
+          <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl h-full")}>
             <header className="flex items-center justify-between px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-6 h-6 text-indigo-500" />
@@ -145,14 +149,50 @@ function App() {
               </button>
             </header>
 
+            <div className="px-4 py-3 bg-white/40 backdrop-blur-md border-b border-white/40 shadow-sm z-10 shrink-0 flex flex-col gap-2">
+              <input 
+                type="text"
+                placeholder="Search descriptions..."
+                className="w-full px-3 py-2 bg-white/60 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                value={keywordFilter}
+                onChange={e => setKeywordFilter(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && applyFilters()}
+              />
+              <div className="flex gap-2">
+                <select 
+                  className="flex-1 px-3 py-2 bg-white/60 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-700"
+                  value={typeFilter}
+                  onChange={e => setTypeFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  <option value="Apartment">Apartment</option>
+                  <option value="House">House</option>
+                  <option value="Studio">Studio</option>
+                  <option value="Terrace">Terrace</option>
+                  <option value="Sharehouse">Sharehouse</option>
+                </select>
+                <button 
+                  onClick={applyFilters}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+
             {activeFilters && (
               <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
                 <span className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  AI Filter Applied
+                  Filter Applied
                 </span>
                 <button 
-                  onClick={() => loadProperties()}
+                  onClick={() => {
+                    setKeywordFilter('');
+                    setTypeFilter('');
+                    setSpatialFilter(null);
+                    loadProperties();
+                  }}
                   className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-white hover:bg-indigo-100 px-3 py-1 rounded-full border border-indigo-200 transition-colors shadow-sm"
                 >
                   Reset List
@@ -196,6 +236,28 @@ function App() {
               onSelectProperty={handleMapSelect}
               isMaximized={maximizedPanel === 'map'}
               onToggleMaximize={() => toggleMaximize('map')}
+              onDrawCreated={(layer: any, type: string) => {
+                let spatial: any = null;
+                if (type === 'circle') {
+                  const latlng = layer.getLatLng();
+                  const radius = layer.getRadius();
+                  spatial = { circle: `${latlng.lat},${latlng.lng},${radius}` };
+                } else if (type === 'polygon' || type === 'rectangle') {
+                  const latlngs = layer.getLatLngs()[0];
+                  const points = latlngs.map((ll: any) => `${ll.lat},${ll.lng}`).join(';');
+                  spatial = { polygon: points };
+                }
+                setSpatialFilter(spatial);
+                const filters = { ...activeFilters, keyword: keywordFilter || undefined, property_type: typeFilter || undefined, ...spatial };
+                loadProperties(filters);
+              }}
+              onDrawDeleted={() => {
+                setSpatialFilter(null);
+                const filters = { ...activeFilters, keyword: keywordFilter || undefined, property_type: typeFilter || undefined };
+                delete filters.circle;
+                delete filters.polygon;
+                loadProperties(filters);
+              }}
             />
           </div>
         </Panel>
@@ -222,7 +284,7 @@ function App() {
       {/* Floating AI Chat Widget */}
       <div 
         className="fixed bottom-6 z-[110] flex flex-col items-end gap-4 pointer-events-none transition-all duration-300"
-        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : `calc(${rightPanelWidth}vw + 1.5rem)` }}
+        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : '1.5rem' }}
       >
         
         {/* Chat Window */}

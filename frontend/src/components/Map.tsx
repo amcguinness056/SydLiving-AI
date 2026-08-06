@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
 import L from 'leaflet';
+import 'leaflet-draw';
 import { type Property } from '../api/client';
 import { Maximize, Minimize } from 'lucide-react';
 
@@ -19,6 +21,8 @@ interface MapProps {
   onSelectProperty?: (id: string) => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  onDrawCreated?: (layer: any, type: string) => void;
+  onDrawDeleted?: () => void;
 }
 
 function MapUpdater({ properties, selectedId }: { properties: Property[], selectedId?: string | null }) {
@@ -50,6 +54,56 @@ function MapResizer() {
   return null;
 }
 
+function DrawControl({ onDrawCreated, onDrawDeleted }: { onDrawCreated?: any, onDrawDeleted?: any }) {
+  const map = useMap();
+  useEffect(() => {
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    
+    // @ts-ignore
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems,
+      },
+      draw: {
+        polyline: false,
+        marker: false,
+        circlemarker: false,
+        polygon: {} as any,
+        circle: {} as any,
+        rectangle: {} as any,
+      }
+    });
+    
+    map.addControl(drawControl);
+    
+    const handleCreated = (e: any) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      if (onDrawCreated) onDrawCreated(e.layer, e.layerType);
+    };
+    
+    const handleDeleted = () => {
+      if (onDrawDeleted) onDrawDeleted();
+    };
+
+    // @ts-ignore
+    map.on(L.Draw.Event.CREATED, handleCreated);
+    // @ts-ignore
+    map.on(L.Draw.Event.DELETED, handleDeleted);
+    
+    return () => {
+      map.removeControl(drawControl);
+      // @ts-ignore
+      map.off(L.Draw.Event.CREATED, handleCreated);
+      // @ts-ignore
+      map.off(L.Draw.Event.DELETED, handleDeleted);
+      map.removeLayer(drawnItems);
+    };
+  }, [map, onDrawCreated, onDrawDeleted]);
+  return null;
+}
+
 const createCustomIcon = (isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
   html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full ${isActive ? 'bg-rose-500 scale-125 z-[100] ring-4 ring-rose-300' : 'bg-indigo-500'} text-white shadow-lg border-2 border-white transition-all duration-300 origin-bottom">
@@ -60,7 +114,7 @@ const createCustomIcon = (isActive: boolean) => L.divIcon({
   popupAnchor: [0, -32],
 });
 
-export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize }: MapProps) {
+export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize, onDrawCreated, onDrawDeleted }: MapProps) {
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
 
   return (
@@ -72,6 +126,7 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
         className="w-full h-full z-0"
         zoomControl={false}
       >
+        <DrawControl onDrawCreated={onDrawCreated} onDrawDeleted={onDrawDeleted} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"

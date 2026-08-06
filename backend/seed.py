@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 DB_PATH = "sydliving.db"
 
 def create_tables(cursor):
+    cursor.execute('DROP TABLE IF EXISTS properties;')
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS properties (
         id TEXT PRIMARY KEY,
@@ -18,7 +19,9 @@ def create_tables(cursor):
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
         distance_to_beach_km REAL NOT NULL,
-        available_date TEXT NOT NULL
+        available_date TEXT NOT NULL,
+        description TEXT NOT NULL,
+        photo_url TEXT NOT NULL
     );
     ''')
 
@@ -135,8 +138,28 @@ def seed_data(cursor):
         title = f"{adj} {bed}BR {prop_type} in {suburb}"
         address = f"{random.randint(1, 350)} {street}, {suburb}, NSW"
         
+        description = f"This {adj.lower()} {bed} bedroom, {bath} bathroom {prop_type.lower()} in {suburb} offers an exceptional Sydney lifestyle. Situated on {street}, it boasts modern amenities, spacious interiors, and is perfectly positioned for convenience and comfort."
+        
+        valid_photos = [
+            "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1502672260266-1c1de2d96674?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&auto=format&fit=crop"
+        ]
+        photo_url = random.choice(valid_photos)
+        
         lat_offset = random.uniform(-0.015, 0.015)
-        lon_offset = random.uniform(-0.015, 0.015)
+        
+        # Prevent coastal properties from spawning in the ocean by pushing them inland (west)
+        if suburb in ["Bondi", "Coogee"]:
+            lon_offset = random.uniform(-0.02, 0)
+        elif suburb == "Manly":
+            lon_offset = random.uniform(-0.015, 0.005)
+        else:
+            lon_offset = random.uniform(-0.015, 0.015)
         
         available_days = random.randint(0, 30)
         available_date = (datetime.now() + timedelta(days=available_days)).strftime('%Y-%m-%d')
@@ -152,12 +175,14 @@ def seed_data(cursor):
             data["lat"] + lat_offset,
             data["lon"] + lon_offset,
             data["beach_dist"] + random.uniform(-0.2, 0.5),
-            available_date
+            available_date,
+            description,
+            photo_url
         ))
 
     cursor.executemany('''
-    INSERT INTO properties (id, title, suburb, bedrooms, bathrooms, weekly_rent, address, latitude, longitude, distance_to_beach_km, available_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO properties (id, title, suburb, bedrooms, bathrooms, weekly_rent, address, latitude, longitude, distance_to_beach_km, available_date, description, photo_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', properties)
 
     # Generate Commute Matrix

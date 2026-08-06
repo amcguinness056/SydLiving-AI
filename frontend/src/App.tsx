@@ -52,7 +52,8 @@ function App() {
         body: JSON.stringify({
           locations: [{ lat, lon: lng }],
           costing: "auto",
-          contours: [{ time: 15 }, { time: 30 }, { time: 45 }]
+          contours: [{ time: 15 }, { time: 30 }, { time: 45 }],
+          polygons: true
         })
       });
       if (res.ok) {

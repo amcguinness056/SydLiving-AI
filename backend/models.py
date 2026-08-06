@@ -31,8 +31,34 @@ class CommuteMatrix(BaseModel):
 class CommuteResponse(BaseModel):
     commutes: List[CommuteMatrix]
 
+class User(BaseModel):
+    id: str
+    username: str
+
+class ChatSession(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+class ChatMessage(BaseModel):
+    id: str
+    session_id: str
+    role: str
+    content: str
+    created_at: str
+
+class ChatSessionResponse(BaseModel):
+    sessions: List[ChatSession]
+
+class ChatMessageResponse(BaseModel):
+    messages: List[ChatMessage]
+
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
     history: Optional[List[dict]] = []
 
 class AgentAction(BaseModel):

@@ -33,6 +33,45 @@ def create_tables(cursor):
     );
     ''')
 
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS saved_properties (
+        user_id TEXT NOT NULL,
+        property_id TEXT NOT NULL,
+        PRIMARY KEY (user_id, property_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (property_id) REFERENCES properties(id)
+    );
+    ''')
+
 def seed_data(cursor):
     # Sydney Suburbs and their approx coords
     suburbs = {

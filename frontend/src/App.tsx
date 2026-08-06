@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
-import { api, type Property, type AgentAction } from './api/client';
+import { api, type Property, type AgentAction, type User } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, LogOut, User as UserIcon, Heart } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
@@ -12,25 +12,45 @@ type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
+  const [savedProperties, setSavedProperties] = useState<Property[]>([]);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [rightPanelWidth, setRightPanelWidth] = useState(0);
+  
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
+    const userId = localStorage.getItem('user_id');
+    const username = localStorage.getItem('username');
+    if (userId && username) {
+      setUser({ id: userId, username });
+    }
     loadProperties();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadSavedProperties();
+    } else {
+      setSavedProperties([]);
+      setShowSavedOnly(false);
+    }
+  }, [user]);
 
   async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
     setLoading(true);
@@ -47,9 +67,59 @@ function App() {
     }
   }
 
+  async function loadSavedProperties() {
+    try {
+      const data = await api.getSavedProperties();
+      setSavedProperties(data);
+    } catch (err) {
+      console.error("Failed to load saved properties", err);
+    }
+  }
+
+  const handleLogin = async () => {
+    const username = prompt("Enter username:");
+    if (!username) return;
+    try {
+      const newUser = await api.login(username);
+      setUser(newUser);
+      localStorage.setItem('user_id', newUser.id);
+      localStorage.setItem('username', newUser.username);
+    } catch (err) {
+      console.error("Login failed", err);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('username');
+    setCurrentSessionId(null);
+    setMessages([]);
+    setChatHistory([]);
+  };
+
+  const handleToggleSave = async (id: string, isSaved: boolean) => {
+    if (!user) {
+      alert("Please login to save properties");
+      return;
+    }
+    try {
+      if (isSaved) {
+        await api.unsaveProperty(id);
+      } else {
+        await api.saveProperty(id);
+      }
+      loadSavedProperties();
+    } catch (err) {
+      console.error("Failed to toggle save", err);
+    }
+  };
+
   const handleAgentAction = (action: AgentAction) => {
     if (action.action_type === 'update_properties') {
       loadProperties(action.data);
+    } else if (action.action_type === 'set_session') {
+      setCurrentSessionId(action.data.session_id);
     }
   };
 
@@ -59,20 +129,17 @@ function App() {
     setIsThinking(true);
 
     try {
-      // Send chat with history format expected by backend
-      const response = await api.sendChatMessage(text, chatHistory);
+      const response = await api.sendChatMessage(text, chatHistory, currentSessionId || undefined);
       
       const agentMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: response.reply };
       setMessages(prev => [...prev, agentMsg]);
       
-      // Update history for next turn
       setChatHistory(prev => [
         ...prev, 
         { role: 'user', parts: text }, 
         { role: 'model', parts: response.reply }
       ]);
 
-      // Process state sync actions
       if (response.actions && response.actions.length > 0) {
         response.actions.forEach(action => handleAgentAction(action));
       }
@@ -86,6 +153,24 @@ function App() {
     }
   };
 
+  const handleSelectSession = async (sessionId: string | null) => {
+    setCurrentSessionId(sessionId);
+    if (!sessionId) {
+      setMessages([]);
+      setChatHistory([]);
+      return;
+    }
+    try {
+      const msgs = await api.getChatMessages(sessionId);
+      const formattedMsgs = msgs.map(m => ({ id: m.id, role: m.role as 'user' | 'model', content: m.content }));
+      setMessages(formattedMsgs);
+      const history = formattedMsgs.map(m => ({ role: m.role, parts: m.content }));
+      setChatHistory(history);
+    } catch (err) {
+      console.error("Failed to load session messages", err);
+    }
+  };
+
   const toggleMaximize = (panel: MaximizedState) => {
     setMaximizedPanel(prev => prev === panel ? null : panel);
   };
@@ -95,13 +180,7 @@ function App() {
     setModalPropertyId(id);
   };
 
-  const handleLayout = (sizes: number[]) => {
-    if (sizes.length === 3) {
-      setRightPanelWidth(sizes[2]);
-    } else {
-      setRightPanelWidth(0);
-    }
-  };
+
 
   const getMaximizedClasses = (panelName: MaximizedState) => {
     if (maximizedPanel === panelName) {
@@ -117,32 +196,66 @@ function App() {
     return "w-[400px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-white/50 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom-8 fade-in duration-300 relative z-10";
   };
 
+  const displayedProperties = showSavedOnly ? properties.filter(p => savedProperties.some(sp => sp.id === p.id)) : properties;
+
   return (
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50 relative">
       
       <PanelGroup 
         orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
-        onLayout={handleLayout}
+        
       >
         
         {/* Left Panel: Property List */}
-        <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-white/20">
+        <Panel defaultSize={25} minSize={20} maxSize={40} className="bg-white/20">
           <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl")}>
-            <header className="flex items-center justify-between px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-indigo-500" />
-                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
-                  SydLiving AI
-                </h1>
+            <header className="flex flex-col px-4 py-4 bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm z-10 shrink-0 gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-indigo-500" />
+                  <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500">
+                    SydLiving AI
+                  </h1>
+                </div>
+                <div className="flex items-center gap-2">
+                  {user ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-600 flex items-center gap-1"><UserIcon className="w-3.5 h-3.5"/> {user.username}</span>
+                      <button onClick={handleLogout} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Logout">
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={handleLogin} className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                      Login
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => toggleMaximize('list')}
+                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white/50 rounded-lg transition-colors ml-1"
+                    title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
+                  >
+                    {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <button 
-                onClick={() => toggleMaximize('list')}
-                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white/50 rounded-lg transition-colors"
-                title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
-              >
-                {maximizedPanel === 'list' ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowSavedOnly(false)}
+                  className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 text-slate-600 hover:bg-white")}
+                >
+                  All Properties
+                </button>
+                <button 
+                  onClick={() => setShowSavedOnly(true)}
+                  className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 text-slate-600 hover:bg-white")}
+                >
+                  <Heart className="w-3.5 h-3.5" /> Saved ({savedProperties.length})
+                </button>
+              </div>
+
             </header>
 
             {activeFilters && (
@@ -163,16 +276,18 @@ function App() {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar relative z-0">
               {loading ? (
                 <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
-              ) : properties.length === 0 ? (
+              ) : displayedProperties.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
-                  No properties found matching this criteria. Try asking for something else!
+                  {showSavedOnly ? "No saved properties yet. Click the heart on a property to save it!" : "No properties found matching this criteria. Try asking for something else!"}
                 </div>
               ) : (
-                properties.map(p => (
+                displayedProperties.map(p => (
                   <PropertyCard 
                     key={p.id}
                     property={p} 
                     isActive={selectedId === p.id}
+                    isSaved={savedProperties.some(sp => sp.id === p.id)}
+                    onToggleSave={handleToggleSave}
                     onClick={() => {
                       setSelectedId(p.id);
                       setModalPropertyId(p.id);
@@ -191,7 +306,7 @@ function App() {
         <Panel className="bg-slate-200">
           <div className={cn(getMaximizedClasses('map'), "bg-slate-200")}>
             <Map 
-              properties={properties} 
+              properties={displayedProperties} 
               selectedPropertyId={selectedId} 
               onSelectProperty={handleMapSelect}
               isMaximized={maximizedPanel === 'map'}
@@ -205,7 +320,7 @@ function App() {
           <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         )}
         {modalPropertyId && (
-          <Panel defaultSize="22" minSize="20" maxSize="35" className="bg-white">
+          <Panel defaultSize={22} minSize={20} maxSize={35} className="bg-white">
             <div className={cn(getMaximizedClasses('details'), "bg-white")}>
               <PropertyPanel 
                 property={properties.find(p => p.id === modalPropertyId)!} 
@@ -222,7 +337,7 @@ function App() {
       {/* Floating AI Chat Widget */}
       <div 
         className="fixed bottom-6 z-[110] flex flex-col items-end gap-4 pointer-events-none transition-all duration-300"
-        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : `calc(${rightPanelWidth}vw + 1.5rem)` }}
+        style={{ right: maximizedPanel === 'chat' ? '1.5rem' : `calc(35vw + 1.5rem)` }}
       >
         
         {/* Chat Window */}
@@ -256,6 +371,9 @@ function App() {
                   messages={messages} 
                   isThinking={isThinking} 
                   onSendMessage={handleSendMessage} 
+                  onSelectSession={handleSelectSession}
+                  currentSessionId={currentSessionId}
+                  isLoggedIn={!!user}
                 />
               </div>
             </div>

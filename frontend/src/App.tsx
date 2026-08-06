@@ -165,7 +165,6 @@ function App() {
       console.error("Failed to toggle save", err);
     }
   };
-  };
 
   const handleAgentAction = (action: AgentAction) => {
     if (action.action_type === 'update_properties') {

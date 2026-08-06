@@ -87,28 +87,56 @@ def seed_data(cursor):
     cbd_hubs = ["Barangaroo", "Martin Place", "Central", "Town Hall"]
     transit_modes = ["Train", "Bus", "Ferry", "Light Rail"]
 
-    # Generate Properties
-    properties = []
-    adjectives = ["Spacious", "Sunny", "Modern", "Cozy", "Luxury", "Quiet", "Charming"]
+    real_streets = {
+        "Coogee": ["Arden Street", "Coogee Bay Road", "Dolphin Street", "Mount Street", "Bream Street"],
+        "Bondi": ["Campbell Parade", "Curlewis Street", "Hall Street", "Glenayr Avenue", "Blair Street"],
+        "Newtown": ["King Street", "Enmore Road", "Alice Street", "Australia Street", "Wilson Street"],
+        "Surry Hills": ["Crown Street", "Bourke Street", "Riley Street", "Foveaux Street", "Albion Street"],
+        "Manly": ["The Corso", "Darley Road", "Sydney Road", "Pittwater Road", "Bower Street"],
+        "Parramatta": ["Church Street", "Macquarie Street", "George Street", "Victoria Road", "O'Connell Street"],
+        "Chatswood": ["Victoria Avenue", "Albert Avenue", "Archer Street", "Pacific Highway", "Help Street"]
+    }
+
+    adjectives = {
+        "Apartment": ["Sleek", "Modern", "Sun-drenched", "Executive", "Designer", "Oversized", "Boutique"],
+        "Sharehouse": ["Sociable", "Relaxed", "Vibrant", "Creative", "Spacious", "Friendly", "Convenient"],
+        "Studio": ["Chic", "Minimalist", "Cozy", "Urban", "Light-filled", "Renovated", "Compact"],
+        "Terrace": ["Victorian", "Historic", "Restored", "Charming", "Classic", "Contemporary", "Elegant"],
+        "House": ["Family-friendly", "Luxurious", "Architectural", "Private", "Entertainer's", "Grand", "Beautiful"]
+    }
+    
     types = ["Apartment", "Sharehouse", "Studio", "Terrace", "House"]
+    properties = []
     
     for _ in range(50):
         suburb = random.choice(list(suburbs.keys()))
         data = suburbs[suburb]
+        street = random.choice(real_streets[suburb])
         
+        prop_type = random.choice(types)
         bed = random.randint(1, 5)
+        if prop_type == "Studio":
+            bed = 1
+        elif prop_type == "Sharehouse":
+            bed = random.randint(3, 6)
+            
         bath = random.randint(1, max(1, bed - 1))
+        if prop_type == "Studio":
+            bath = 1
         
-        # Base rent heavily depends on bedrooms and slightly on suburb
-        base_rent = bed * 350
-        rent_modifier = random.uniform(0.8, 1.5)
+        # Base rent depends heavily on suburb and bedrooms
+        suburb_multiplier = {"Bondi": 1.4, "Manly": 1.3, "Surry Hills": 1.25, "Coogee": 1.2, "Newtown": 1.1, "Chatswood": 1.0, "Parramatta": 0.75}
+        
+        base_rent = bed * 350 * suburb_multiplier[suburb]
+        rent_modifier = random.uniform(0.9, 1.2)
         weekly_rent = round(base_rent * rent_modifier / 10) * 10
         
-        title = f"{random.choice(adjectives)} {bed}BR {random.choice(types)} in {suburb}"
-        address = f"{random.randint(1, 200)} Fake Street, {suburb}, NSW"
+        adj = random.choice(adjectives[prop_type])
+        title = f"{adj} {bed}BR {prop_type} in {suburb}"
+        address = f"{random.randint(1, 350)} {street}, {suburb}, NSW"
         
-        lat_offset = random.uniform(-0.005, 0.005)
-        lon_offset = random.uniform(-0.005, 0.005)
+        lat_offset = random.uniform(-0.015, 0.015)
+        lon_offset = random.uniform(-0.015, 0.015)
         
         available_days = random.randint(0, 30)
         available_date = (datetime.now() + timedelta(days=available_days)).strftime('%Y-%m-%d')

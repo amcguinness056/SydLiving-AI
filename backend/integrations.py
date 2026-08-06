@@ -34,8 +34,10 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
                         "longitude": item.get("listing", {}).get("propertyDetails", {}).get("longitude", 0.0),
                     })
                 return results
-        except Exception:
-            pass
+            else:
+                print(f"Domain API Error: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Domain API Exception: {e}")
 
     # Fallback to local DB
     db = sqlite3.connect(DB_PATH, check_same_thread=False)

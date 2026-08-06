@@ -1,6 +1,10 @@
 import sqlite3
 import traceback
 import uuid
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from datetime import datetime
 from fastapi import FastAPI, Depends, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware

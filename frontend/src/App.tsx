@@ -5,7 +5,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction, type User } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { Sparkles, Maximize, Minimize, MessageCircle, X, LogOut, User as UserIcon, Heart, Briefcase } from 'lucide-react';
-import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { booleanPointInPolygon, point } from '@turf/turf';
 
@@ -253,7 +253,7 @@ function App() {
       
       <PanelGroup 
         autoSaveId="app-layout"
-        direction="horizontal" 
+        orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/50 bg-white/40 backdrop-blur-xl"
       >
         

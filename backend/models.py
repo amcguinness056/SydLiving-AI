@@ -31,12 +31,21 @@ class CommuteMatrix(BaseModel):
 class CommuteResponse(BaseModel):
     commutes: List[CommuteMatrix]
 
+class Place(BaseModel):
+    name: str
+    type: str
+    vicinity: str
+    rating: Optional[float] = None
+
+class PlaceResponse(BaseModel):
+    places: List[Place]
+
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[dict]] = []
 
 class AgentAction(BaseModel):
-    action_type: str  # e.g., "update_properties", "update_commute"
+    action_type: str  # e.g., "update_properties", "update_commute", "update_places"
     data: dict
 
 class ChatResponse(BaseModel):

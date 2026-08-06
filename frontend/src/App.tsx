@@ -4,11 +4,12 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, Sun, Sunrise, Sunset, Moon } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
+type AtmosphereMode = 'midday' | 'dawn' | 'golden' | 'twilight';
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -16,7 +17,8 @@ function App() {
   const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // UI State
+  // UI State & Overdrive Atmosphere Shader Mode
+  const [atmosphere, setAtmosphere] = useState<AtmosphereMode>('midday');
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(0);
@@ -118,7 +120,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden relative">
+    <div className={cn("min-h-screen flex p-4 gap-4 h-screen font-sans overflow-hidden relative sydney-atmosphere", `mode-${atmosphere}`)}>
       
       <PanelGroup 
         orientation="horizontal" 
@@ -143,6 +145,39 @@ function App() {
                   </p>
                 </div>
               </div>
+
+              {/* Overdrive Sunlight Atmosphere Selector */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                <button 
+                  onClick={() => setAtmosphere('dawn')}
+                  className={cn("p-1.5 rounded-lg transition-all text-xs", atmosphere === 'dawn' ? "bg-amber-100 text-amber-900 font-bold shadow-xs" : "text-slate-400 hover:text-slate-600")}
+                  title="Sydney Dawn Sunbeam"
+                >
+                  <Sunrise className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setAtmosphere('midday')}
+                  className={cn("p-1.5 rounded-lg transition-all text-xs", atmosphere === 'midday' ? "bg-sky-100 text-sky-900 font-bold shadow-xs" : "text-slate-400 hover:text-slate-600")}
+                  title="Bondi Midday Radiance"
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setAtmosphere('golden')}
+                  className={cn("p-1.5 rounded-lg transition-all text-xs", atmosphere === 'golden' ? "bg-orange-100 text-orange-900 font-bold shadow-xs" : "text-slate-400 hover:text-slate-600")}
+                  title="Harbor Golden Hour"
+                >
+                  <Sunset className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setAtmosphere('twilight')}
+                  className={cn("p-1.5 rounded-lg transition-all text-xs", atmosphere === 'twilight' ? "bg-indigo-900 text-indigo-100 font-bold shadow-xs" : "text-slate-400 hover:text-slate-600")}
+                  title="Sydney Twilight / Night"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               <button 
                 onClick={() => toggleMaximize('list')}
                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/80 rounded-xl border border-transparent hover:border-slate-200 transition-all"

@@ -3,7 +3,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply bg-slate-50 text-slate-900 transition-colors duration-500;
   }
 }
 
@@ -20,6 +20,7 @@
 /* Map override to fit radius */
 .leaflet-container {
   border-radius: 1.5rem;
+  transition: filter 500ms ease;
 }
 
 /* Authored Motion Keyframes & Deceleration Curves */
@@ -52,6 +53,18 @@
   }
 }
 
+@keyframes sunbeamShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .animate-spring-entry {
   animation: springEntry 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -62,4 +75,41 @@
 
 .animate-float-subtle {
   animation: floatSubtle 4s ease-in-out infinite;
+}
+
+/* Atmosphere Shader Modes */
+.sydney-atmosphere {
+  background-size: 200% 200%;
+  animation: sunbeamShift 15s ease infinite;
+  transition: all 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-midday {
+  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #f1f5f9 100%);
+}
+
+.mode-dawn {
+  background: linear-gradient(135deg, #fff7ed 0%, #fef2f2 40%, #e0f2fe 100%);
+}
+
+.mode-golden {
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 50%, #fee2e2 100%);
+}
+
+.mode-twilight {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0369a1 100%);
+  color: #f8fafc;
+}
+
+/* Map Dark Filter for Twilight */
+.mode-twilight .leaflet-tile-pane {
+  filter: brightness(0.7) invert(0.9) contrast(1.2) hue-rotate(200deg);
+}
+
+.mode-golden .leaflet-tile-pane {
+  filter: sepia(0.3) saturate(1.4) hue-rotate(-10deg);
+}
+
+.mode-dawn .leaflet-tile-pane {
+  filter: saturate(1.2) hue-rotate(5deg);
 }

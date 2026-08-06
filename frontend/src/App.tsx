@@ -4,9 +4,10 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, Briefcase } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
+import { booleanPointInPolygon, point } from '@turf/turf';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -30,6 +31,40 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
+
+  // Commute state
+  const [workplace, setWorkplace] = useState<{ lat: number, lng: number } | null>(null);
+  const [isSettingWorkplace, setIsSettingWorkplace] = useState(false);
+  const [isochrones, setIsochrones] = useState<any>(null);
+  const [maxCommuteTime, setMaxCommuteTime] = useState<number | null>(null);
+
+  const fetchIsochrones = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch('https://valhalla1.openstreetmap.de/isochrone', {
+        method: 'POST',
+        body: JSON.stringify({
+          locations: [{ lat, lon: lng }],
+          costing: "auto",
+          contours: [{ time: 15 }, { time: 30 }, { time: 45 }]
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsochrones(data);
+        if (!maxCommuteTime) setMaxCommuteTime(30);
+      }
+    } catch (err) {
+      console.error("Failed to fetch isochrones", err);
+    }
+  };
+
+  const handleMapClick = (lat: number, lng: number) => {
+    if (isSettingWorkplace) {
+      setWorkplace({ lat, lng });
+      setIsSettingWorkplace(false);
+      fetchIsochrones(lat, lng);
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -125,8 +160,10 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50 relative">
       
+      {/* @ts-ignore */}
       <PanelGroup 
         orientation="horizontal" 
+        className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 bg-white/40 backdrop-blur-xl"
       >
         
@@ -200,15 +237,72 @@ function App() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar relative z-0">
-              {loading ? (
-                <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>
-              ) : properties.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
-                  No properties found matching this criteria. Try asking for something else!
+            {/* Commute Isochrones Panel */}
+            <div className="px-4 py-3 bg-white/60 backdrop-blur-xl border-b border-white/40 flex flex-col gap-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4 text-emerald-500" />
+                  Commute Isochrones
+                </span>
+                <button 
+                  onClick={() => setIsSettingWorkplace(!isSettingWorkplace)}
+                  className={cn(
+                    "text-xs font-bold px-3 py-1.5 rounded-full border transition-colors shadow-sm",
+                    isSettingWorkplace 
+                      ? "bg-emerald-100 text-emerald-700 border-emerald-300 animate-pulse" 
+                      : "bg-white text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200 hover:border-emerald-200"
+                  )}
+                >
+                  {isSettingWorkplace ? "Click on map..." : workplace ? "Change Workplace" : "Set Workplace"}
+                </button>
+              </div>
+              
+              {workplace && isochrones && (
+                <div className="flex gap-2">
+                  {[15, 30, 45].map(time => (
+                    <button
+                      key={time}
+                      onClick={() => setMaxCommuteTime(maxCommuteTime === time ? null : time)}
+                      className={cn(
+                        "flex-1 text-xs font-semibold py-1.5 rounded-lg border transition-all",
+                        maxCommuteTime === time 
+                          ? "bg-emerald-500 text-white border-emerald-600 shadow-md" 
+                          : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50"
+                      )}
+                    >
+                      {time} min
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                properties.map(p => (
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar relative z-0">
+              {(() => {
+                const filteredProperties = properties.filter(p => {
+                  if (workplace && isochrones && maxCommuteTime) {
+                    const feature = isochrones.features.find((f: any) => f.properties.contour === maxCommuteTime);
+                    if (feature) {
+                      const pt = point([p.longitude, p.latitude]);
+                      return booleanPointInPolygon(pt, feature);
+                    }
+                  }
+                  return true;
+                });
+
+                if (loading) {
+                  return <div className="p-8 text-center text-slate-400 animate-pulse">Loading properties...</div>;
+                }
+                
+                if (filteredProperties.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-slate-400 bg-white/40 backdrop-blur-md rounded-2xl border border-white/40">
+                      No properties found matching this criteria. Try asking for something else!
+                    </div>
+                  );
+                }
+
+                return filteredProperties.map(p => (
                   <PropertyCard 
                     key={p.id}
                     property={p} 
@@ -219,8 +313,8 @@ function App() {
                       if (maximizedPanel === 'list') setMaximizedPanel(null);
                     }}
                   />
-                ))
-              )}
+                ));
+              })()}
             </div>
           </div>
         </Panel>
@@ -258,6 +352,10 @@ function App() {
                 delete filters.polygon;
                 loadProperties(filters);
               }}
+              workplace={workplace}
+              isochrones={isochrones}
+              isSettingWorkplace={isSettingWorkplace}
+              onMapClick={handleMapClick}
             />
           </div>
         </Panel>

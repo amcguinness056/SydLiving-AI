@@ -252,12 +252,13 @@ function App() {
     <div className="min-h-screen bg-slate-100 flex p-4 gap-4 h-screen font-sans overflow-hidden relative">
       
       <PanelGroup 
+        autoSaveId="app-layout"
         direction="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/50 bg-white/40 backdrop-blur-xl"
       >
         
         {/* Left Panel: Property List */}
-        <Panel defaultSize={25} minSize={20} maxSize={40} className="bg-white/20 flex flex-col h-full min-w-0">
+        <Panel id="left-panel" order={1} defaultSize={25} minSize={20} maxSize={40} className="bg-white/20 flex flex-col h-full min-w-0">
           <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 backdrop-blur-xl h-full")}>
             <header className="flex flex-col px-4 py-3.5 bg-white/80 backdrop-blur-xl border-b border-white/60 shadow-xs z-10 shrink-0 gap-3">
               <div className="flex items-center justify-between">
@@ -451,7 +452,7 @@ function App() {
         <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         
         {/* Center Panel: Map */}
-        <Panel className="bg-slate-200 min-w-0">
+        <Panel id="map-panel" order={2} defaultSize={75} className="bg-slate-200 min-w-0">
           <div className={cn(getMaximizedClasses('map'), "bg-slate-200 min-w-0")}>
             <Map 
               properties={displayedProperties} 
@@ -494,7 +495,7 @@ function App() {
           <PanelResizeHandle className="w-1.5 bg-indigo-900/5 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
         )}
         {modalPropertyId && (
-          <Panel defaultSize={22} minSize={20} maxSize={35} className="bg-white">
+          <Panel id="details-panel" order={3} defaultSize={22} minSize={20} maxSize={35} className="bg-white">
             <div className={cn(getMaximizedClasses('details'), "bg-white")}>
               <PropertyPanel 
                 property={properties.find(p => p.id === modalPropertyId)!} 

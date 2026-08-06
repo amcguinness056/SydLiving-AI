@@ -9,66 +9,50 @@ from google.genai import types
 load_dotenv()
 
 from database import get_db_connection
+from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
 
 def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> str:
-    """Queries the local database for properties matching the criteria.
+    """Queries real-world Domain API for properties matching the criteria.
     Args:
         suburb: A specific suburb to filter by, or empty string "" if none.
         max_rent: Maximum weekly rent in AUD, or 99999.0 if no maximum.
         min_bedrooms: Minimum number of bedrooms, or 0 if no minimum.
     """
-    from database import DB_PATH
-    db = sqlite3.connect(DB_PATH, check_same_thread=False)
-    db.row_factory = sqlite3.Row
     try:
-        query = "SELECT id, title, suburb, weekly_rent, bedrooms, bathrooms FROM properties WHERE 1=1"
-        params = []
-        
-        if suburb and suburb != "":
-            query += " AND suburb = ?"
-            params.append(suburb)
-        if max_rent < 99999.0:
-            query += " AND weekly_rent <= ?"
-            params.append(max_rent)
-        if min_bedrooms > 0:
-            query += " AND bedrooms >= ?"
-            params.append(min_bedrooms)
-            
-        cursor = db.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        
-        results = [dict(row) for row in rows]
-        # Return structured JSON for the agent
+        results = fetch_domain_properties(suburb, max_rent, min_bedrooms)
         return json.dumps({"properties": results})
     except Exception as e:
         import traceback
         traceback.print_exc()
         return json.dumps({"error": str(e)})
-    finally:
-        db.close()
 
 def get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
-    """Looks up the commute time between an origin suburb and a CBD hub.
+    """Looks up the real-world Google Maps commute time between an origin suburb and a CBD hub.
     Args:
         origin_suburb: The starting suburb (e.g. 'Coogee').
         destination_cbd_hub: The destination hub (e.g. 'Barangaroo').
     """
-    from database import DB_PATH
-    db = sqlite3.connect(DB_PATH, check_same_thread=False)
-    db.row_factory = sqlite3.Row
     try:
-        cursor = db.cursor()
-        cursor.execute('''
-            SELECT * FROM commute_matrix 
-            WHERE origin_suburb = ? AND destination_cbd_hub = ?
-        ''', (origin_suburb, destination_cbd_hub))
-        
-        rows = cursor.fetchall()
-        results = [dict(row) for row in rows]
+        results = fetch_google_commute(origin_suburb, destination_cbd_hub)
         return json.dumps({"commutes": results})
-    finally:
-        db.close()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": str(e)})
+
+def get_places_tool(suburb: str, place_type: str) -> str:
+    """Looks up real-world Google Places (gyms, cafes, transit) in a suburb.
+    Args:
+        suburb: The suburb (e.g. 'Bondi').
+        place_type: The type of place (e.g. 'cafe', 'gym', 'transit_station', 'supermarket').
+    """
+    try:
+        results = fetch_google_places(suburb, place_type)
+        return json.dumps({"places": results})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": str(e)})
 
 
 async def process_chat(message: str, history: list) -> dict:
@@ -100,7 +84,7 @@ async def process_chat(message: str, history: list) -> dict:
         
         system_instruction = "You are SydLiving AI, an expert relocation assistant for Sydney. Use the provided tools to lookup real property and commute data when asked. Respond in a friendly, concise manner."
         
-        tools = [query_properties_tool, get_commute_tool]
+        tools = [query_properties_tool, get_commute_tool, get_places_tool]
         
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -153,6 +137,8 @@ async def process_chat(message: str, history: list) -> dict:
                                 action_type = "update_properties"
                             elif fc.name == "get_commute_tool":
                                 action_type = "update_commute"
+                            elif fc.name == "get_places_tool":
+                                action_type = "update_places"
                                 
                             if action_type:
                                 new_action = {

@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 from database import get_db_connection
-from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse, AgentAction
+from models import PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, ChatRequest, ChatResponse, AgentAction, PlaceResponse
+from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="0.1.0")
@@ -121,6 +122,15 @@ def get_commute(
         
     results = [CommuteMatrix(**dict(row)) for row in rows]
     return CommuteResponse(commutes=results)
+
+
+@app.get("/api/places", response_model=PlaceResponse)
+def get_places(
+    suburb: str = Query(..., description="The suburb to search for places"),
+    type: str = Query("cafe", description="Type of place (e.g., cafe, gym, transit_station)")
+):
+    places = fetch_google_places(suburb, type)
+    return PlaceResponse(places=places)
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):

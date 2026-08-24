@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline, Circle, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
 import L from 'leaflet';
+import 'leaflet-draw';
 import { type Property, type DestinationHub, type IsochroneResponse } from '../api/client';
 import { Maximize, Minimize, Clock, Navigation } from 'lucide-react';
-
 
 // Fix Leaflet's default icon path issues in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,12 +22,27 @@ interface MapProps {
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
   isDarkMode?: boolean;
-  hubs: DestinationHub[];
-  activeHubName: string;
-  onSelectHub: (hubName: string) => void;
-  maxCommuteMins: number;
-  onChangeMaxCommute: (mins: number) => void;
+  hubs?: DestinationHub[];
+  activeHubName?: string;
+  onSelectHub?: (hubName: string) => void;
+  maxCommuteMins?: number;
+  onChangeMaxCommute?: (mins: number) => void;
   isochroneData?: IsochroneResponse | null;
+  onDrawCreated?: (layer: any, type: string) => void;
+  onDrawDeleted?: () => void;
+  workplace?: { lat: number; lng: number } | null;
+  isochrones?: any;
+  isSettingWorkplace?: boolean;
+  onMapClick?: (lat: number, lng: number) => void;
+}
+
+function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    }
+  });
+  return null;
 }
 
 function MapUpdater({ properties, selectedId }: { properties: Property[], selectedId?: string | null }) {
@@ -58,18 +74,68 @@ function MapResizer() {
   return null;
 }
 
+function DrawControl({ onDrawCreated, onDrawDeleted }: { onDrawCreated?: any, onDrawDeleted?: any }) {
+  const map = useMap();
+  useEffect(() => {
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    
+    // @ts-ignore
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems,
+      },
+      draw: {
+        polyline: false,
+        marker: false,
+        circlemarker: false,
+        polygon: {} as any,
+        circle: {} as any,
+        rectangle: {} as any,
+      }
+    });
+    
+    map.addControl(drawControl);
+    
+    const handleCreated = (e: any) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      if (onDrawCreated) onDrawCreated(e.layer, e.layerType);
+    };
+    
+    const handleDeleted = () => {
+      if (onDrawDeleted) onDrawDeleted();
+    };
+
+    // @ts-ignore
+    map.on(L.Draw.Event.CREATED, handleCreated);
+    // @ts-ignore
+    map.on(L.Draw.Event.DELETED, handleDeleted);
+    
+    return () => {
+      map.removeControl(drawControl);
+      // @ts-ignore
+      map.off(L.Draw.Event.CREATED, handleCreated);
+      // @ts-ignore
+      map.off(L.Draw.Event.DELETED, handleDeleted);
+      map.removeLayer(drawnItems);
+    };
+  }, [map, onDrawCreated, onDrawDeleted]);
+  return null;
+}
+
 const createCustomPriceIcon = (rent: number, isActive: boolean, isDark: boolean = false) => L.divIcon({
   className: 'bg-transparent',
   html: `<div class="relative flex items-center justify-center px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all duration-300 cursor-pointer ${
     isActive 
-      ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white scale-110 z-[100] ring-4 ring-rose-300 dark:ring-rose-900 shadow-rose-500/40' 
+      ? 'bg-rose-500 text-white scale-110 z-[100] ring-4 ring-rose-300 dark:ring-rose-900 shadow-rose-500/40 animate-marker-pulse' 
       : isDark
         ? 'bg-slate-900/95 backdrop-blur-md text-slate-100 hover:bg-indigo-600 hover:scale-105 border border-slate-700/80'
         : 'bg-slate-900/90 backdrop-blur-md text-white hover:bg-indigo-600 hover:scale-105 border border-white/40'
   }">
           <span>$${rent}</span>
           <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${
-            isActive ? 'bg-amber-500' : isDark ? 'bg-slate-900/95' : 'bg-slate-900/90'
+            isActive ? 'bg-rose-500' : isDark ? 'bg-slate-900/95' : 'bg-slate-900/90'
           }"></div>
          </div>`,
   iconSize: [60, 30],
@@ -97,14 +163,19 @@ export function Map({
   isMaximized, 
   onToggleMaximize,
   isDarkMode = false,
-  hubs,
-  activeHubName,
+  hubs = [],
+  activeHubName = "Barangaroo",
   onSelectHub,
-  maxCommuteMins,
+  maxCommuteMins = 35,
   onChangeMaxCommute,
-  isochroneData: _isochroneData
+  isochroneData: _isochroneData,
+  onDrawCreated,
+  onDrawDeleted,
+  workplace,
+  isochrones,
+  isSettingWorkplace,
+  onMapClick
 }: MapProps) {
-
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
   
   const activeHub = hubs.find(h => h.name === activeHubName) || hubs[0] || {
@@ -117,59 +188,61 @@ export function Map({
 
   const selectedProperty = properties.find(p => p.id === selectedPropertyId);
 
-  // Determine transit line color based on mode
   const getPolylineColor = (mode?: string | null) => {
     if (!mode) return '#6366f1';
-    if (mode.includes('Metro')) return '#06b6d4'; // Cyan for Metro M1
-    if (mode.includes('Ferry')) return '#10b981'; // Emerald for Ferries
-    if (mode.includes('Light Rail')) return '#f59e0b'; // Amber for Light Rail
-    if (mode.includes('Bus')) return '#ec4899'; // Pink for Buses
-    return '#6366f1'; // Indigo for Trains
+    if (mode.includes('Metro')) return '#06b6d4';
+    if (mode.includes('Ferry')) return '#10b981';
+    if (mode.includes('Light Rail')) return '#f59e0b';
+    if (mode.includes('Bus')) return '#ec4899';
+    return '#6366f1';
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-slate-200 dark:bg-slate-950">
+    <div className={`w-full h-full relative overflow-hidden bg-slate-200 dark:bg-slate-950 ${isSettingWorkplace ? 'cursor-crosshair' : ''}`}>
       
       {/* Top Bar Controls Overlay */}
       <div className="absolute top-4 left-4 right-16 z-40 flex flex-wrap items-center gap-3 pointer-events-none">
         
         {/* Hub Selector */}
-        <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 px-3.5 py-2 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
-          <Navigation className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <span className="text-slate-400 dark:text-slate-500 font-normal">Hub:</span>
-          <select
-            value={activeHubName}
-            onChange={(e) => onSelectHub(e.target.value)}
-            className="bg-transparent font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer pr-1"
-          >
-            {hubs.map(hub => (
-              <option key={hub.id} value={hub.name} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
-                {hub.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {hubs.length > 0 && onSelectHub && (
+          <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 px-3.5 py-2 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            <Navigation className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-slate-400 dark:text-slate-500 font-normal">Hub:</span>
+            <select
+              value={activeHubName}
+              onChange={(e) => onSelectHub(e.target.value)}
+              className="bg-transparent font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer pr-1"
+            >
+              {hubs.map(hub => (
+                <option key={hub.id} value={hub.name} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+                  {hub.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Reachability Slider */}
-        <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-semibold text-slate-800 dark:text-slate-100">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-emerald-500" />
-            <span className="text-slate-400 dark:text-slate-500 font-normal">Max:</span>
-            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 w-12 text-left">{maxCommuteMins} min</span>
+        {onChangeMaxCommute && (
+          <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-emerald-500" />
+              <span className="text-slate-400 dark:text-slate-500 font-normal">Max:</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 w-12 text-left">{maxCommuteMins} min</span>
+            </div>
+            <input
+              type="range"
+              min="15"
+              max="60"
+              step="5"
+              value={maxCommuteMins}
+              onChange={(e) => onChangeMaxCommute(Number(e.target.value))}
+              className="w-24 sm:w-32 accent-emerald-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+            />
           </div>
-          <input
-            type="range"
-            min="15"
-            max="60"
-            step="5"
-            value={maxCommuteMins}
-            onChange={(e) => onChangeMaxCommute(Number(e.target.value))}
-            className="w-24 sm:w-32 accent-emerald-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
-          />
-        </div>
+        )}
       </div>
 
-      {/* Map Container */}
       <MapContainer 
         center={defaultCenter} 
         zoom={12} 
@@ -177,7 +250,39 @@ export function Map({
         className="w-full h-full z-0"
         zoomControl={false}
       >
-        {/* Dynamic Dark / Light CartoDB TileLayer */}
+        <DrawControl onDrawCreated={onDrawCreated} onDrawDeleted={onDrawDeleted} />
+        {onMapClick && isSettingWorkplace && <MapEvents onMapClick={onMapClick} />}
+        
+        {isochrones && (
+          <GeoJSON 
+            key={JSON.stringify(isochrones)} 
+            data={isochrones}
+            style={(feature) => ({
+              fillColor: feature?.properties?.fillColor || '#3388ff',
+              color: feature?.properties?.color || '#3388ff',
+              weight: 1,
+              opacity: 0.8,
+              fillOpacity: 0.2
+            })}
+          />
+        )}
+        
+        {workplace && (
+          <Marker 
+            position={[workplace.lat, workplace.lng]}
+            icon={L.divIcon({
+              className: 'bg-transparent',
+              html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 text-white shadow-lg border-2 border-white"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 32],
+            })}
+          >
+            <Popup className="rounded-xl overflow-hidden shadow-lg border-0">
+              <div className="font-semibold text-slate-800 text-base leading-tight">Workplace</div>
+            </Popup>
+          </Marker>
+        )}
+
         <TileLayer
           key={isDarkMode ? 'dark-tiles' : 'light-tiles'}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -191,7 +296,6 @@ export function Map({
         {/* Dynamic Isochrone Reach Rings centered on active Hub */}
         {activeHub && (
           <>
-            {/* 15 min ring */}
             {maxCommuteMins >= 15 && (
               <Circle
                 center={[activeHub.latitude, activeHub.longitude]}
@@ -206,7 +310,6 @@ export function Map({
               />
             )}
 
-            {/* 30 min ring */}
             {maxCommuteMins >= 30 && (
               <Circle
                 center={[activeHub.latitude, activeHub.longitude]}
@@ -221,7 +324,6 @@ export function Map({
               />
             )}
 
-            {/* 45 min ring */}
             {maxCommuteMins >= 45 && (
               <Circle
                 center={[activeHub.latitude, activeHub.longitude]}
@@ -236,7 +338,6 @@ export function Map({
               />
             )}
 
-            {/* 60 min ring */}
             {maxCommuteMins >= 60 && (
               <Circle
                 center={[activeHub.latitude, activeHub.longitude]}
@@ -344,4 +445,3 @@ export function Map({
     </div>
   );
 }
-

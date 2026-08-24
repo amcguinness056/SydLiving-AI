@@ -3,43 +3,67 @@ import { BedDouble, Bath, MapPin, Waves, Heart, Train } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
-
 interface PropertyCardProps {
   property: Property;
   className?: string;
   onClick?: () => void;
   isActive?: boolean;
   isFavorite?: boolean;
+  isSaved?: boolean;
   onToggleFavorite?: (id: string) => void;
+  onToggleSave?: (id: string, isSaved: boolean) => void;
   selectedHubName?: string;
+  index?: number;
 }
 
 export function PropertyCard({ 
   property, 
   className, 
   onClick, 
-  isActive,
-  isFavorite,
-  onToggleFavorite,
-  selectedHubName
+  isActive, 
+  isFavorite, 
+  isSaved,
+  onToggleFavorite, 
+  onToggleSave,
+  selectedHubName, 
+  index = 0 
 }: PropertyCardProps) {
-  const handleFavoriteClick = (e: React.MouseEvent) => {
+  const isHeartActive = isFavorite !== undefined ? isFavorite : isSaved;
+
+  const handleHeartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleFavorite) {
       onToggleFavorite(property.id);
+    } else if (onToggleSave) {
+      onToggleSave(property.id, !!isSaved);
     }
   };
 
   return (
     <div
       onClick={onClick}
+      style={{ animationDelay: `${index * 50}ms` }}
       className={cn(
-        "bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-850 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 dark:border-slate-800/80 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden",
-        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50",
+        "bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-850 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 dark:border-slate-800/80 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
+        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50 -translate-y-1",
         className
       )}
     >
-      {/* Top row: Title, Favorite Heart & Rent Badge */}
+      {/* Photo */}
+      <div className="w-full h-36 rounded-xl mb-3 overflow-hidden relative shadow-inner shrink-0 bg-slate-100 dark:bg-slate-800">
+        <img 
+          src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
+          alt={property.title} 
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
+          }}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+      </div>
+
+      {/* Top row: Title, Heart & Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
         <h3 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1 text-[15px] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
           {property.title}
@@ -47,16 +71,16 @@ export function PropertyCard({
         
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={handleFavoriteClick}
+            onClick={handleHeartClick}
             className={cn(
               "p-1.5 rounded-full transition-all hover:scale-110 active:scale-95",
-              isFavorite 
+              isHeartActive 
                 ? "text-rose-500 bg-rose-50 dark:bg-rose-950/50" 
                 : "text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             )}
-            title={isFavorite ? "Remove from shortlist" : "Add to shortlist"}
+            title={isHeartActive ? "Remove from shortlist" : "Add to shortlist"}
           >
-            <Heart className={cn("w-4 h-4", isFavorite && "fill-rose-500")} />
+            <Heart className={cn("w-4 h-4", isHeartActive && "fill-rose-500")} />
           </button>
 
           <div className="bg-indigo-600 dark:bg-indigo-500 text-white px-2.5 py-1 rounded-full text-xs font-black whitespace-nowrap shadow-xs">
@@ -66,7 +90,7 @@ export function PropertyCard({
       </div>
       
       {/* Address */}
-      <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center mb-2.5 font-medium">
+      <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center mb-2 font-medium">
         <MapPin className="w-3.5 h-3.5 mr-1 text-indigo-400 shrink-0" />
         <span className="truncate">{property.address}</span>
       </p>
@@ -102,4 +126,3 @@ export function PropertyCard({
     </div>
   );
 }
-

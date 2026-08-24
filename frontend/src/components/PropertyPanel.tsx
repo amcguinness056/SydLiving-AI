@@ -2,7 +2,6 @@ import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Tr
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
-
 interface PropertyPanelProps {
   property: Property;
   onClose: () => void;
@@ -30,9 +29,15 @@ export function PropertyPanel({
       
       {/* Header Banner */}
       <div className="w-full h-52 bg-slate-900 relative shrink-0 overflow-hidden">
-        {/* Subtle mesh background decoration */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(79,70,229,0.45),transparent)] pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
+        <img 
+          src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
+          alt={property.title} 
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
+          }}
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40 pointer-events-none" />
         
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
           <button 
@@ -162,8 +167,7 @@ export function PropertyPanel({
         <div className="space-y-2">
           <h3 className="font-bold text-slate-900 dark:text-white text-sm">Property Overview</h3>
           <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs">
-            This exceptional {property.bedrooms} bedroom residence in {property.suburb} provides an authentic Sydney lifestyle. 
-            Located just {property.distance_to_beach_km.toFixed(1)} km from the coastline with rapid access to local dining precincts, parks, and frequent public transit connections.
+            {property.description || `This exceptional ${property.bedrooms} bedroom residence in ${property.suburb} provides an authentic Sydney lifestyle. Located just ${property.distance_to_beach_km.toFixed(1)} km from the coastline with rapid access to local dining precincts, parks, and frequent public transit connections.`}
           </p>
         </div>
         
@@ -181,4 +185,3 @@ export function PropertyPanel({
     </div>
   );
 }
-

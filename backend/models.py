@@ -23,6 +23,8 @@ class PropertyBase(BaseModel):
     longitude: float
     distance_to_beach_km: float
     available_date: str
+    description: str = ""
+    photo_url: str = ""
     # Enriched commute attributes when destination hub filter is active
     commute_duration_minutes: Optional[int] = None
     transit_mode: Optional[str] = None
@@ -64,15 +66,52 @@ class IsochroneResponse(BaseModel):
     max_minutes: int
     suburbs_within_reach: List[IsochroneSuburb]
 
+class Place(BaseModel):
+    name: str
+    type: str
+    vicinity: str
+    rating: Optional[float] = None
+
+class PlaceResponse(BaseModel):
+    places: List[Place]
+
+class User(BaseModel):
+    id: str
+    username: str
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    auth_provider: Optional[str] = "google"
+
+class ChatSession(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+class ChatMessage(BaseModel):
+    id: str
+    session_id: str
+    role: str
+    content: str
+    created_at: str
+
+class ChatSessionResponse(BaseModel):
+    sessions: List[ChatSession]
+
+class ChatMessageResponse(BaseModel):
+    messages: List[ChatMessage]
+
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
     history: Optional[List[dict]] = []
 
 class AgentAction(BaseModel):
-    action_type: str  # e.g., "update_properties", "update_commute_filters", "update_commute"
+    action_type: str  # e.g., "update_properties", "update_commute_filters", "update_commute", "update_places"
     data: dict
 
 class ChatResponse(BaseModel):
     reply: str
     actions: List[AgentAction] = []
-

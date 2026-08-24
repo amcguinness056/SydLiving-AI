@@ -6,6 +6,14 @@ from datetime import datetime, timedelta
 DB_PATH = "sydliving.db"
 
 def create_tables(cursor):
+    cursor.execute('DROP TABLE IF EXISTS saved_properties;')
+    cursor.execute('DROP TABLE IF EXISTS chat_messages;')
+    cursor.execute('DROP TABLE IF EXISTS chat_sessions;')
+    cursor.execute('DROP TABLE IF EXISTS users;')
+    cursor.execute('DROP TABLE IF EXISTS properties;')
+    cursor.execute('DROP TABLE IF EXISTS commute_matrix;')
+    cursor.execute('DROP TABLE IF EXISTS destination_hubs;')
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS destination_hubs (
         id TEXT PRIMARY KEY,
@@ -28,7 +36,9 @@ def create_tables(cursor):
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
         distance_to_beach_km REAL NOT NULL,
-        available_date TEXT NOT NULL
+        available_date TEXT NOT NULL,
+        description TEXT NOT NULL,
+        photo_url TEXT NOT NULL
     );
     ''')
 
@@ -43,6 +53,48 @@ def create_tables(cursor):
         estimated_opal_fare REAL NOT NULL DEFAULT 4.20,
         route_summary TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (origin_suburb, destination_cbd_hub)
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        email TEXT,
+        avatar_url TEXT,
+        auth_provider TEXT DEFAULT 'google'
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+    );
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS saved_properties (
+        user_id TEXT NOT NULL,
+        property_id TEXT NOT NULL,
+        PRIMARY KEY (user_id, property_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (property_id) REFERENCES properties(id)
     );
     ''')
 
@@ -86,19 +138,63 @@ def seed_data(cursor):
         "Cronulla": {"lat": -34.053, "lon": 151.152, "beach_dist": 0.3}
     }
 
-    # Generate 70 realistic properties
-    properties = []
+    real_streets = {
+        "Bondi Beach": ["Campbell Parade", "Curlewis Street", "Hall Street", "Glenayr Avenue", "Blair Street"],
+        "Bondi Junction": ["Oxford Street", "Spring Street", "Grafton Street", "Ebley Street"],
+        "Coogee": ["Arden Street", "Coogee Bay Road", "Dolphin Street", "Mount Street", "Bream Street"],
+        "Randwick": ["Belmore Road", "Avoca Street", "High Street", "Alison Road"],
+        "Surry Hills": ["Crown Street", "Bourke Street", "Riley Street", "Foveaux Street", "Albion Street"],
+        "Paddington": ["Oxford Street", "Glenmore Road", "William Street", "Jersey Road"],
+        "Newtown": ["King Street", "Enmore Road", "Alice Street", "Australia Street", "Wilson Street"],
+        "Marrickville": ["Marrickville Road", "Illawarra Road", "Victoria Road", "Sydenham Road"],
+        "Waterloo": ["Bourke Street", "George Street", "Elizabeth Street", "Raglan Street"],
+        "Balmain": ["Darling Street", "Beattie Street", "Montague Street", "Mullens Street"],
+        "Pyrmont": ["Harris Street", "Pyrmont Point Road", "Union Street", "Point Street"],
+        "Crows Nest": ["Willoughby Road", "Alexander Street", "Burlington Street", "Falcon Street"],
+        "Victoria Cross": ["Miller Street", "Pacific Highway", "Berry Street", "Mount Street"],
+        "Chatswood": ["Victoria Avenue", "Albert Avenue", "Archer Street", "Pacific Highway", "Help Street"],
+        "Mosman": ["Military Road", "Raglan Street", "Avenue Road", "Middle Head Road"],
+        "Manly": ["The Corso", "Darley Road", "Sydney Road", "Pittwater Road", "Bower Street"],
+        "Macquarie Park": ["Herring Road", "Talavera Road", "Waterloo Road", "Khartoum Road"],
+        "Parramatta": ["Church Street", "Macquarie Street", "George Street", "Victoria Road", "O'Connell Street"],
+        "Cronulla": ["Gerrale Street", "Cronulla Street", "Ewos Parade", "Surrey Street"]
+    }
+
     adjectives = ["Spacious", "Sunny", "Modern Coastal", "Designer", "Charming", "Light-Filled", "Luxury", "Boutique", "Harborside", "Renovated"]
     types = ["Apartment", "Terrace Home", "Penthouse", "Sharehouse Suite", "Studio Loft", "Beachside Flat"]
 
-    for _ in range(70):
+    valid_photos = [
+        "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1560185127-6ed189bf02f4?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=800&auto=format&fit=crop&q=80"
+    ]
+
+    properties = []
+    for _ in range(75):
         suburb = random.choice(list(suburbs.keys()))
         data = suburbs[suburb]
+        street_list = real_streets.get(suburb, ["Main Street", "High Street", "Ocean Street"])
+        street = random.choice(street_list)
         
+        prop_type = random.choice(types)
         bed = random.randint(1, 4)
+        if prop_type == "Studio Loft":
+            bed = 1
         bath = random.randint(1, max(1, bed - 1))
         
-        # Realistic Sydney rent calculation based on location & bedrooms
         suburb_rent_premium = 1.0
         if suburb in ["Bondi Beach", "Manly", "Mosman", "Paddington", "Surry Hills"]:
             suburb_rent_premium = 1.35
@@ -112,11 +208,15 @@ def seed_data(cursor):
         base_rent = (bed * 320) + (bath * 90) + 120
         weekly_rent = int(round((base_rent * suburb_rent_premium) / 10) * 10)
         
-        title = f"{random.choice(adjectives)} {bed}BR {random.choice(types)} in {suburb}"
-        address = f"{random.randint(1, 199)} {random.choice(['Crown', 'Campbell', 'Ocean', 'Darling', 'King', 'Military', 'Pacific', 'Oxford', 'Bourke', 'Glebe Point'])} St, {suburb}, NSW"
+        adj = random.choice(adjectives)
+        title = f"{adj} {bed}BR {prop_type} in {suburb}"
+        address = f"{random.randint(1, 250)} {street}, {suburb}, NSW"
         
-        lat_offset = random.uniform(-0.006, 0.006)
-        lon_offset = random.uniform(-0.006, 0.006)
+        description = f"This {adj.lower()} {bed} bedroom, {bath} bathroom {prop_type.lower()} in {suburb} offers an exceptional Sydney lifestyle. Situated on {street}, it features light-filled living spaces, premium finishes, and convenient transit links."
+        photo_url = random.choice(valid_photos)
+        
+        lat_offset = random.uniform(-0.005, 0.005)
+        lon_offset = random.uniform(-0.005, 0.005)
         
         available_days = random.randint(0, 25)
         available_date = (datetime.now() + timedelta(days=available_days)).strftime('%Y-%m-%d')
@@ -132,21 +232,22 @@ def seed_data(cursor):
             data["lat"] + lat_offset,
             data["lon"] + lon_offset,
             max(0.1, round(data["beach_dist"] + random.uniform(-0.2, 0.3), 1)),
-            available_date
+            available_date,
+            description,
+            photo_url
         ))
 
     cursor.executemany('''
-    INSERT INTO properties (id, title, suburb, bedrooms, bathrooms, weekly_rent, address, latitude, longitude, distance_to_beach_km, available_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO properties (id, title, suburb, bedrooms, bathrooms, weekly_rent, address, latitude, longitude, distance_to_beach_km, available_date, description, photo_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', properties)
 
-    # Realistic Commute Matrix for each suburb to each hub
+    # Realistic Commute Matrix
     commutes = []
     hub_names = [h["name"] for h in hubs]
 
     for origin, origin_data in suburbs.items():
         for hub_name in hub_names:
-            # Determine realistic route, duration and mode
             mode = "Train"
             duration = 25
             freq = 6
@@ -154,7 +255,6 @@ def seed_data(cursor):
             fare = 4.20
             summary = f"Direct route to {hub_name}"
 
-            # Metro line routing
             if origin in ["Crows Nest", "Victoria Cross"] and hub_name in ["Barangaroo", "Martin Place", "Central"]:
                 mode = "Sydney Metro M1"
                 duration = 6 if hub_name == "Barangaroo" else (8 if hub_name == "Martin Place" else 11)
@@ -358,19 +458,13 @@ def main():
     print("Creating tables...")
     create_tables(cursor)
     
-    print("Clearing existing data...")
-    cursor.execute('DELETE FROM destination_hubs')
-    cursor.execute('DELETE FROM properties')
-    cursor.execute('DELETE FROM commute_matrix')
-    
     print("Seeding upgraded Sydney dataset...")
     seed_data(cursor)
     
     conn.commit()
     conn.close()
     
-    print("Seed complete! Created 6 destination hubs, 70 properties, and commute route matrices.")
+    print("Seed complete! Created 6 destination hubs, 75 properties with photos, and commute route matrices.")
 
 if __name__ == "__main__":
     main()
-

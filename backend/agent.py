@@ -59,17 +59,18 @@ async def process_chat(message: str, history: list) -> dict:
     """Processes a chat message using Gemini Pro and native tool calling."""
     import traceback
     try:
-        print(f"[Agent] Starting process_chat with model gemini-pro-latest")
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
+        print(f"[Agent] Starting process_chat with model gemini-3.7-flash")
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_key:
             print("[Agent] Error: GEMINI_API_KEY not found")
             return {
                 "reply": "Error: GEMINI_API_KEY is not set in the backend environment. Please configure it to enable the AI Agent.",
                 "actions": []
             }
             
-        print("[Agent] Initializing client")
-        client = genai.Client(api_key=api_key)
+        print("[Agent] Initializing client with GEMINI_API_KEY")
+        # Explicitly pass api_key to avoid defaulting to GOOGLE_API_KEY (Maps key)
+        client = genai.Client(api_key=gemini_key)
         
         # Simple history formatting
         # Note: For production, map history dicts to types.Content properly
@@ -93,16 +94,29 @@ async def process_chat(message: str, history: list) -> dict:
         )
         
         print(f"[Agent] Creating chat session")
-        # We use a chat session to automatically handle the multi-turn tool calling
-        chat = client.chats.create(model="gemini-3.5-flash", config=config)
+        # Primary model: gemini-3.7-flash with graceful fallback to gemini-3.5-flash
+        model_name = "gemini-3.7-flash"
+        chat = client.chats.create(model=model_name, config=config)
         
         # Pre-load history if the SDK supports it (workaround for basic chat)
         if history:
             chat._history = contents[:-1]
             
-        print(f"[Agent] Sending message to model: {message}")
-        response = chat.send_message(message)
-        print(f"[Agent] Received response from model")
+        print(f"[Agent] Sending message to model ({model_name}): {message}")
+        try:
+            response = chat.send_message(message)
+        except Exception as api_err:
+            if "503" in str(api_err) or "UNAVAILABLE" in str(api_err):
+                print(f"[Agent] {model_name} high demand 503, switching to gemini-3.5-flash fallback")
+                model_name = "gemini-3.5-flash"
+                chat = client.chats.create(model=model_name, config=config)
+                if history:
+                    chat._history = contents[:-1]
+                response = chat.send_message(message)
+            else:
+                raise api_err
+
+        print(f"[Agent] Received response from model ({model_name})")
         
         # Check if the model made a function call to determine if we should trigger UI updates
         # The new SDK automatically resolves the function calls during chat.send_message

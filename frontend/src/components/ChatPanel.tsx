@@ -68,7 +68,7 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span>AI Relocation Assistant</span>
           </h2>
-          <p className="text-[11px] text-slate-500 font-medium">Powered by Gemini Pro • TfNSW Transit Sync</p>
+          <p className="text-[11px] text-slate-500 font-medium">Powered by Gemini 3.7 Flash • TfNSW Transit Sync</p>
         </div>
         <div className="flex gap-2">
           {isLoggedIn && (

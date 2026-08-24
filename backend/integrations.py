@@ -67,7 +67,7 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
         db.close()
 
 def fetch_google_commute(origin_suburb: str, destination_cbd_hub: str) -> list:
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if api_key:
         try:
             response = requests.get(
@@ -111,7 +111,7 @@ def fetch_google_commute(origin_suburb: str, destination_cbd_hub: str) -> list:
         db.close()
 
 def fetch_google_places(suburb: str, place_type: str) -> list:
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if api_key:
         try:
             # First need to get suburb coordinates, mock for now

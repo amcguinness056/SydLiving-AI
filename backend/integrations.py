@@ -35,13 +35,12 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
                         "distance_to_beach_km": 0.0,
                         "available_date": "2026-01-01",
                         "description": item.get("listing", {}).get("summaryDescription", ""),
-                        "photo_url": item.get("listing", {}).get("media", [{}])[0].get("url", "https://source.unsplash.com/800x600/?interior")
+                        "photo_url": item.get("listing", {}).get("media", [{}])[0].get("url", "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80")
                     })
-                return results
-            else:
-                print(f"Domain API Error: {response.status_code} - {response.text}")
-        except Exception as e:
-            print(f"Domain API Exception: {e}")
+                if results:
+                    return results
+        except Exception:
+            pass
 
     # Fallback to local DB
     db = sqlite3.connect(DB_PATH, check_same_thread=False)

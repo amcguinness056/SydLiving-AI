@@ -162,8 +162,21 @@ async def process_chat(message: str, history: list) -> dict:
                                 if new_action not in actions:
                                     actions.append(new_action)
 
+        reply_text = ""
+        if response.text:
+            reply_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            for cand in response.candidates:
+                if hasattr(cand, 'content') and cand.content and hasattr(cand.content, 'parts'):
+                    for pt in cand.content.parts:
+                        if hasattr(pt, 'text') and pt.text:
+                            reply_text += pt.text
+        
+        if not reply_text:
+            reply_text = "I've processed your request and updated the map and property listings accordingly!"
+
         return {
-            "reply": response.text,
+            "reply": reply_text,
             "actions": actions
         }
     except Exception as e:

@@ -115,20 +115,18 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
           <div className="grid grid-cols-2 gap-2.5">
             <button
               onClick={() => handleGoogleLogin(
-                "Aaron M",
-                "aaron@sydliving.ai",
-                "https://ui-avatars.com/api/?name=Aaron+M&background=34A853&color=fff&rounded=true&bold=true"
+                "Aaron McGuinness",
+                "aaron.mcguinness@gmail.com",
+                ""
               )}
               className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 bg-white dark:bg-slate-800 hover:bg-indigo-50/50 dark:hover:bg-slate-750 transition-all text-left group"
             >
-              <img
-                src="https://ui-avatars.com/api/?name=Aaron+M&background=34A853&color=fff&rounded=true&bold=true"
-                alt="Aaron"
-                className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600"
-              />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                A
+              </div>
               <div className="overflow-hidden">
                 <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Aaron M</div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">aaron@sydliving.ai</div>
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">aaron@gmail.com</div>
               </div>
             </button>
 
@@ -136,21 +134,20 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               onClick={() => handleGoogleLogin(
                 "Sydney Explorer",
                 "explorer@gmail.com",
-                "https://ui-avatars.com/api/?name=Sydney+Explorer&background=EA4335&color=fff&rounded=true&bold=true"
+                ""
               )}
               className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 bg-white dark:bg-slate-800 hover:bg-indigo-50/50 dark:hover:bg-slate-750 transition-all text-left group"
             >
-              <img
-                src="https://ui-avatars.com/api/?name=Sydney+Explorer&background=EA4335&color=fff&rounded=true&bold=true"
-                alt="Explorer"
-                className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600"
-              />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                S
+              </div>
               <div className="overflow-hidden">
                 <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Explorer</div>
                 <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">explorer@gmail.com</div>
               </div>
             </button>
           </div>
+
 
           {/* Toggle Custom Account Details */}
           <div className="pt-2">

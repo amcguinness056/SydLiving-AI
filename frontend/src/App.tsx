@@ -12,6 +12,29 @@ import { cn } from './lib/utils';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
+function UserAvatar({ user, className = "w-6 h-6" }: { user: { username?: string; avatar_url?: string }, className?: string }) {
+
+  const [imgError, setImgError] = useState(false);
+  const initial = (user.username || 'U').charAt(0).toUpperCase();
+  
+  if (imgError || !user.avatar_url) {
+    return (
+      <div className={cn("rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-indigo-500 text-white font-black flex items-center justify-center text-[11px] shrink-0 shadow-xs border border-white/40 dark:border-slate-600 select-none", className)}>
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={user.avatar_url}
+      alt={user.username || 'User avatar'} 
+      onError={() => setImgError(true)}
+      className={cn("rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0", className)}
+    />
+  );
+}
+
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [savedProperties, setSavedProperties] = useState<Property[]>([]);
@@ -19,6 +42,7 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
   
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -339,18 +363,15 @@ function App() {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* User Auth */}
           {user ? (
-            <div className="flex items-center gap-2 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl px-2 py-1 shadow-xs">
-              <img 
-                src={user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=4285F4&color=fff&rounded=true&bold=true`}
-                alt={user.username} 
-                className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-slate-600"
-              />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[100px] truncate">{user.username}</span>
+            <div className="flex items-center gap-2 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl px-2.5 py-1 shadow-xs">
+              <UserAvatar user={user} className="w-5.5 h-5.5" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[110px] truncate">{user.username}</span>
               <button onClick={handleLogout} className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5" title="Logout">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
+
             <button 
               onClick={handleLogin} 
               className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-2"

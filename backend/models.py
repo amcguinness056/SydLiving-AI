@@ -13,6 +13,8 @@ class PropertyBase(BaseModel):
     longitude: float
     distance_to_beach_km: float
     available_date: str
+    description: str
+    photo_url: str
 
 class Property(PropertyBase):
     pass

@@ -32,6 +32,10 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
                         "bathrooms": item.get("listing", {}).get("propertyDetails", {}).get("bathrooms", 0),
                         "latitude": item.get("listing", {}).get("propertyDetails", {}).get("latitude", 0.0),
                         "longitude": item.get("listing", {}).get("propertyDetails", {}).get("longitude", 0.0),
+                        "distance_to_beach_km": 0.0,
+                        "available_date": "2026-01-01",
+                        "description": item.get("listing", {}).get("summaryDescription", ""),
+                        "photo_url": item.get("listing", {}).get("media", [{}])[0].get("url", "https://source.unsplash.com/800x600/?interior")
                     })
                 return results
             else:

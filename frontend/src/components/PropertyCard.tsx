@@ -44,7 +44,7 @@ export function PropertyCard({
       onClick={onClick}
       style={{ animationDelay: `${index * 50}ms` }}
       className={cn(
-        "bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-850 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-slate-200/80 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
+        "bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-800/90 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-slate-200/80 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
         isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50 -translate-y-1",
         className
       )}

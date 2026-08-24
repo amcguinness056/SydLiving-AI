@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
 import L from 'leaflet';
+import 'leaflet-draw';
 import { type Property } from '../api/client';
 import { Maximize, Minimize } from 'lucide-react';
 
@@ -19,6 +21,21 @@ interface MapProps {
   onSelectProperty?: (id: string) => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  onDrawCreated?: (layer: any, type: string) => void;
+  onDrawDeleted?: () => void;
+  workplace?: { lat: number; lng: number } | null;
+  isochrones?: any;
+  isSettingWorkplace?: boolean;
+  onMapClick?: (lat: number, lng: number) => void;
+}
+
+function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    }
+  });
+  return null;
 }
 
 function MapUpdater({ properties, selectedId }: { properties: Property[], selectedId?: string | null }) {
@@ -50,6 +67,56 @@ function MapResizer() {
   return null;
 }
 
+function DrawControl({ onDrawCreated, onDrawDeleted }: { onDrawCreated?: any, onDrawDeleted?: any }) {
+  const map = useMap();
+  useEffect(() => {
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    
+    // @ts-ignore
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems,
+      },
+      draw: {
+        polyline: false,
+        marker: false,
+        circlemarker: false,
+        polygon: {} as any,
+        circle: {} as any,
+        rectangle: {} as any,
+      }
+    });
+    
+    map.addControl(drawControl);
+    
+    const handleCreated = (e: any) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      if (onDrawCreated) onDrawCreated(e.layer, e.layerType);
+    };
+    
+    const handleDeleted = () => {
+      if (onDrawDeleted) onDrawDeleted();
+    };
+
+    // @ts-ignore
+    map.on(L.Draw.Event.CREATED, handleCreated);
+    // @ts-ignore
+    map.on(L.Draw.Event.DELETED, handleDeleted);
+    
+    return () => {
+      map.removeControl(drawControl);
+      // @ts-ignore
+      map.off(L.Draw.Event.CREATED, handleCreated);
+      // @ts-ignore
+      map.off(L.Draw.Event.DELETED, handleDeleted);
+      map.removeLayer(drawnItems);
+    };
+  }, [map, onDrawCreated, onDrawDeleted]);
+  return null;
+}
+
 const createCustomPriceIcon = (rent: number, isActive: boolean) => L.divIcon({
   className: 'bg-transparent',
   html: `<div class="relative flex items-center justify-center px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all duration-300 cursor-pointer ${
@@ -67,11 +134,11 @@ const createCustomPriceIcon = (rent: number, isActive: boolean) => L.divIcon({
   popupAnchor: [0, -30],
 });
 
-export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize }: MapProps) {
+export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize, onDrawCreated, onDrawDeleted, workplace, isochrones, isSettingWorkplace, onMapClick }: MapProps) {
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-slate-200">
+    <div className={`w-full h-full relative overflow-hidden bg-slate-200 ${isSettingWorkplace ? 'cursor-crosshair' : ''}`}>
       <MapContainer 
         center={defaultCenter} 
         zoom={12} 
@@ -79,6 +146,38 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
         className="w-full h-full z-0"
         zoomControl={false}
       >
+        <DrawControl onDrawCreated={onDrawCreated} onDrawDeleted={onDrawDeleted} />
+        {onMapClick && isSettingWorkplace && <MapEvents onMapClick={onMapClick} />}
+        
+        {isochrones && (
+          <GeoJSON 
+            key={JSON.stringify(isochrones)} 
+            data={isochrones}
+            style={(feature) => ({
+              fillColor: feature?.properties?.fillColor || '#3388ff',
+              color: feature?.properties?.color || '#3388ff',
+              weight: 1,
+              opacity: 0.8,
+              fillOpacity: 0.2
+            })}
+          />
+        )}
+        
+        {workplace && (
+          <Marker 
+            position={[workplace.lat, workplace.lng]}
+            icon={L.divIcon({
+              className: 'bg-transparent',
+              html: `<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 text-white shadow-lg border-2 border-white"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 32],
+            })}
+          >
+            <Popup className="rounded-xl overflow-hidden shadow-lg border-0">
+              <div className="font-semibold text-slate-800 text-base leading-tight">Workplace</div>
+            </Popup>
+          </Marker>
+        )}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"

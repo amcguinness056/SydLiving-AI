@@ -1,4 +1,4 @@
-import { BedDouble, Bath, MapPin, Waves, Navigation } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves, Heart } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -8,9 +8,11 @@ interface PropertyCardProps {
   onClick?: () => void;
   isActive?: boolean;
   index?: number;
+  isSaved?: boolean;
+  onToggleSave?: (id: string, isSaved: boolean) => void;
 }
 
-export function PropertyCard({ property, className, onClick, isActive, index = 0 }: PropertyCardProps) {
+export function PropertyCard({ property, className, onClick, isActive, isSaved, onToggleSave, index = 0 }: PropertyCardProps) {
   return (
     <div
       onClick={onClick}
@@ -21,13 +23,40 @@ export function PropertyCard({ property, className, onClick, isActive, index = 0
         className
       )}
     >
+      {/* Photo */}
+      <div className="w-full h-36 rounded-xl mb-3 overflow-hidden relative shadow-inner shrink-0 bg-slate-100">
+        <img 
+          src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
+          alt={property.title} 
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
+          }}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60" />
+      </div>
+
       {/* Top row: Title and Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-2">
         <h3 className="font-bold text-slate-800 line-clamp-1 text-[15px]">
           {property.title}
         </h3>
-        <div className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shrink-0 shadow-xs">
-          ${property.weekly_rent}<span className="text-[10px] font-normal text-indigo-100">/wk</span>
+        <div className="flex items-center gap-2">
+          {onToggleSave && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSave(property.id, !!isSaved);
+              }}
+              className="p-1 rounded-full hover:bg-slate-100 transition-colors"
+            >
+              <Heart className={cn("w-4 h-4", isSaved ? "fill-red-500 text-red-500" : "text-slate-400")} />
+            </button>
+          )}
+          <div className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shrink-0 shadow-xs">
+            ${property.weekly_rent}<span className="text-[10px] font-normal text-indigo-100">/wk</span>
+          </div>
         </div>
       </div>
       

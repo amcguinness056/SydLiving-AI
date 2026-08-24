@@ -461,10 +461,11 @@ function App() {
                   );
                 }
 
-                return filteredProperties.map(p => (
+                return filteredProperties.map((p, idx) => (
                   <PropertyCard 
                     key={p.id}
                     property={p} 
+                    index={idx}
                     isActive={selectedId === p.id}
                     isSaved={savedProperties.some(sp => sp.id === p.id)}
                     onToggleSave={handleToggleSave}
@@ -554,7 +555,7 @@ function App() {
             <div className="h-full relative z-10 bg-white/60 backdrop-blur-3xl flex flex-col">
               <div className="px-5 py-4 border-b border-indigo-100 bg-white/50 flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-indigo-500" />
+                  <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
                   <span className="font-bold text-slate-800">SydLiving AI</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -591,7 +592,10 @@ function App() {
         {/* Floating Action Button */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
-          className="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group relative z-50"
+          className={cn(
+            "w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group relative z-50",
+            !isChatOpen && "animate-marker-pulse"
+          )}
         >
           {isChatOpen ? (
             <X className="w-7 h-7 transition-transform group-hover:rotate-90" />

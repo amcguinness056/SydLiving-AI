@@ -7,17 +7,19 @@ interface PropertyCardProps {
   className?: string;
   onClick?: () => void;
   isActive?: boolean;
+  index?: number;
   isSaved?: boolean;
   onToggleSave?: (id: string, isSaved: boolean) => void;
 }
 
-export function PropertyCard({ property, className, onClick, isActive, isSaved, onToggleSave }: PropertyCardProps) {
+export function PropertyCard({ property, className, onClick, isActive, isSaved, onToggleSave, index = 0 }: PropertyCardProps) {
   return (
     <div
       onClick={onClick}
+      style={{ animationDelay: `${index * 60}ms` }}
       className={cn(
-        "bg-white/80 hover:bg-white backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 hover:border-indigo-200 transition-all duration-300 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden",
-        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 border-indigo-200 shadow-md shadow-indigo-100/50",
+        "bg-white/80 hover:bg-white backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 hover:border-indigo-200 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
+        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 border-indigo-200 shadow-md shadow-indigo-100/50 -translate-y-1",
         className
       )}
     >

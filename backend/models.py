@@ -45,6 +45,9 @@ class PlaceResponse(BaseModel):
 class User(BaseModel):
     id: str
     username: str
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    auth_provider: Optional[str] = "google"
 
 class ChatSession(BaseModel):
     id: str

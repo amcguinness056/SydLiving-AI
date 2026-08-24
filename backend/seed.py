@@ -6,7 +6,13 @@ from datetime import datetime, timedelta
 DB_PATH = "sydliving.db"
 
 def create_tables(cursor):
+    cursor.execute('DROP TABLE IF EXISTS saved_properties;')
+    cursor.execute('DROP TABLE IF EXISTS chat_messages;')
+    cursor.execute('DROP TABLE IF EXISTS chat_sessions;')
+    cursor.execute('DROP TABLE IF EXISTS users;')
     cursor.execute('DROP TABLE IF EXISTS properties;')
+    cursor.execute('DROP TABLE IF EXISTS commute_matrix;')
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS properties (
         id TEXT PRIMARY KEY,
@@ -39,7 +45,10 @@ def create_tables(cursor):
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL
+        username TEXT NOT NULL,
+        email TEXT,
+        avatar_url TEXT,
+        auth_provider TEXT DEFAULT 'google'
     );
     ''')
 

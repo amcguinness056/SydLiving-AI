@@ -37,6 +37,9 @@ export interface ChatResponse {
 export interface User {
   id: string;
   username: string;
+  email?: string;
+  avatar_url?: string;
+  auth_provider?: string;
 }
 
 export interface ChatSession {
@@ -69,6 +72,15 @@ const getHeaders = () => {
 export const api = {
   login: async (username: string): Promise<User> => {
     const res = await fetch(`${BASE_URL}/auth/login?username=${encodeURIComponent(username)}`, { method: 'POST' });
+    return await res.json();
+  },
+
+  loginWithGoogle: async (profile: { name: string, email?: string, avatar_url?: string }): Promise<User> => {
+    const res = await fetch(`${BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    });
     return await res.json();
   },
 

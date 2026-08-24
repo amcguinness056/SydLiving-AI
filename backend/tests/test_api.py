@@ -57,3 +57,25 @@ def test_chat_no_api_key():
     assert "GEMINI_API_KEY is not set" in data["reply"]
     assert data["actions"] == []
 
+def test_login_and_google_auth():
+    # Test classic login
+    resp1 = client.post("/api/auth/login?username=testuser_aaron")
+    assert resp1.status_code == 200
+    user1 = resp1.json()
+    assert user1["username"] == "testuser_aaron"
+    assert "id" in user1
+
+    # Test Google auth
+    resp2 = client.post("/api/auth/google", json={
+        "name": "Aaron McGuinness",
+        "email": "aaron@example.com",
+        "avatar_url": "https://example.com/avatar.png"
+    })
+    assert resp2.status_code == 200
+    user2 = resp2.json()
+    assert user2["username"] == "Aaron McGuinness"
+    assert user2["email"] == "aaron@example.com"
+    assert user2["avatar_url"] == "https://example.com/avatar.png"
+    assert user2["auth_provider"] == "google"
+
+

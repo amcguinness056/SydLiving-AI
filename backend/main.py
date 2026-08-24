@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Depends, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
+from pydantic import BaseModel
 
 from database import get_db_connection
 from models import (PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
@@ -36,6 +37,11 @@ def get_current_user(user_id: Optional[str] = Header(None)):
 def health_check():
     return {"status": "ok"}
 
+class GoogleAuthPayload(BaseModel):
+    name: str
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 @app.post("/api/auth/login")
 def login(username: str, db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
@@ -48,6 +54,30 @@ def login(username: str, db: sqlite3.Connection = Depends(get_db_connection)):
     cursor.execute("INSERT INTO users (id, username) VALUES (?, ?)", (new_id, username))
     db.commit()
     return User(id=new_id, username=username)
+
+@app.post("/api/auth/google")
+def google_auth(payload: GoogleAuthPayload, db: sqlite3.Connection = Depends(get_db_connection)):
+    cursor = db.cursor()
+    # Check if user with this email or username already exists
+    if payload.email:
+        cursor.execute("SELECT * FROM users WHERE email = ?", (payload.email,))
+        row = cursor.fetchone()
+        if row:
+            # Update avatar/name if changed
+            cursor.execute("UPDATE users SET username = ?, avatar_url = ? WHERE id = ?", (payload.name, payload.avatar_url, row["id"]))
+            db.commit()
+            return User(id=row["id"], username=payload.name, email=payload.email, avatar_url=payload.avatar_url, auth_provider="google")
+    
+    cursor.execute("SELECT * FROM users WHERE username = ?", (payload.name,))
+    row = cursor.fetchone()
+    if row:
+        return User(**dict(row))
+    
+    new_id = str(uuid.uuid4())
+    cursor.execute("INSERT INTO users (id, username, email, avatar_url, auth_provider) VALUES (?, ?, ?, ?, 'google')", 
+                   (new_id, payload.name, payload.email, payload.avatar_url))
+    db.commit()
+    return User(id=new_id, username=payload.name, email=payload.email, avatar_url=payload.avatar_url, auth_provider="google")
 
 @app.get("/api/properties", response_model=PropertySearchResponse)
 def search_properties(

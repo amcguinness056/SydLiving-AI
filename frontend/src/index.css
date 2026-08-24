@@ -3,7 +3,10 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply bg-slate-100 text-slate-900 transition-colors duration-300;
+  }
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
   }
 }
 
@@ -14,10 +17,27 @@
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-slate-300/50 rounded-full hover:bg-slate-400/50;
+  @apply bg-slate-300/60 rounded-full hover:bg-slate-400/70;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-700/60 rounded-full hover:bg-slate-600/80;
 }
 
-/* Map override to fit radius */
+/* Map override to fit radius & dark styling */
 .leaflet-container {
   border-radius: 1.5rem;
 }
+
+.dark .leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.92) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 1rem !important;
+}
+
+.dark .leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.92) !important;
+}
+

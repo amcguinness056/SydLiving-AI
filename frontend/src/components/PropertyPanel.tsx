@@ -111,8 +111,9 @@ export function PropertyPanel({
         </div>
 
         {/* Enriched Commute Intelligence Card */}
-        <div className="bg-gradient-to-br from-indigo-50/90 to-blue-50/60 dark:from-slate-850 dark:to-indigo-950/30 border border-indigo-100/90 dark:border-indigo-900/50 rounded-2xl p-4.5 shadow-sm space-y-3">
+        <div className="bg-gradient-to-br from-indigo-50/90 to-blue-50/60 dark:from-slate-900 dark:to-indigo-950/40 border border-indigo-100/90 dark:border-indigo-900/50 rounded-2xl p-4.5 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
+
             <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-200 font-bold text-sm">
               <Train className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
               <span>Transit to {selectedHubName || "CBD Hub"}</span>

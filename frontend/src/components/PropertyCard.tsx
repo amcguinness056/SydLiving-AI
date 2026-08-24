@@ -44,8 +44,8 @@ export function PropertyCard({
       onClick={onClick}
       style={{ animationDelay: `${index * 50}ms` }}
       className={cn(
-        "bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-850 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-white/80 dark:border-slate-800/80 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
-        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50 -translate-y-1",
+        "bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-850 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-slate-200/80 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
+        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50 -translate-y-1",
         className
       )}
     >
@@ -60,12 +60,12 @@ export function PropertyCard({
           }}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60" />
       </div>
 
       {/* Top row: Title, Heart & Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
-        <h3 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1 text-[15px] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
           {property.title}
         </h3>
         
@@ -97,7 +97,7 @@ export function PropertyCard({
 
       {/* Commute Badge if available */}
       {property.commute_duration_minutes !== undefined && property.commute_duration_minutes !== null && (
-        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold">
+        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold">
           <Train className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span className="truncate">
             {property.commute_duration_minutes}m to {selectedHubName || "Hub"} {property.transit_mode ? `• ${property.transit_mode}` : ''}
@@ -106,7 +106,7 @@ export function PropertyCard({
       )}
 
       {/* Metrics Row */}
-      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 text-xs font-semibold mt-auto pt-2 border-t border-slate-100/80 dark:border-slate-800/80">
+      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 text-xs font-semibold mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
             <BedDouble className="w-4 h-4 text-indigo-500" />
@@ -118,7 +118,7 @@ export function PropertyCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/50 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-800/60 px-2 py-0.5 rounded-md font-semibold text-[11px]">
           <Waves className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
           <span>{property.distance_to_beach_km.toFixed(1)} km</span>
         </div>

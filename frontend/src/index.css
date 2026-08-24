@@ -43,6 +43,35 @@
   background: rgba(15, 23, 42, 0.95) !important;
 }
 
+/* Leaflet Draw & Bar Controls Dark Mode */
+.dark .leaflet-bar a,
+.dark .leaflet-draw-toolbar a {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc !important;
+}
+.dark .leaflet-bar a:hover,
+.dark .leaflet-draw-toolbar a:hover {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+}
+.dark .leaflet-draw-actions {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 0.5rem;
+}
+.dark .leaflet-draw-actions a {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  color: #f8fafc !important;
+}
+.dark .leaflet-draw-actions a:hover {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+}
+.dark .leaflet-draw-tooltip {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc !important;
+}
+
 /* Authored Motion Keyframes & Deceleration Curves */
 @keyframes springEntry {
   0% {

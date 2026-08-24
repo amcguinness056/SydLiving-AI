@@ -1,7 +1,6 @@
 import { X, BedDouble, Waves, Train, DollarSign, Trash2, Sparkles, ArrowRight } from 'lucide-react';
 import { type Property } from '../api/client';
 
-
 interface CompareModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,11 +29,11 @@ export function CompareModal({
       {/* Backdrop */}
       <div 
         onClick={onClose}
-        className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" 
+        className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" 
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-white/90 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
+      <div className="relative w-full max-w-5xl max-h-[90vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         
         {/* Modal Header */}
         <div className="px-6 py-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
@@ -81,7 +80,7 @@ export function CompareModal({
                 return (
                   <div 
                     key={property.id}
-                    className="bg-white/80 dark:bg-slate-850 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between shadow-sm hover:shadow-md transition-all space-y-4"
+                    className="bg-white dark:bg-slate-800/90 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between shadow-sm hover:shadow-md transition-all space-y-4 text-slate-800 dark:text-slate-100"
                   >
                     {/* Top title & remove */}
                     <div>
@@ -97,26 +96,26 @@ export function CompareModal({
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">{property.suburb}</p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">{property.suburb}</p>
                     </div>
 
                     {/* Price Matrix */}
-                    <div className="bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-50 dark:bg-slate-900/90 p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/70 grid grid-cols-2 gap-2 text-center">
                       <div>
-                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Weekly Rent</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">Weekly Rent</div>
                         <div className="text-base font-black text-indigo-600 dark:text-indigo-400">${property.weekly_rent}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Est. Monthly</div>
-                        <div className="text-base font-black text-slate-700 dark:text-slate-200">${monthlyRent}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">Est. Monthly</div>
+                        <div className="text-base font-black text-slate-800 dark:text-slate-100">${monthlyRent}</div>
                       </div>
                     </div>
 
                     {/* Commute Specs */}
                     <div className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
                         <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
-                          <Train className="w-3.5 h-3.5 text-indigo-500" /> Commute to {selectedHubName}
+                          <Train className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Commute to {selectedHubName}
                         </span>
                         <span className="font-black text-slate-900 dark:text-white">
                           {property.commute_duration_minutes !== undefined && property.commute_duration_minutes !== null 
@@ -125,39 +124,39 @@ export function CompareModal({
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
                         <span className="text-slate-500 dark:text-slate-400">Transit Mode</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
                           {property.transit_mode || "Public Transit"}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
                         <span className="text-slate-500 dark:text-slate-400">Transfers</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
                           {property.transfers === 0 ? "Direct (0)" : `${property.transfers} transfer`}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
                         <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                           <DollarSign className="w-3.5 h-3.5 text-emerald-500" /> Weekly Opal (10 trips)
                         </span>
                         <span className="font-bold text-emerald-600 dark:text-emerald-400">${weeklyOpal}</span>
                       </div>
 
-                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
                         <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <Waves className="w-3.5 h-3.5 text-blue-500" /> Beach Proximity
+                          <Waves className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Beach Proximity
                         </span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{property.distance_to_beach_km.toFixed(1)} km</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{property.distance_to_beach_km.toFixed(1)} km</span>
                       </div>
 
                       <div className="flex items-center justify-between py-1.5">
                         <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <BedDouble className="w-3.5 h-3.5 text-indigo-500" /> Bed / Bath
+                          <BedDouble className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Bed / Bath
                         </span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{property.bedrooms} Bed • {property.bathrooms} Bath</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{property.bedrooms} Bed • {property.bathrooms} Bath</span>
                       </div>
                     </div>
 

@@ -114,8 +114,9 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
                   className={`text-left p-3 rounded-lg border text-sm transition-colors ${
                     currentSessionId === s.id 
                       ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800' 
-                      : 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750'
+                      : 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
+
                 >
                   <div className="font-medium text-slate-800 dark:text-slate-100 truncate">{s.title || 'New Chat'}</div>
                   <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
@@ -151,8 +152,9 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
                       <button
                         key={idx}
                         onClick={() => handleSuggestionClick(s)}
-                        className="text-left text-xs font-semibold bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-white/60 dark:border-slate-700/60 shadow-xs transition-all text-ellipsis overflow-hidden whitespace-nowrap hover:scale-[1.01]"
+                        className="text-left text-xs font-semibold bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-white/60 dark:border-slate-700/60 shadow-xs transition-all text-ellipsis overflow-hidden whitespace-nowrap hover:scale-[1.01]"
                       >
+
                         ✨ {s}
                       </button>
                     ))}

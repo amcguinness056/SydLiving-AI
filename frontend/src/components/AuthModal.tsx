@@ -37,7 +37,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     e.preventDefault();
     if (!customName.trim()) return;
     const email = customEmail.trim() || `${customName.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
-    const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customName)}`;
+    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(customName.trim())}&background=4285F4&color=fff&rounded=true&bold=true`;
     handleGoogleLogin(customName.trim(), email, avatar);
   };
 
@@ -76,7 +76,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
             onClick={() => handleGoogleLogin(
               "Aaron McGuinness",
               "aaron.mcguinness@gmail.com",
-              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+              "https://ui-avatars.com/api/?name=Aaron+McGuinness&background=4285F4&color=fff&rounded=true&bold=true"
             )}
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-2xl border border-slate-300 shadow-sm hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
@@ -117,12 +117,12 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               onClick={() => handleGoogleLogin(
                 "Aaron M",
                 "aaron@sydliving.ai",
-                "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80"
+                "https://ui-avatars.com/api/?name=Aaron+M&background=34A853&color=fff&rounded=true&bold=true"
               )}
               className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-indigo-50/50 transition-all text-left group"
             >
               <img
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80"
+                src="https://ui-avatars.com/api/?name=Aaron+M&background=34A853&color=fff&rounded=true&bold=true"
                 alt="Aaron"
                 className="w-8 h-8 rounded-full object-cover border border-slate-200"
               />
@@ -136,21 +136,21 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               onClick={() => handleGoogleLogin(
                 "Sydney Explorer",
                 "explorer@gmail.com",
-                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
+                "https://ui-avatars.com/api/?name=Sydney+Explorer&background=EA4335&color=fff&rounded=true&bold=true"
               )}
               className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-indigo-50/50 transition-all text-left group"
             >
-              <img
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
-                alt="Explorer"
-                className="w-8 h-8 rounded-full object-cover border border-slate-200"
-              />
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600">Explorer</div>
-                <div className="text-[10px] text-slate-400 truncate">explorer@gmail.com</div>
-              </div>
-            </button>
-          </div>
+                <img
+                  src="https://ui-avatars.com/api/?name=Sydney+Explorer&background=EA4335&color=fff&rounded=true&bold=true"
+                  alt="Explorer"
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                />
+                <div className="overflow-hidden">
+                  <div className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600">Explorer</div>
+                  <div className="text-[10px] text-slate-400 truncate">explorer@gmail.com</div>
+                </div>
+              </button>
+            </div>
 
           {/* Toggle Custom Account Details */}
           <div className="pt-2">

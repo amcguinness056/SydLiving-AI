@@ -14,7 +14,14 @@ export function PropertyPanel({ property, onClose, isMaximized, onToggleMaximize
       
       {/* Header Banner */}
       <div className="w-full h-52 bg-slate-900 relative shrink-0 overflow-hidden">
-        <img src={property.photo_url} alt={property.title} className="absolute inset-0 w-full h-full object-cover" />
+        <img 
+          src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
+          alt={property.title} 
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
+          }}
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40 pointer-events-none" />
         
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">

@@ -23,7 +23,15 @@ export function PropertyCard({ property, className, onClick, isActive, isSaved, 
     >
       {/* Photo */}
       <div className="w-full h-36 rounded-xl mb-3 overflow-hidden relative shadow-inner shrink-0 bg-slate-100">
-        <img src={property.photo_url} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+        <img 
+          src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
+          alt={property.title} 
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
+          }}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60" />
       </div>
 

@@ -5,7 +5,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import { AuthModal } from './components/AuthModal';
 import { api, type Property, type AgentAction, type User } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X, LogOut, User as UserIcon, Heart, Briefcase } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, LogOut, Heart, Briefcase } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { booleanPointInPolygon, point } from '@turf/turf';
@@ -288,12 +288,17 @@ function App() {
                         <img 
                           src={user.avatar_url} 
                           alt={user.username} 
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=4285F4&color=fff&rounded=true&bold=true`;
+                          }}
                           className="w-5 h-5 rounded-full object-cover border border-slate-200"
                         />
                       ) : (
-                        <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                          <UserIcon className="w-3 h-3" />
-                        </div>
+                        <img 
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=4285F4&color=fff&rounded=true&bold=true`}
+                          alt={user.username} 
+                          className="w-5 h-5 rounded-full object-cover border border-slate-200"
+                        />
                       )}
                       <span className="text-xs font-bold text-slate-700 max-w-[100px] truncate">{user.username}</span>
                       <button onClick={handleLogout} className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-0.5" title="Logout">

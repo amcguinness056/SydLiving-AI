@@ -6,28 +6,40 @@ The platform unifies natural language property discovery with live Transport for
 
 ## Architecture
 
-This project is built as a modern full-stack web application with live API integrations and caching:
-- **Backend:** FastAPI (Python 3.11+), Pydantic v2
+This project is built as a modern full-stack web application with live API integrations, high-performance caching, and serverless AWS production infrastructure:
+- **Backend:** FastAPI (Python 3.11+), Pydantic v2, Mangum ASGI Lambda adapter (`backend/lambda_handler.py`)
+- **Persistence Store:**
+  - **AWS DynamoDB Single-Table Design (`SydLiving-Core`):** Production persistence with On-Demand billing, point-in-time recovery, and Global Secondary Index (`GSI1`) supporting atomic transactions, property queries by suburb/rent, favorites, alerts, and sessions.
+  - **SQLite Local Fallback (`sydliving.db`):** Zero-friction local development without AWS account prerequisites.
 - **External Real-Time APIs:**
   - **Transport for NSW (TfNSW) Open Data Hub:** Trip Planner API (`/stop_finder`, `/trip`, `/departure_mon` endpoints) for real door-to-door journey itineraries, transfer counts, and live departures.
   - **Domain Group Developer API:** "Agencies & Listings" and "Properties & Locations" packages for authentic Sydney rental listings and suburb suggestions.
 - **Caching Layer:** High-performance thread-safe TTL Cache (`backend/cache.py`) preventing duplicate external API calls with hit-rate monitoring.
-- **Database:** SQLite local fallback (`sydliving.db`), migration ready for DynamoDB.
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS, React-Leaflet
 - **AI Agent:** Google Gemini Pro / Flash Native Tool Calling
+- **AWS Cloud Infrastructure (AWS CDK v2 TypeScript):**
+  - Amazon API Gateway HTTP API proxying to Python 3.11 Lambda.
+  - Amazon S3 Private Bucket + CloudFront CDN with Origin Access Control (OAC) and SPA rewrite rules.
+  - AWS Step Functions state machine orchestrator (`SydLiving-PropertyOrchestrator`).
+  - Least-privilege IAM roles with access restricted to DynamoDB, Textract OCR, and Comprehend NLP.
 
 ```mermaid
 graph TD
-    User([User]) <-->|Natural Language Queries| UI[React 19 Frontend]
-    User <-->|Interactive Map| UI
+    User([User]) <-->|HTTPS / TLS| CF[Amazon CloudFront CDN]
+    CF <-->|Static SPA Build| S3[(S3 Frontend Bucket)]
     
-    UI <-->|REST API & JSON| API[FastAPI Backend]
+    User <-->|REST API Requests| APIGW[Amazon API Gateway HTTP API]
+    APIGW <-->|Proxy Event| Lambda[FastAPI Mangum Lambda]
     
-    API <--> Cache[(TTL Cache Layer)]
-    API <-->|Live Itineraries & Departures| TfNSW[TfNSW Open Data Hub]
-    API <-->|Live Rental Listings| Domain[Domain Group API]
-    API <-->|Local Fallback & Seeding| DB[(SQLite Database)]
-    API <-->|Native Function Calling| LLM((Gemini Agent))
+    Lambda <--> Cache[(TTL Cache Layer)]
+    Lambda <-->|Single-Table PK/SK/GSI1| DDB[(DynamoDB Single Table)]
+    Lambda <-->|StartExecution| SFN[AWS Step Functions]
+    Lambda <-->|Document OCR| Textract[AWS Textract]
+    Lambda <-->|Entity & Vibe Analysis| Comprehend[AWS Comprehend]
+    
+    Lambda <-->|Live Itineraries & Departures| TfNSW[TfNSW Open Data Hub]
+    Lambda <-->|Live Rental Listings| Domain[Domain Group API]
+    Lambda <-->|Function Calling| LLM((Gemini Agent))
 ```
 
 ### Core Features
@@ -41,7 +53,8 @@ graph TD
 8. **AWS Step Functions Search Orchestration (Phase 3):** Decoupled multi-step workflow defined in Amazon States Language (`backend/statemachine/property_orchestrator.asl.json`) orchestrating: Search Listings ➔ Calculate Commutes ➔ Score Lifestyle & Vibe ➔ Synthesize Trade-offs.
 9. **Shortlist Favorites & Instant Alerts (Phase 4):** Save preferred listings to an interactive shortlist drawer and subscribe for email alerts on newly matching Sydney rental properties with custom frequency and rent thresholds.
 10. **Commute-Cost Heatmap Layer (Phase 4):** Interactive Leaflet spatial layer plotting Sydney suburbs classified by commute time to CBD hubs (Wynyard, Central, Town Hall, Martin Place) vs. median weekly rent across distinct affordability/commute efficiency tiers.
-11. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view with heatmap toggle, resizable panels, trade-off cards, shortlist drawer, alert modal, interactive lease audit modal, and conversational AI chat assistant.
+11. **Serverless Production Infrastructure (Phase 5):** Complete Infrastructure as Code in AWS CDK TypeScript deploying FastAPI on AWS Lambda via Mangum, DynamoDB Single-Table, API Gateway HTTP API, S3, CloudFront CDN, and Step Functions.
+12. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view with heatmap toggle, resizable panels, trade-off cards, shortlist drawer, alert modal, interactive lease audit modal, and conversational AI chat assistant.
 
 ---
 
@@ -131,6 +144,89 @@ npm install
 npm run dev
 ```
 The frontend application will be accessible at `http://localhost:5173`.
+
+---
+
+## AWS Production Deployment (AWS CDK v2)
+
+The application includes an enterprise-grade Infrastructure-as-Code (IaC) configuration located in `cdk/` written with AWS CDK v2 (TypeScript).
+
+### Cloud Architecture & Resources
+- **Amazon DynamoDB:** Single-Table design (`SydLiving-Core`) with On-Demand billing (PAY_PER_REQUEST), point-in-time recovery, and GSI1 index.
+- **AWS Lambda:** Python 3.11 runtime wrapping the FastAPI application via the `Mangum` ASGI adapter (`backend/lambda_handler.py`).
+- **Amazon API Gateway:** HTTP API proxy (`$default` route) with configured CORS preflight.
+- **AWS Step Functions:** State machine (`SydLiving-PropertyOrchestrator`) orchestrating multi-step property searches.
+- **Amazon S3 + CloudFront:** Private S3 bucket with CloudFront Origin Access Control (OAC), HTTPS redirection, and client-side SPA routing (rewriting 403/404 to `/index.html`).
+- **IAM Least Privilege:** Dedicated execution roles with permissions scoped strictly to DynamoDB table ARNs, Step Functions, AWS Textract OCR, and AWS Comprehend NLP.
+
+### Deployment Prerequisites
+1. **AWS CLI v2** configured with credentials:
+   ```bash
+   aws configure
+   ```
+2. **Node.js (v18+)** and **npm**
+3. **AWS CDK Toolkit** installed globally or run via `npx`:
+   ```bash
+   npm install -g aws-cdk
+   ```
+
+### Step 1: CDK Bootstrap & Deployment
+
+```bash
+cd cdk
+
+# Install dependencies
+npm install
+
+# Compile TypeScript constructs
+npm run build
+
+# Bootstrap AWS environment (first-time deployment only)
+cdk bootstrap aws://<YOUR_ACCOUNT_ID>/ap-southeast-2
+
+# Deploy the complete production stack
+cdk deploy
+```
+
+Upon successful deployment, CDK outputs the following endpoints:
+- `SydLivingStack.ApiEndpoint`: `https://<api-id>.execute-api.ap-southeast-2.amazonaws.com`
+- `SydLivingStack.CloudFrontUrl`: `https://<distribution-id>.cloudfront.net`
+- `SydLivingStack.FrontendBucketName`: `<bucket-name>`
+- `SydLivingStack.DynamoDBTableName`: `SydLiving-Core`
+- `SydLivingStack.StateMachineArn`: `arn:aws:states:ap-southeast-2:<account>:stateMachine:SydLiving-PropertyOrchestrator`
+
+### Step 2: Seed DynamoDB Single Table
+Populate the deployed `SydLiving-Core` DynamoDB table with initial Sydney rental listings and commute itineraries:
+
+```bash
+cd backend
+python3 seed_dynamodb.py --table-name SydLiving-Core
+```
+
+### Step 3: Build & Deploy Frontend to S3 and CloudFront
+Build the production React 19 bundle pointing to the deployed API Gateway endpoint:
+
+```bash
+cd frontend
+
+# Set the production API URL
+export VITE_API_URL="https://<api-id>.execute-api.ap-southeast-2.amazonaws.com/api"
+
+# Build static SPA bundle
+npm run build
+
+# Sync built assets to the S3 bucket created by CDK
+aws s3 sync dist/ s3://<YOUR_FRONTEND_BUCKET_NAME> --delete
+
+# Invalidate CloudFront edge cache
+aws cloudfront create-invalidation --distribution-id <YOUR_DISTRIBUTION_ID> --paths "/*"
+```
+
+### Step 4: Verification & Live Smoke Testing
+Visit your CloudFront domain (`https://<distribution-id>.cloudfront.net`):
+- Verify property listings render from the API Gateway endpoint.
+- Verify commute calculations, interactive heatmap layer, and shortlist favorites.
+- Test the Lease Auditor tool by pasting a rental agreement or uploading a tenancy document.
 
 ---
 

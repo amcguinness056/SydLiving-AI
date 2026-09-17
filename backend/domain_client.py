@@ -171,32 +171,17 @@ class DomainClient:
         max_rent: Optional[float] = None,
         min_bedrooms: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """Queries local SQLite database with rich listing details."""
-        db = sqlite3.connect(DB_PATH, check_same_thread=False)
-        db.row_factory = sqlite3.Row
+        """Queries database repository with rich listing details."""
         try:
-            query = "SELECT * FROM properties WHERE 1=1"
-            params = []
-            if suburb and suburb != "":
-                query += " AND suburb = ?"
-                params.append(suburb)
-            if max_rent is not None and max_rent < 99999.0:
-                query += " AND weekly_rent <= ?"
-                params.append(max_rent)
-            if min_bedrooms is not None and min_bedrooms > 0:
-                query += " AND bedrooms >= ?"
-                params.append(min_bedrooms)
-
-            cursor = db.cursor()
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
+            from db_interface import db_repository
+            rows = db_repository.query_properties(suburb=suburb, max_rent=max_rent, min_bedrooms=min_bedrooms)
             results = []
-            for row in rows:
-                item = dict(row)
+            for r in rows:
+                item = dict(r)
                 item["is_domain_data"] = False
                 results.append(item)
             return results
-        finally:
-            db.close()
+        except Exception:
+            return []
 
 domain_client = DomainClient()

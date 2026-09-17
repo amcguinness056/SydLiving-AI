@@ -31,8 +31,9 @@ Relocation planning, rental house hunting, and commute evaluation. Used on deskt
 - Shortlist & Saved Properties drawer enabling users to favorite rentals and compare shortlists.
 - Instant & Digest rental alerts allowing users to subscribe for notifications based on suburb and rent ceiling criteria.
 - Commute-Cost Heatmap spatial layer displaying value-efficiency and door-to-door transit minutes across Sydney suburbs against key CBD employment hubs.
+- Production-grade AWS serverless infrastructure automated via AWS CDK v2 (TypeScript): Python 3.11 Mangum Lambda wrapper, DynamoDB Single-Table Design (`SydLiving-Core`), API Gateway HTTP API, Amazon S3 + CloudFront global edge CDN distribution with Origin Access Control (OAC), and AWS Step Functions search orchestrator.
 - Interactive split-screen UI layout featuring a glassmorphic chat interface, React-Leaflet map view with heatmap layer toggle, trade-off cards, lease audit modal, and property listing cards with real-time indicators.
-- Resilient local fallback architecture ensuring seamless local development and offline automated testing without requiring live credentials.
+- Resilient dual-mode persistence architecture: automatic zero-config SQLite local development fallback and high-throughput AWS DynamoDB single-table production operation.
 
 ## Brand Commitments
 - Name: SydLiving AI

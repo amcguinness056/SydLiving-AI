@@ -198,6 +198,16 @@ The form language is defined by generous, friendly organic curves and rounded pi
   - Higher Commute & Cost (>45 mins, >$1100/wk): `#ef4444` (Rose-500), opacity 0.55.
 - **Interactive Tooltip:** Hover card displaying suburb name, door-to-door transit minutes, median weekly rent, and value-efficiency score.
 
+### Production Serverless Architecture & Single-Table Design (Phase 5)
+- **FastAPI Mangum Adapter:** Decouples ASGI web framework from infrastructure; converts API Gateway HTTP API v2 payloads to standard ASGI events with zero lifecycle overhead.
+- **Single-Table DynamoDB (`SydLiving-Core`):**
+  - Justification: Combines multi-item transactions, unified point-in-time recovery, zero idle capacity costs, and single-resource IAM boundary.
+  - Key Schema:
+    - Primary: `PK` (Partition) / `SK` (Sort)
+    - GSI1: `GSI1PK` / `GSI1SK`
+- **Global Edge Delivery:** Amazon CloudFront with Origin Access Control (OAC) serving S3-hosted React 19 static assets, compressing with Brotli/Gzip and enforcing HTTPS redirection.
+- **Least-Privilege Security Boundary:** Lambda execution role strictly limited to `SydLiving-Core*` table, Step Functions ARN, Textract OCR, and Comprehend NLP APIs.
+
 ## Do's and Don'ts
 
 ### Do:

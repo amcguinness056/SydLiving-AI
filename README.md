@@ -2,15 +2,19 @@
 
 SydLiving AI is an AI-augmented property search and commute analysis platform tailored for professionals relocating to Sydney, Australia.
 
-The platform allows users to query Sydney sharehouses and rentals using natural language. It cross-references property listings with Transport for NSW (TfNSW) transit mock data to calculate real door-to-door commute times and lifestyle metrics.
+The platform unifies natural language property discovery with live Transport for NSW (TfNSW) transit data and Domain Group rental listings to calculate real door-to-door commute times and lifestyle metrics.
 
 ## Architecture
 
-This project is built as a local-first, full-stack prototype:
+This project is built as a modern full-stack web application with live API integrations and caching:
 - **Backend:** FastAPI (Python 3.11+), Pydantic v2
-- **Database:** SQLite (local file database: `sydliving.db`)
-- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS
-- **AI Agent:** Native Tool Calling via Gemini Pro API
+- **External Real-Time APIs:**
+  - **Transport for NSW (TfNSW) Open Data Hub:** Trip Planner API (`/stop_finder`, `/trip`, `/departure_mon` endpoints) for real door-to-door journey itineraries, transfer counts, and live departures.
+  - **Domain Group Developer API:** "Agencies & Listings" and "Properties & Locations" packages for authentic Sydney rental listings and suburb suggestions.
+- **Caching Layer:** High-performance thread-safe TTL Cache (`backend/cache.py`) preventing duplicate external API calls with hit-rate monitoring.
+- **Database:** SQLite local fallback (`sydliving.db`), migration ready for DynamoDB.
+- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS, React-Leaflet
+- **AI Agent:** Google Gemini Pro / Flash Native Tool Calling
 
 ```mermaid
 graph TD
@@ -19,17 +23,19 @@ graph TD
     
     UI <-->|REST API & JSON| API[FastAPI Backend]
     
-    API <-->|Tool Execution & Search| DB[(SQLite Database)]
-    API <-->|Native Function Calling| LLM((Gemini Pro Agent))
-    
-    DB -->|Properties & Commute Data| API
-    LLM -.->|Determines Tool to Use| API
+    API <--> Cache[(TTL Cache Layer)]
+    API <-->|Live Itineraries & Departures| TfNSW[TfNSW Open Data Hub]
+    API <-->|Live Rental Listings| Domain[Domain Group API]
+    API <-->|Local Fallback & Seeding| DB[(SQLite Database)]
+    API <-->|Native Function Calling| LLM((Gemini Agent))
 ```
+
 ### Core Features
-1. **Property Search Endpoint:** Filter by suburb, max rent, min bedrooms. (Backend Complete)
-2. **Commute Calculation:** Origin to CBD hub total time and route. (Backend Complete)
-3. **Agentic Tool Use:** Natural language query execution. (In Development)
-4. **Interactive Dashboard:** Modern Split-screen UI featuring Glassmorphism, a React-Leaflet map view, and a conversational chat interface panel. (UI Layout Complete)
+1. **Live Commute Calculation (TfNSW Trip Planner):** Door-to-door journey calculation with transit modes (Train, Metro, Bus, Ferry, Light Rail), transfer counts, and real-time station departures.
+2. **Domain Rental Search:** Filter live Sydney rentals by suburb, maximum weekly rent, and minimum bedrooms.
+3. **Resilient TTL Caching:** Automated 30-min transit route caching, 60-min property listing caching, and 5-min station departure caching.
+4. **Agentic Tool Use:** Natural language query execution calling Domain and TfNSW services.
+5. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, and conversational AI chat assistant.
 
 ---
 
@@ -40,35 +46,55 @@ graph TD
 - Node.js (v18+ recommended)
 - Git
 
+### Environment Variables
+Configure `.env` in `backend/`:
+```env
+# Gemini API Key for AI Agent
+GEMINI_API_KEY=your_gemini_api_key
+
+# Transport for NSW Open Data Hub API Key (Optional: Graceful fallback active when absent)
+TFNSW_API_KEY=your_tfnsw_api_key
+
+# Domain Group Developer API Key (Optional: Graceful fallback active when absent)
+DOMAIN_API_KEY=your_domain_api_key
+```
+
 ### 1. Database Setup & Data Seeding
-Before running the backend, you must generate the SQLite database and seed it with dummy data.
+Generate the SQLite database and seed initial Sydney properties:
 
 ```bash
 cd backend
 python3 seed.py
 ```
-*This script will generate `sydliving.db` containing mock properties and commute matrices for Sydney suburbs.*
 
 ### 2. Backend Setup (FastAPI)
 
 ```bash
 cd backend
 
-# Create and activate a virtual environment
+# Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
+# Run backend test suite
+pytest tests -v
+
 # Run the development server
 uvicorn main:app --reload
 ```
-The API will be available at `http://localhost:8000`. You can view the interactive API documentation at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
 
 ### API Endpoints
-- `GET /api/properties`: Search properties. Query params: `suburbs` (list of strings), `max_rent` (float), `min_bedrooms` (int).
-- `GET /api/commute`: Get commute matrix. Query params: `origin_suburb` (string), `destination_cbd_hub` (string).
+- `GET /api/properties`: Search properties via Domain API with caching. Params: `suburbs` (list of strings), `max_rent` (float), `min_bedrooms` (int).
+- `GET /api/commute`: Calculate door-to-door transit via TfNSW Trip Planner. Params: `origin_suburb` (string), `destination_cbd_hub` (string).
+- `GET /api/departures`: Real-time upcoming departures via TfNSW Departures API. Params: `stop_query` (string).
+- `GET /api/locations/suggest`: Suburb and address suggestions via Domain Properties & Locations. Params: `terms` (string).
+- `GET /api/cache/stats`: Live cache hits, misses, and active entry metrics.
+- `POST /api/cache/clear`: Invalidate all in-memory caches.
+- `POST /api/chat`: Process natural language relocation queries via Gemini agent.
 
 ### 3. Frontend Setup (React + Vite)
 
@@ -86,9 +112,9 @@ The frontend application will be accessible at `http://localhost:5173`.
 ---
 
 ## Testing & Documentation Standards
-This project follows an iterative development cycle. **Every iteration must include:**
-- Relevant updates to this `README.md` to reflect new architecture, run instructions, or environment variables.
-- Automated tests (e.g., `pytest` for backend) for newly introduced logic.
+This project follows an iterative development cycle. **Every iteration includes:**
+- Relevant updates to `README.md`, `DESIGN.md`, and `PRODUCT.md`.
+- Automated tests (`pytest` for backend) for newly introduced logic.
 - Inline documentation and docstrings for major functions and components.
 
 ## License

@@ -8,67 +8,49 @@ from google.genai import types
 
 load_dotenv()
 
-from database import get_db_connection
+from domain_client import domain_client
+from tfnsw_client import tfnsw_client
 
 def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> str:
-    """Queries the local database for properties matching the criteria.
+    """Queries rental properties matching the criteria using Domain API.
     Args:
         suburb: A specific suburb to filter by, or empty string "" if none.
         max_rent: Maximum weekly rent in AUD, or 99999.0 if no maximum.
         min_bedrooms: Minimum number of bedrooms, or 0 if no minimum.
     """
-    from database import DB_PATH
-    db = sqlite3.connect(DB_PATH, check_same_thread=False)
-    db.row_factory = sqlite3.Row
     try:
-        query = "SELECT id, title, suburb, weekly_rent, bedrooms, bathrooms FROM properties WHERE 1=1"
-        params = []
-        
-        if suburb and suburb != "":
-            query += " AND suburb = ?"
-            params.append(suburb)
-        if max_rent < 99999.0:
-            query += " AND weekly_rent <= ?"
-            params.append(max_rent)
-        if min_bedrooms > 0:
-            query += " AND bedrooms >= ?"
-            params.append(min_bedrooms)
-            
-        cursor = db.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        
-        results = [dict(row) for row in rows]
-        # Return structured JSON for the agent
-        return json.dumps({"properties": results})
+        sub = suburb if suburb and suburb.strip() != "" else None
+        results = domain_client.search_listings(suburb=sub, max_rent=max_rent, min_bedrooms=min_bedrooms)
+        # Summarize results for token efficiency
+        summaries = [
+            {
+                "id": p["id"],
+                "title": p["title"],
+                "suburb": p["suburb"],
+                "weekly_rent": p["weekly_rent"],
+                "bedrooms": p["bedrooms"],
+                "bathrooms": p["bathrooms"],
+                "distance_to_beach_km": p.get("distance_to_beach_km")
+            }
+            for p in results[:10]
+        ]
+        return json.dumps({"properties": summaries})
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return json.dumps({"error": str(e)})
-    finally:
-        db.close()
 
 def get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
-    """Looks up the commute time between an origin suburb and a CBD hub.
+    """Looks up door-to-door commute time between origin and destination using TfNSW Trip Planner.
     Args:
         origin_suburb: The starting suburb (e.g. 'Coogee').
         destination_cbd_hub: The destination hub (e.g. 'Barangaroo').
     """
-    from database import DB_PATH
-    db = sqlite3.connect(DB_PATH, check_same_thread=False)
-    db.row_factory = sqlite3.Row
     try:
-        cursor = db.cursor()
-        cursor.execute('''
-            SELECT * FROM commute_matrix 
-            WHERE origin_suburb = ? AND destination_cbd_hub = ?
-        ''', (origin_suburb, destination_cbd_hub))
-        
-        rows = cursor.fetchall()
-        results = [dict(row) for row in rows]
-        return json.dumps({"commutes": results})
-    finally:
-        db.close()
+        trip = tfnsw_client.trip_planner(origin_suburb, destination_cbd_hub)
+        if not trip:
+            return json.dumps({"commutes": []})
+        return json.dumps({"commutes": [trip]})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 async def process_chat(message: str, history: list) -> dict:

@@ -1,4 +1,4 @@
-import { BedDouble, Bath, MapPin, Waves, Navigation } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 

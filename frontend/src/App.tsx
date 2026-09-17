@@ -95,9 +95,10 @@ function App() {
     setModalPropertyId(id);
   };
 
-  const handleLayout = (sizes: number[]) => {
-    if (sizes.length === 3) {
-      setRightPanelWidth(sizes[2]);
+  const handleLayout = (layout: Record<string, number>) => {
+    const values = Object.values(layout);
+    if (values.length === 3) {
+      setRightPanelWidth(values[2]);
     } else {
       setRightPanelWidth(0);
     }
@@ -123,7 +124,7 @@ function App() {
       <PanelGroup 
         orientation="horizontal" 
         className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/50 bg-white/40 backdrop-blur-xl"
-        onLayout={handleLayout}
+        onLayoutChange={handleLayout}
       >
         
         {/* Left Panel: Property List */}

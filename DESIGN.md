@@ -156,6 +156,11 @@ The form language is defined by generous, friendly organic curves and rounded pi
 - **Shape:** Map container enclosed in `1.5rem` (`rounded-3xl`) glass wrapper.
 - **Custom Overlays:** Glass property popups with direct detail panel triggers.
 
+### Real-Time Data Indicators (Phase 1)
+- **Live Transit Status Pill:** `rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1`. Features a pulsing green indicator (`w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse`).
+- **Domain Listing Verification Badge:** `rounded-full px-2 py-0.5 text-[11px] font-medium bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 flex items-center gap-1`. Indicates authentic Domain Developer API listing data.
+- **Departure Monitor Card:** Frosted translucent glass card (`backdrop-blur-md bg-white/70 border border-white/60 rounded-xl p-2.5`) displaying upcoming real-time transit departure countdowns.
+
 ## Do's and Don'ts
 
 ### Do:

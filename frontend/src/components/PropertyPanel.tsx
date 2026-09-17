@@ -1,4 +1,4 @@
-import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, Sparkles, ShieldCheck } from "lucide-react";
+import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck } from "lucide-react";
 import { type Property } from "../api/client";
 
 interface PropertyPanelProps {

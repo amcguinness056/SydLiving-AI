@@ -3,7 +3,9 @@ import uuid
 import random
 from datetime import datetime, timedelta
 
-DB_PATH = "sydliving.db"
+import os
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "sydliving.db")
 
 def create_tables(cursor):
     cursor.execute('''

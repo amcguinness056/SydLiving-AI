@@ -19,11 +19,12 @@ An AI-augmented Sydney relocation and housing search platform that seamlessly un
 Relocation planning, rental house hunting, and commute evaluation. Used on desktop and mobile web browsers by people evaluating potential Sydney suburbs and rental properties prior to or during a move.
 
 ## Capabilities and Constraints
-- Natural language query processing via Gemini Pro API native tool calling.
-- Property search filtering by suburb, maximum rent, and minimum bedroom count.
-- Door-to-door commute calculations from origin suburbs to Sydney CBD transit hubs using TfNSW transit matrix data.
-- Interactive split-screen UI layout featuring a glassmorphic chat interface, React-Leaflet map view, and property listing cards.
-- Local-first prototype using FastAPI backend with SQLite database (`sydliving.db`) and React 19 + Vite + Tailwind CSS frontend.
+- Natural language query processing via Gemini Pro API native tool calling with integrated real data tools.
+- Live rental property search filtering via Domain Group Developer API (Agencies & Listings + Properties & Locations).
+- Real-time door-to-door commute calculations from origin suburbs to Sydney CBD transit hubs using Transport for NSW (TfNSW) Open Data Hub Trip Planner API (Stop Finder, Trip Planner, and Departures endpoints).
+- Thread-safe TTL caching layer (30-min commute, 60-min property, 5-min departures) minimizing external rate limits and latency.
+- Interactive split-screen UI layout featuring a glassmorphic chat interface, React-Leaflet map view, and property listing cards with real-time indicators.
+- Resilient local fallback architecture ensuring seamless local development and offline automated testing without requiring live credentials.
 
 ## Brand Commitments
 - Name: SydLiving AI

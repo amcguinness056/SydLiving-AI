@@ -12,17 +12,20 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from database import get_db_connection
-from models import (PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
-                    ChatRequest, ChatResponse, AgentAction, User, ChatSession, 
-                    ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse)
+from models import (
+    PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
+    ChatRequest, ChatResponse, AgentAction, HubsResponse, DestinationHub,
+    IsochroneResponse, IsochroneSuburb, User, ChatSession, 
+    ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
+)
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
 import agent
 
-app = FastAPI(title="SydLiving AI API", version="0.1.0")
+app = FastAPI(title="SydLiving AI API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,6 +39,58 @@ def get_current_user(user_id: Optional[str] = Header(None)):
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/api/hubs", response_model=HubsResponse)
+def get_hubs(db: sqlite3.Connection = Depends(get_db_connection)):
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM destination_hubs ORDER BY name ASC")
+    rows = cursor.fetchall()
+    hubs = [DestinationHub(**dict(row)) for row in rows]
+    return HubsResponse(hubs=hubs)
+
+@app.get("/api/isochrones", response_model=IsochroneResponse)
+def get_isochrones(
+    destination_hub: str = Query("Barangaroo", description="The destination hub name or id"),
+    max_minutes: int = Query(60, description="Max commute duration in minutes"),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    cursor = db.cursor()
+    
+    cursor.execute(
+        "SELECT * FROM destination_hubs WHERE name = ? OR id = ? LIMIT 1", 
+        (destination_hub, destination_hub.lower().replace(" ", "_"))
+    )
+    hub_row = cursor.fetchone()
+    if not hub_row:
+        cursor.execute("SELECT * FROM destination_hubs WHERE name LIKE ? LIMIT 1", (f"%{destination_hub}%",))
+        hub_row = cursor.fetchone()
+    
+    if not hub_row:
+        cursor.execute("SELECT * FROM destination_hubs WHERE id = 'central' LIMIT 1")
+        hub_row = cursor.fetchone()
+
+    hub = DestinationHub(**dict(hub_row))
+    
+    query = """
+        SELECT cm.origin_suburb AS suburb,
+               cm.duration_minutes,
+               cm.transit_mode,
+               cm.transfers,
+               cm.peak_frequency_mins,
+               AVG(p.latitude) AS latitude,
+               AVG(p.longitude) AS longitude
+        FROM commute_matrix cm
+        JOIN properties p ON cm.origin_suburb = p.suburb
+        WHERE (cm.destination_cbd_hub = ? OR cm.destination_cbd_hub LIKE ?)
+          AND cm.duration_minutes <= ?
+        GROUP BY cm.origin_suburb
+        ORDER BY cm.duration_minutes ASC
+    """
+    cursor.execute(query, (hub.name, f"%{hub.name}%", max_minutes))
+    rows = cursor.fetchall()
+    
+    suburbs = [IsochroneSuburb(**dict(row)) for row in rows]
+    return IsochroneResponse(hub=hub, max_minutes=max_minutes, suburbs_within_reach=suburbs)
 
 class GoogleAuthPayload(BaseModel):
     name: str
@@ -58,12 +113,10 @@ def login(username: str, db: sqlite3.Connection = Depends(get_db_connection)):
 @app.post("/api/auth/google")
 def google_auth(payload: GoogleAuthPayload, db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
-    # Check if user with this email or username already exists
     if payload.email:
         cursor.execute("SELECT * FROM users WHERE email = ?", (payload.email,))
         row = cursor.fetchone()
         if row:
-            # Update avatar/name if changed
             cursor.execute("UPDATE users SET username = ?, avatar_url = ? WHERE id = ?", (payload.name, payload.avatar_url, row["id"]))
             db.commit()
             return User(id=row["id"], username=payload.name, email=payload.email, avatar_url=payload.avatar_url, auth_provider="google")
@@ -84,32 +137,59 @@ def search_properties(
     suburbs: Optional[List[str]] = Query(None, description="List of suburbs to filter by"),
     max_rent: Optional[float] = Query(None, description="Maximum weekly rent in AUD"),
     min_bedrooms: Optional[int] = Query(None, description="Minimum number of bedrooms"),
+    destination_hub: Optional[str] = Query(None, description="Destination hub for commute calculation"),
+    max_commute_mins: Optional[int] = Query(None, description="Maximum commute time in minutes"),
     keyword: Optional[str] = Query(None, description="Keyword search in title"),
     property_type: Optional[str] = Query(None, description="Property type filter"),
     circle: Optional[str] = Query(None, description="Circle filter: lat,lng,radius_m"),
     polygon: Optional[str] = Query(None, description="Polygon filter: lat,lng;lat,lng..."),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
-    query = "SELECT * FROM properties WHERE 1=1"
     params = []
+    
+    if destination_hub:
+        query = """
+            SELECT p.*, 
+                   cm.duration_minutes AS commute_duration_minutes,
+                   cm.transit_mode,
+                   cm.transfers,
+                   cm.estimated_opal_fare,
+                   cm.route_summary
+            FROM properties p
+            LEFT JOIN commute_matrix cm 
+              ON p.suburb = cm.origin_suburb 
+             AND (cm.destination_cbd_hub = ? OR cm.destination_cbd_hub LIKE ?)
+            WHERE 1=1
+        """
+        params.extend([destination_hub, f"%{destination_hub}%"])
+        
+        if max_commute_mins is not None:
+            query += " AND cm.duration_minutes IS NOT NULL AND cm.duration_minutes <= ?"
+            params.append(max_commute_mins)
+    else:
+        query = "SELECT p.*, NULL AS commute_duration_minutes, NULL AS transit_mode, NULL AS transfers, NULL AS estimated_opal_fare, NULL AS route_summary FROM properties p WHERE 1=1"
+
     if suburbs:
         placeholders = ','.join('?' * len(suburbs))
-        query += f" AND suburb IN ({placeholders})"
+        query += f" AND p.suburb IN ({placeholders})"
         params.extend(suburbs)
     if max_rent is not None:
-        query += " AND weekly_rent <= ?"
+        query += " AND p.weekly_rent <= ?"
         params.append(max_rent)
     if min_bedrooms is not None:
-        query += " AND bedrooms >= ?"
+        query += " AND p.bedrooms >= ?"
         params.append(min_bedrooms)
-
     if keyword:
-        query += " AND title LIKE ?"
+        query += " AND p.title LIKE ?"
         params.append(f"%{keyword}%")
-        
     if property_type:
-        query += " AND title LIKE ?"
+        query += " AND p.title LIKE ?"
         params.append(f"%{property_type}%")
+
+    if destination_hub:
+        query += " ORDER BY cm.duration_minutes ASC, p.weekly_rent ASC"
+    else:
+        query += " ORDER BY p.weekly_rent ASC"
         
     cursor = db.cursor()
     cursor.execute(query, params)
@@ -121,7 +201,7 @@ def search_properties(
             clat, clng, cradius = map(float, circle.split(','))
             from math import radians, sin, cos, sqrt, atan2
             def calc_distance(lat1, lon1, lat2, lon2):
-                R = 6371000 # meters
+                R = 6371000
                 dlat = radians(lat2 - lat1)
                 dlon = radians(lon2 - lon1)
                 a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
@@ -197,8 +277,9 @@ def get_commute(
     cursor = db.cursor()
     cursor.execute('''
         SELECT * FROM commute_matrix 
-        WHERE origin_suburb = ? AND destination_cbd_hub = ?
-    ''', (origin_suburb, destination_cbd_hub))
+        WHERE (origin_suburb = ? OR origin_suburb LIKE ?) 
+          AND (destination_cbd_hub = ? OR destination_cbd_hub LIKE ?)
+    ''', (origin_suburb, f"%{origin_suburb}%", destination_cbd_hub, f"%{destination_cbd_hub}%"))
     
     rows = cursor.fetchall()
     if not rows:

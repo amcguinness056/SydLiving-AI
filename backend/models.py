@@ -1,6 +1,16 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+class DestinationHub(BaseModel):
+    id: str
+    name: str
+    latitude: float
+    longitude: float
+    hub_type: str
+
+class HubsResponse(BaseModel):
+    hubs: List[DestinationHub]
+
 class PropertyBase(BaseModel):
     id: str
     title: str
@@ -13,8 +23,14 @@ class PropertyBase(BaseModel):
     longitude: float
     distance_to_beach_km: float
     available_date: str
-    description: str
-    photo_url: str
+    description: str = ""
+    photo_url: str = ""
+    # Enriched commute attributes when destination hub filter is active
+    commute_duration_minutes: Optional[int] = None
+    transit_mode: Optional[str] = None
+    transfers: Optional[int] = None
+    estimated_opal_fare: Optional[float] = None
+    route_summary: Optional[str] = None
 
 class Property(PropertyBase):
     pass
@@ -29,9 +45,26 @@ class CommuteMatrix(BaseModel):
     transit_mode: str
     duration_minutes: int
     peak_frequency_mins: int
+    transfers: int = 0
+    estimated_opal_fare: float = 4.20
+    route_summary: str = ""
 
 class CommuteResponse(BaseModel):
     commutes: List[CommuteMatrix]
+
+class IsochroneSuburb(BaseModel):
+    suburb: str
+    latitude: float
+    longitude: float
+    duration_minutes: int
+    transit_mode: str
+    transfers: int
+    peak_frequency_mins: int
+
+class IsochroneResponse(BaseModel):
+    hub: DestinationHub
+    max_minutes: int
+    suburbs_within_reach: List[IsochroneSuburb]
 
 class Place(BaseModel):
     name: str
@@ -76,7 +109,7 @@ class ChatRequest(BaseModel):
     history: Optional[List[dict]] = []
 
 class AgentAction(BaseModel):
-    action_type: str  # e.g., "update_properties", "update_commute", "update_places"
+    action_type: str  # e.g., "update_properties", "update_commute_filters", "update_commute", "update_places"
     data: dict
 
 class ChatResponse(BaseModel):

@@ -1,4 +1,4 @@
-import { BedDouble, Bath, MapPin, Waves } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves, Heart } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -7,9 +7,18 @@ interface PropertyCardProps {
   className?: string;
   onClick?: () => void;
   isActive?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: (e: React.MouseEvent) => void;
 }
 
-export function PropertyCard({ property, className, onClick, isActive }: PropertyCardProps) {
+export function PropertyCard({ 
+  property, 
+  className, 
+  onClick, 
+  isActive, 
+  isFavorite = false, 
+  onToggleFavorite 
+}: PropertyCardProps) {
   return (
     <div
       onClick={onClick}
@@ -21,11 +30,31 @@ export function PropertyCard({ property, className, onClick, isActive }: Propert
     >
       {/* Top row: Title and Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-2">
-        <h3 className="font-bold text-slate-800 line-clamp-1 text-[15px]">
+        <h3 className="font-bold text-slate-800 line-clamp-1 text-[15px] flex-1">
           {property.title}
         </h3>
-        <div className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shrink-0 shadow-xs">
-          ${property.weekly_rent}<span className="text-[10px] font-normal text-indigo-100">/wk</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(e);
+              }}
+              className={cn(
+                "p-1.5 rounded-full transition-all hover:scale-110",
+                isFavorite 
+                  ? "text-rose-500 bg-rose-50 hover:bg-rose-100" 
+                  : "text-slate-300 hover:text-rose-500 hover:bg-slate-100"
+              )}
+              title={isFavorite ? "Remove from shortlist" : "Save to shortlist"}
+            >
+              <Heart className={cn("w-4 h-4", isFavorite && "fill-rose-500 text-rose-500")} />
+            </button>
+          )}
+          <div className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shadow-xs">
+            ${property.weekly_rent}<span className="text-[10px] font-normal text-indigo-100">/wk</span>
+          </div>
         </div>
       </div>
       

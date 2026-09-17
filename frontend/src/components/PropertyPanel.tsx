@@ -1,4 +1,4 @@
-import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck } from "lucide-react";
+import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck, Heart } from "lucide-react";
 import { type Property } from "../api/client";
 
 interface PropertyPanelProps {
@@ -6,9 +6,18 @@ interface PropertyPanelProps {
   onClose: () => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
-export function PropertyPanel({ property, onClose, isMaximized, onToggleMaximize }: PropertyPanelProps) {
+export function PropertyPanel({ 
+  property, 
+  onClose, 
+  isMaximized, 
+  onToggleMaximize,
+  isFavorite = false,
+  onToggleFavorite
+}: PropertyPanelProps) {
   return (
     <div className="h-full w-full flex flex-col bg-white/70 backdrop-blur-2xl relative overflow-hidden animate-in slide-in-from-right-8 duration-300">
       
@@ -18,6 +27,15 @@ export function PropertyPanel({ property, onClose, isMaximized, onToggleMaximize
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(79,70,229,0.4),transparent)] pointer-events-none" />
         
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+          {onToggleFavorite && (
+            <button
+              onClick={onToggleFavorite}
+              className="p-2 bg-black/25 hover:bg-black/40 backdrop-blur-md text-white rounded-full transition-all hover:scale-105"
+              title={isFavorite ? "Remove from shortlist" : "Save to shortlist"}
+            >
+              <Heart className={`w-5 h-5 ${isFavorite ? "text-rose-500 fill-rose-500" : "text-white"}`} />
+            </button>
+          )}
           {onToggleMaximize && (
             <button 
               onClick={onToggleMaximize}

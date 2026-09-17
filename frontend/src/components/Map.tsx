@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { type Property } from '../api/client';
-import { Maximize, Minimize } from 'lucide-react';
+import { Maximize, Minimize, Flame } from 'lucide-react';
+import { HeatmapLayer } from './HeatmapLayer';
 
 // Fix Leaflet's default icon path issues in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -58,16 +59,13 @@ const createCustomPriceIcon = (rent: number, isActive: boolean) => L.divIcon({
       : 'bg-slate-900/90 backdrop-blur-md text-white hover:bg-indigo-600 hover:scale-105 border border-white/40'
   }">
           <span>$${rent}</span>
-          <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${
-            isActive ? 'bg-amber-500' : 'bg-slate-900/90'
-          }"></div>
-         </div>`,
-  iconSize: [60, 30],
-  iconAnchor: [30, 30],
-  popupAnchor: [0, -30],
+        </div>`,
+  iconSize: [60, 32],
+  iconAnchor: [30, 16],
 });
 
 export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximized, onToggleMaximize }: MapProps) {
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const defaultCenter: [number, number] = [-33.8688, 151.2093];
 
   return (
@@ -83,6 +81,11 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
+
+        {/* Render Commute-Cost Heatmap Layer */}
+        {showHeatmap && <HeatmapLayer hub="Martin Place" />}
+
+        {/* Render Property Listing Markers */}
         {properties.map(property => (
           <Marker 
             key={property.id} 
@@ -103,13 +106,49 @@ export function Map({ properties, selectedPropertyId, onSelectProperty, isMaximi
         <MapResizer />
       </MapContainer>
 
-      {/* Glass Legend Overlay */}
-      <div className="absolute bottom-4 left-4 z-40 bg-white/80 backdrop-blur-md border border-white/60 px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold text-slate-700">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span>Sydney Coastal Transit Active</span>
+      {/* Layer Toggle: Listings vs Commute Heatmap */}
+      <div className="absolute top-4 left-4 z-40 flex items-center gap-1 bg-white/90 backdrop-blur-md p-1 rounded-2xl shadow-lg border border-white/60">
+        <button
+          onClick={() => setShowHeatmap(false)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            !showHeatmap ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Properties ({properties.length})
+        </button>
+        <button
+          onClick={() => setShowHeatmap(true)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+            showHeatmap ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5" />
+          <span>Commute Heatmap</span>
+        </button>
       </div>
 
-      {/* Floating UI overlays on map */}
+      {/* Heatmap Legend Overlay */}
+      {showHeatmap ? (
+        <div className="absolute bottom-4 left-4 z-40 bg-white/90 backdrop-blur-md border border-white/60 px-3.5 py-2.5 rounded-2xl shadow-lg flex items-center gap-3 text-xs font-semibold text-slate-700">
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Commute vs Cost:</span>
+          <span className="flex items-center gap-1 text-emerald-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Top Value
+          </span>
+          <span className="flex items-center gap-1 text-blue-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Balanced
+          </span>
+          <span className="flex items-center gap-1 text-amber-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Premium
+          </span>
+        </div>
+      ) : (
+        <div className="absolute bottom-4 left-4 z-40 bg-white/80 backdrop-blur-md border border-white/60 px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold text-slate-700">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Sydney Coastal Transit Active</span>
+        </div>
+      )}
+
+      {/* Fullscreen toggle */}
       {onToggleMaximize && (
         <button
           onClick={onToggleMaximize}

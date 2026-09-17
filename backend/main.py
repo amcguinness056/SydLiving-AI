@@ -17,6 +17,8 @@ from semantic_search import semantic_engine
 from session_store import session_store
 from lease_audit import lease_auditor, LeaseAuditResult
 from orchestrator import orchestrator
+from favorites_alerts import favorites_store, AlertCreateRequest, AlertSubscription
+from heatmap import generate_commute_cost_heatmap, SuburbHeatmapPoint
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="1.0.0")
@@ -237,3 +239,51 @@ async def chat_endpoint(request: ChatRequest):
         print("!!! ERROR IN /api/chat !!!")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Phase 4: Favorites & Alerts ---
+
+@app.get("/api/favorites")
+def get_favorites_endpoint(session_id: str = Query("default-session")):
+    """Retrieves saved favorite properties for the active user session."""
+    return {"favorites": favorites_store.get_favorites(session_id)}
+
+@app.post("/api/favorites")
+def add_favorite_endpoint(
+    property_data: Dict[str, Any],
+    session_id: str = Query("default-session")
+):
+    """Saves a property to user favorites."""
+    fav = favorites_store.add_favorite(session_id, property_data)
+    return {"status": "saved", "property": fav}
+
+@app.delete("/api/favorites/{property_id}")
+def remove_favorite_endpoint(
+    property_id: str,
+    session_id: str = Query("default-session")
+):
+    """Removes a property from user favorites."""
+    removed = favorites_store.remove_favorite(session_id, property_id)
+    return {"status": "removed" if removed else "not_found", "property_id": property_id}
+
+@app.get("/api/alerts", response_model=List[AlertSubscription])
+def get_alerts_endpoint(email: Optional[str] = Query(None)):
+    """Retrieves active vacancy alert subscriptions."""
+    return favorites_store.get_alerts(email)
+
+@app.post("/api/alerts", response_model=AlertSubscription)
+def create_alert_endpoint(req: AlertCreateRequest):
+    """Subscribes to automated notifications for matching Sydney rentals."""
+    return favorites_store.create_alert(req)
+
+@app.delete("/api/alerts/{alert_id}")
+def delete_alert_endpoint(alert_id: str):
+    """Cancels an alert subscription."""
+    deleted = favorites_store.delete_alert(alert_id)
+    return {"status": "deleted" if deleted else "not_found", "alert_id": alert_id}
+
+# --- Phase 4: Commute-Cost Heatmap ---
+
+@app.get("/api/heatmap/commute-cost", response_model=List[SuburbHeatmapPoint])
+def get_commute_cost_heatmap(destination_hub: str = Query("Martin Place")):
+    """Returns Sydney suburb commute vs weekly rent efficiency heatmap metrics."""
+    return generate_commute_cost_heatmap(destination_hub=destination_hub)

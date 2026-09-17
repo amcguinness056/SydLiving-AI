@@ -39,7 +39,9 @@ graph TD
 6. **Session Preference Persistence (Phase 2):** In-memory thread-safe session store maintaining constraints (budget, bedrooms, target hub, vibe tags) across multi-turn conversations without re-prompting.
 7. **AWS Lease & Inspection Auditor (Phase 3):** Serverless lease analysis extracting text and key facts with **AWS Textract**, running entity extraction with **AWS Comprehend**, and executing a specialized NSW Tenancy Red Flag Rule Engine (detecting illegal bond ratios >4wks, missing Rental Bonds Online lodgement, unlawful break-lease penalties, and 6-month rent reviews).
 8. **AWS Step Functions Search Orchestration (Phase 3):** Decoupled multi-step workflow defined in Amazon States Language (`backend/statemachine/property_orchestrator.asl.json`) orchestrating: Search Listings ➔ Calculate Commutes ➔ Score Lifestyle & Vibe ➔ Synthesize Trade-offs.
-9. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, trade-off cards, interactive lease audit modal, and conversational AI chat assistant.
+9. **Shortlist Favorites & Instant Alerts (Phase 4):** Save preferred listings to an interactive shortlist drawer and subscribe for email alerts on newly matching Sydney rental properties with custom frequency and rent thresholds.
+10. **Commute-Cost Heatmap Layer (Phase 4):** Interactive Leaflet spatial layer plotting Sydney suburbs classified by commute time to CBD hubs (Wynyard, Central, Town Hall, Martin Place) vs. median weekly rent across distinct affordability/commute efficiency tiers.
+11. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view with heatmap toggle, resizable panels, trade-off cards, shortlist drawer, alert modal, interactive lease audit modal, and conversational AI chat assistant.
 
 ---
 
@@ -107,6 +109,12 @@ The API will be available at `http://localhost:8000`. Interactive docs at `http:
 - `DELETE /api/session/preferences`: Clear stored session preferences. Param: `session_id`.
 - `POST /api/lease/audit`: Upload lease PDF or paste agreement clauses for AWS Textract/Comprehend NSW statutory red flag analysis.
 - `POST /api/orchestrator/search`: Execute Step Functions orchestrated 4-step search pipeline.
+- `GET /api/favorites`: Retrieve user's shortlisted favorite properties. Param: `user_id`.
+- `POST /api/favorites`: Add property to shortlist. Body: `{ "user_id": str, "property_id": str }`.
+- `DELETE /api/favorites/{property_id}`: Remove property from shortlist. Param: `user_id`.
+- `POST /api/alerts`: Register email alert subscription for matching rental listings.
+- `GET /api/alerts`: List active alert subscriptions. Param: `email` (optional).
+- `GET /api/heatmap`: Generate suburb commute-cost efficiency metrics ($/wk vs mins to CBD). Params: `destination_hub`, `max_commute_mins`.
 - `GET /api/cache/stats`: Live cache hits, misses, and active entry metrics.
 - `POST /api/cache/clear`: Invalidate all in-memory caches.
 - `POST /api/chat`: Process natural language relocation queries via Gemini agent, maintaining session preferences and returning 2–3 labelled trade-off options.

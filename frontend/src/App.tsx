@@ -4,15 +4,18 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X, ShieldCheck } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, ShieldCheck, Heart, Bell } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { LeaseAuditModal } from './components/LeaseAuditModal';
+import { SavedFavoritesModal } from './components/SavedFavoritesModal';
+import { AlertModal } from './components/AlertModal';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
+  const [favorites, setFavorites] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +24,8 @@ function App() {
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(0);
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
@@ -32,7 +37,35 @@ function App() {
   // Initial load
   useEffect(() => {
     loadProperties();
+    loadFavorites();
   }, []);
+
+  async function loadFavorites() {
+    try {
+      const favs = await api.getFavorites();
+      setFavorites(favs);
+    } catch (err) {
+      console.error("Failed to load favorites", err);
+    }
+  }
+
+  const toggleFavorite = async (propertyId: string) => {
+    const isFav = favorites.some(f => f.id === propertyId);
+    try {
+      if (isFav) {
+        await api.removeFavorite(propertyId);
+        setFavorites(prev => prev.filter(f => f.id !== propertyId));
+      } else {
+        await api.addFavorite(propertyId);
+        const prop = properties.find(p => p.id === propertyId);
+        if (prop) {
+          setFavorites(prev => [...prev, prop]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to toggle favorite", err);
+    }
+  };
 
   async function loadProperties(filters?: { suburb?: string, max_rent?: number, min_bedrooms?: number }) {
     setLoading(true);
@@ -156,6 +189,22 @@ function App() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setIsFavoritesModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 transition-colors shadow-xs"
+                  title="View saved shortlist"
+                >
+                  <Heart className={cn("w-3.5 h-3.5 text-rose-600", favorites.length > 0 && "fill-rose-600")} />
+                  <span>Saved ({favorites.length})</span>
+                </button>
+                <button
+                  onClick={() => setIsAlertModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-200 transition-colors shadow-xs"
+                  title="Set up new listing alerts"
+                >
+                  <Bell className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Alerts</span>
+                </button>
                 <button 
                   onClick={() => setIsAuditModalOpen(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-colors shadow-xs"
@@ -202,6 +251,8 @@ function App() {
                     key={p.id}
                     property={p} 
                     isActive={selectedId === p.id}
+                    isFavorite={favorites.some(f => f.id === p.id)}
+                    onToggleFavorite={() => toggleFavorite(p.id)}
                     onClick={() => {
                       setSelectedId(p.id);
                       setModalPropertyId(p.id);
@@ -241,6 +292,8 @@ function App() {
                 onClose={() => setModalPropertyId(null)} 
                 isMaximized={maximizedPanel === 'details'}
                 onToggleMaximize={() => toggleMaximize('details')}
+                isFavorite={favorites.some(f => f.id === modalPropertyId)}
+                onToggleFavorite={() => toggleFavorite(modalPropertyId!)}
               />
             </div>
           </Panel>
@@ -310,6 +363,26 @@ function App() {
       <LeaseAuditModal 
         isOpen={isAuditModalOpen} 
         onClose={() => setIsAuditModalOpen(false)} 
+      />
+
+      {/* Saved Listings / Shortlist Modal */}
+      <SavedFavoritesModal 
+        isOpen={isFavoritesModalOpen}
+        onClose={() => setIsFavoritesModalOpen(false)}
+        favorites={favorites}
+        onRemoveFavorite={(id) => toggleFavorite(id)}
+        onSelectProperty={(id) => {
+          handleMapSelect(id);
+          setIsFavoritesModalOpen(false);
+        }}
+      />
+
+      {/* New Listing Alert Subscription Modal */}
+      <AlertModal 
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+        activeSuburbs={activeFilters?.suburb ? [activeFilters.suburb] : []}
+        maxRent={activeFilters?.max_rent}
       />
 
     </div>

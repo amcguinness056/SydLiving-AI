@@ -108,5 +108,41 @@ export const api = {
       method: 'DELETE'
     });
     return await res.json();
+  },
+
+  getFavorites: async (userId: string = 'default-user'): Promise<Property[]> => {
+    const res = await fetch(`${BASE_URL}/favorites?user_id=${encodeURIComponent(userId)}`);
+    const data = await res.json();
+    return data.favorites || [];
+  },
+
+  addFavorite: async (propertyId: string, userId: string = 'default-user') => {
+    const res = await fetch(`${BASE_URL}/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, property_id: propertyId })
+    });
+    return await res.json();
+  },
+
+  removeFavorite: async (propertyId: string, userId: string = 'default-user') => {
+    const res = await fetch(`${BASE_URL}/favorites/${encodeURIComponent(propertyId)}?user_id=${encodeURIComponent(userId)}`, {
+      method: 'DELETE'
+    });
+    return await res.json();
+  },
+
+  createAlert: async (data: { email: string; suburbs?: string[]; max_rent?: number; min_bedrooms?: number; frequency?: string }) => {
+    const res = await fetch(`${BASE_URL}/alerts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  getHeatmap: async (cbdHub: string = 'Wynyard', maxMins: number = 60) => {
+    const res = await fetch(`${BASE_URL}/heatmap?destination_hub=${encodeURIComponent(cbdHub)}&max_commute_mins=${maxMins}`);
+    return await res.json();
   }
 };

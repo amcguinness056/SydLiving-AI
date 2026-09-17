@@ -177,6 +177,27 @@ The form language is defined by generous, friendly organic curves and rounded pi
   - Low Risk: `bg-emerald-500/10 text-emerald-700 border-emerald-500/30` with `ShieldCheck` icon.
 - **Red Flag Cards:** Distinct white container with hairline border, severity dot, verbatim clause block in monospace font, and legislative citation pills.
 
+### Saved Listings Shortlist Modal (Phase 4)
+- **Modal Shape:** `max-w-xl w-full max-h-[85vh] bg-white/95 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white/60`.
+- **Action Triggers:** Heart icon button on property cards and property detail header with filled rose-500 indicator (`fill-rose-500 text-rose-500`).
+- **Header Badge:** Rose-themed counter pill displaying total saved properties (`bg-rose-500 text-white rounded-xl`).
+- **Shortlist Item Row:** Elevated white cards with thumbnail address, bed/bath metrics, quick view CTA, and trash removal trigger.
+
+### Instant Match Alert Modal (Phase 4)
+- **Modal Shape:** `max-w-md w-full bg-white/95 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white/60`.
+- **Form Controls:** Clean rounded inputs (`rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100`) with email validation and frequency radio buttons (Instant, Daily Digest, Weekly Summary).
+- **Feedback State:** Animated green checkmark badge confirming subscription with clear criteria tags.
+
+### Commute-Cost Heatmap Layer (Phase 4)
+- **Layer Toggle:** Floating switch in map header toggling between Individual Properties and Commute-Cost Heatmap.
+- **Color Legend & Circle Styling:**
+  - Fast & Affordable (<30 mins, <$800/wk): `#10b981` (Emerald-500), opacity 0.55.
+  - Moderate Commute & Price (30-45 mins, $800-1100/wk): `#3b82f6` (Blue-500), opacity 0.55.
+  - Premium Beach/Harbor (<30 mins, >$1100/wk): `#8b5cf6` (Purple-500), opacity 0.55.
+  - Outer Suburb Affordable (>45 mins, <$800/wk): `#f59e0b` (Amber-500), opacity 0.55.
+  - Higher Commute & Cost (>45 mins, >$1100/wk): `#ef4444` (Rose-500), opacity 0.55.
+- **Interactive Tooltip:** Hover card displaying suburb name, door-to-door transit minutes, median weekly rent, and value-efficiency score.
+
 ## Do's and Don'ts
 
 ### Do:

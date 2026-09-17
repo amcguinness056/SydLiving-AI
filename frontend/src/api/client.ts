@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 export interface Property {
   id: string;
@@ -12,6 +12,9 @@ export interface Property {
   longitude: number;
   distance_to_beach_km: number;
   available_date: string;
+  description?: string;
+  is_domain_data?: boolean;
+  vibe_score?: number;
 }
 
 export interface Commute {
@@ -20,6 +23,17 @@ export interface Commute {
   transit_mode: string;
   duration_minutes: number;
   peak_frequency_mins: number;
+  transfers?: number;
+  is_live_data?: boolean;
+}
+
+export interface TradeoffOption {
+  label: string; // "Cheapest" | "Fastest Commute" | "Best Overall"
+  property: Property;
+  commute_minutes: number;
+  transit_mode: string;
+  reasoning: string;
+  badge_color: string;
 }
 
 export interface AgentAction {
@@ -30,6 +44,14 @@ export interface AgentAction {
 export interface ChatResponse {
   reply: string;
   actions: AgentAction[];
+  tradeoffs?: TradeoffOption[];
+  session_preferences?: {
+    max_rent?: number;
+    min_bedrooms?: number;
+    target_suburbs?: string[];
+    preferred_cbd_hub?: string;
+    vibe_query?: string;
+  };
 }
 
 export const api = {
@@ -46,22 +68,45 @@ export const api = {
     }
     const res = await fetch(url);
     const data = await res.json();
-    return data.results;
+    return data.results || [];
   },
+
+  semanticSearch: async (vibe: string, max_rent?: number, min_bedrooms?: number): Promise<Property[]> => {
+    const res = await fetch(`${BASE_URL}/properties/semantic-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vibe, max_rent, min_bedrooms })
+    });
+    const data = await res.json();
+    return data.results || [];
+  },
+
   getCommute: async (origin: string, dest: string): Promise<Commute[]> => {
     const res = await fetch(`${BASE_URL}/commute?origin_suburb=${encodeURIComponent(origin)}&destination_cbd_hub=${encodeURIComponent(dest)}`);
     const data = await res.json();
-    return data.commutes;
+    return data.commutes || [];
   },
-  sendChatMessage: async (message: string, history: any[] = []): Promise<ChatResponse> => {
+
+  sendChatMessage: async (message: string, history: any[] = [], sessionId: string = 'sydliving-session'): Promise<ChatResponse> => {
     const res = await fetch(`${BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ message, history })
+      body: JSON.stringify({ message, history, session_id: sessionId })
+    });
+    return await res.json();
+  },
+
+  getSessionPreferences: async (sessionId: string = 'sydliving-session') => {
+    const res = await fetch(`${BASE_URL}/session/preferences?session_id=${encodeURIComponent(sessionId)}`);
+    return await res.json();
+  },
+
+  clearSessionPreferences: async (sessionId: string = 'sydliving-session') => {
+    const res = await fetch(`${BASE_URL}/session/preferences?session_id=${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE'
     });
     return await res.json();
   }
 };
-

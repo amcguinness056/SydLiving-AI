@@ -161,6 +161,13 @@ The form language is defined by generous, friendly organic curves and rounded pi
 - **Domain Listing Verification Badge:** `rounded-full px-2 py-0.5 text-[11px] font-medium bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 flex items-center gap-1`. Indicates authentic Domain Developer API listing data.
 - **Departure Monitor Card:** Frosted translucent glass card (`backdrop-blur-md bg-white/70 border border-white/60 rounded-xl p-2.5`) displaying upcoming real-time transit departure countdowns.
 
+### Multi-Option Trade-Off Cards (Phase 2)
+- **Container:** `bg-white/90 hover:bg-white border border-white/80 rounded-xl p-3 shadow-xs hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer`.
+- **Cheapest Pill:** `bg-emerald-500/10 border-emerald-500/30 text-emerald-700` with tag icon. Emphasizes maximum weekly rent savings.
+- **Fastest Commute Pill:** `bg-blue-500/10 border-blue-500/30 text-blue-700` with lightning zap icon. Emphasizes lowest door-to-door minutes to workplace.
+- **Best Overall Pill:** `bg-amber-500/10 border-amber-500/30 text-amber-700` with award icon. Highlights composite balance of vibe score, transit, and price.
+- **Session Hub Badge:** Pill indicator in chat header (`bg-white/80 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-semibold`) displaying active workplace destination without re-prompting.
+
 ## Do's and Don'ts
 
 ### Do:

@@ -53,17 +53,26 @@ function App() {
     }
   };
 
+  const [sessionPreferences, setSessionPreferences] = useState<any>(null);
+
   const handleSendMessage = async (text: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
 
     try {
-      // Send chat with history format expected by backend
       const response = await api.sendChatMessage(text, chatHistory);
       
-      const agentMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: response.reply };
+      const agentMsg: Message = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'model', 
+        content: response.reply,
+        tradeoffs: response.tradeoffs
+      };
       setMessages(prev => [...prev, agentMsg]);
+      if (response.session_preferences) {
+        setSessionPreferences(response.session_preferences);
+      }
       
       // Update history for next turn
       setChatHistory(prev => [
@@ -264,6 +273,8 @@ function App() {
                   messages={messages} 
                   isThinking={isThinking} 
                   onSendMessage={handleSendMessage} 
+                  onSelectProperty={(id) => handleMapSelect(id)}
+                  sessionPreferences={sessionPreferences}
                 />
               </div>
             </div>

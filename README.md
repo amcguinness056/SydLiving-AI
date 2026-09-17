@@ -34,8 +34,10 @@ graph TD
 1. **Live Commute Calculation (TfNSW Trip Planner):** Door-to-door journey calculation with transit modes (Train, Metro, Bus, Ferry, Light Rail), transfer counts, and real-time station departures.
 2. **Domain Rental Search:** Filter live Sydney rentals by suburb, maximum weekly rent, and minimum bedrooms.
 3. **Resilient TTL Caching:** Automated 30-min transit route caching, 60-min property listing caching, and 5-min station departure caching.
-4. **Agentic Tool Use:** Natural language query execution calling Domain and TfNSW services.
-5. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, and conversational AI chat assistant.
+4. **Semantic "Vibe" Search (Phase 2):** Vector cosine similarity matching over listing descriptions and neighborhood vibe profiles (e.g. "quiet, leafy, near good coffee", "beachside haven", "bustling nightlife").
+5. **Multi-Option Trade-Off Engine (Phase 2):** Agent returns 2–3 clearly labelled trade-offs (🏷️ Cheapest, ⏱️ Fastest Commute, ⭐ Best Overall) allowing users to balance budget against commute friction.
+6. **Session Preference Persistence (Phase 2):** In-memory thread-safe session store maintaining constraints (budget, bedrooms, target hub, vibe tags) across multi-turn conversations without re-prompting.
+7. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, trade-off cards, and conversational AI chat assistant.
 
 ---
 
@@ -89,12 +91,15 @@ The API will be available at `http://localhost:8000`. Interactive docs at `http:
 
 ### API Endpoints
 - `GET /api/properties`: Search properties via Domain API with caching. Params: `suburbs` (list of strings), `max_rent` (float), `min_bedrooms` (int).
+- `POST /api/properties/semantic-search`: Search rentals using vector similarity over listing copy and suburb vibe metadata.
 - `GET /api/commute`: Calculate door-to-door transit via TfNSW Trip Planner. Params: `origin_suburb` (string), `destination_cbd_hub` (string).
 - `GET /api/departures`: Real-time upcoming departures via TfNSW Departures API. Params: `stop_query` (string).
 - `GET /api/locations/suggest`: Suburb and address suggestions via Domain Properties & Locations. Params: `terms` (string).
+- `GET /api/session/preferences`: Retrieve active session preferences. Param: `session_id`.
+- `DELETE /api/session/preferences`: Clear stored session preferences. Param: `session_id`.
 - `GET /api/cache/stats`: Live cache hits, misses, and active entry metrics.
 - `POST /api/cache/clear`: Invalidate all in-memory caches.
-- `POST /api/chat`: Process natural language relocation queries via Gemini agent.
+- `POST /api/chat`: Process natural language relocation queries via Gemini agent, maintaining session preferences and returning 2–3 labelled trade-off options.
 
 ### 3. Frontend Setup (React + Vite)
 

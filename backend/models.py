@@ -15,6 +15,7 @@ class PropertyBase(BaseModel):
     available_date: str
     description: Optional[str] = None
     is_domain_data: Optional[bool] = False
+    vibe_score: Optional[float] = None
 
 class Property(PropertyBase):
     pass
@@ -50,14 +51,32 @@ class CacheStatsResponse(BaseModel):
     property_cache: Dict[str, Any]
     departure_cache: Dict[str, Any]
 
+class TradeoffOption(BaseModel):
+    label: str  # "Cheapest", "Fastest Commute", "Best Overall"
+    property: Property
+    commute_minutes: int
+    transit_mode: str
+    reasoning: str
+    badge_color: str  # "emerald", "blue", "amber"
+
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[dict]] = []
+    session_id: Optional[str] = "default-session"
 
 class AgentAction(BaseModel):
-    action_type: str  # e.g., "update_properties", "update_commute"
+    action_type: str  # e.g., "update_properties", "update_commute", "tradeoff_recommendations"
     data: dict
 
 class ChatResponse(BaseModel):
     reply: str
     actions: List[AgentAction] = []
+    tradeoffs: List[TradeoffOption] = []
+    session_preferences: Optional[Dict[str, Any]] = None
+
+class SemanticSearchRequest(BaseModel):
+    vibe: str
+    max_rent: Optional[float] = None
+    min_bedrooms: Optional[int] = None
+    suburbs: Optional[List[str]] = None
+    destination_cbd_hub: Optional[str] = "Martin Place"

@@ -8,11 +8,13 @@ from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix,
     ChatRequest, ChatResponse, AgentAction, DeparturesResponse, DepartureInfo,
-    CacheStatsResponse
+    CacheStatsResponse, SemanticSearchRequest, TradeoffOption
 )
 from tfnsw_client import tfnsw_client
 from domain_client import domain_client
 from cache import commute_cache, property_cache, departure_cache
+from semantic_search import semantic_engine
+from session_store import session_store
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="1.0.0")
@@ -131,18 +133,58 @@ def clear_cache():
     departure_cache.clear()
     return {"status": "caches cleared"}
 
+@app.post("/api/properties/semantic-search", response_model=PropertySearchResponse)
+def semantic_search_properties(req: SemanticSearchRequest):
+    """Semantic vector search over property listings and suburb vibes."""
+    try:
+        raw_listings = domain_client.search_listings(
+            suburb=req.suburbs[0] if req.suburbs else None,
+            max_rent=req.max_rent,
+            min_bedrooms=req.min_bedrooms
+        )
+        ranked = semantic_engine.rank_properties_by_vibe(req.vibe, raw_listings, top_k=20)
+        results = [Property(**p) for p in ranked]
+        return PropertySearchResponse(results=results, total=len(results))
+    except Exception as e:
+        print(f"Error in semantic_search_properties: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/session/preferences")
+def get_session_preferences(session_id: str = Query("default-session")):
+    """Retrieves stored user relocation preferences for a session."""
+    return session_store.get_or_create(session_id)
+
+@app.delete("/api/session/preferences")
+def delete_session_preferences(session_id: str = Query("default-session")):
+    """Resets stored user preferences for a session."""
+    session_store.clear(session_id)
+    return {"status": "session cleared", "session_id": session_id}
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-        print(f"--- Chat Request ---")
+        session_id = request.session_id or "default-session"
+        print(f"--- Chat Request (Session: {session_id}) ---")
         print(f"Message: {request.message}")
         print(f"History length: {len(request.history or [])}")
         
-        result = await agent.process_chat(request.message, request.history or [])
+        result = await agent.process_chat(
+            message=request.message,
+            history=request.history or [],
+            session_id=session_id
+        )
+        
+        tradeoff_items = [
+            TradeoffOption(**t) if isinstance(t, dict) else t
+            for t in result.get("tradeoffs", [])
+        ]
         
         return ChatResponse(
             reply=result["reply"],
-            actions=[AgentAction(**action) for action in result.get("actions", [])]
+            actions=[AgentAction(**action) for action in result.get("actions", [])],
+            tradeoffs=tradeoff_items,
+            session_preferences=result.get("session_preferences")
         )
     except Exception as e:
         print("!!! ERROR IN /api/chat !!!")

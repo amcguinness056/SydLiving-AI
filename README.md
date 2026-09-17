@@ -37,7 +37,9 @@ graph TD
 4. **Semantic "Vibe" Search (Phase 2):** Vector cosine similarity matching over listing descriptions and neighborhood vibe profiles (e.g. "quiet, leafy, near good coffee", "beachside haven", "bustling nightlife").
 5. **Multi-Option Trade-Off Engine (Phase 2):** Agent returns 2–3 clearly labelled trade-offs (🏷️ Cheapest, ⏱️ Fastest Commute, ⭐ Best Overall) allowing users to balance budget against commute friction.
 6. **Session Preference Persistence (Phase 2):** In-memory thread-safe session store maintaining constraints (budget, bedrooms, target hub, vibe tags) across multi-turn conversations without re-prompting.
-7. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, trade-off cards, and conversational AI chat assistant.
+7. **AWS Lease & Inspection Auditor (Phase 3):** Serverless lease analysis extracting text and key facts with **AWS Textract**, running entity extraction with **AWS Comprehend**, and executing a specialized NSW Tenancy Red Flag Rule Engine (detecting illegal bond ratios >4wks, missing Rental Bonds Online lodgement, unlawful break-lease penalties, and 6-month rent reviews).
+8. **AWS Step Functions Search Orchestration (Phase 3):** Decoupled multi-step workflow defined in Amazon States Language (`backend/statemachine/property_orchestrator.asl.json`) orchestrating: Search Listings ➔ Calculate Commutes ➔ Score Lifestyle & Vibe ➔ Synthesize Trade-offs.
+9. **Interactive Coastal Glassmorphic Dashboard:** Split-screen UI featuring React-Leaflet map view, resizable panels, trade-off cards, interactive lease audit modal, and conversational AI chat assistant.
 
 ---
 
@@ -59,6 +61,12 @@ TFNSW_API_KEY=your_tfnsw_api_key
 
 # Domain Group Developer API Key (Optional: Graceful fallback active when absent)
 DOMAIN_API_KEY=your_domain_api_key
+
+# AWS Credentials (Optional: Local fallback active when absent)
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=ap-southeast-2
+PROPERTY_ORCHESTRATOR_SFN_ARN=arn:aws:states:ap-southeast-2:123456789012:stateMachine:SydLivingOrchestrator
 ```
 
 ### 1. Database Setup & Data Seeding
@@ -97,6 +105,8 @@ The API will be available at `http://localhost:8000`. Interactive docs at `http:
 - `GET /api/locations/suggest`: Suburb and address suggestions via Domain Properties & Locations. Params: `terms` (string).
 - `GET /api/session/preferences`: Retrieve active session preferences. Param: `session_id`.
 - `DELETE /api/session/preferences`: Clear stored session preferences. Param: `session_id`.
+- `POST /api/lease/audit`: Upload lease PDF or paste agreement clauses for AWS Textract/Comprehend NSW statutory red flag analysis.
+- `POST /api/orchestrator/search`: Execute Step Functions orchestrated 4-step search pipeline.
 - `GET /api/cache/stats`: Live cache hits, misses, and active entry metrics.
 - `POST /api/cache/clear`: Invalidate all in-memory caches.
 - `POST /api/chat`: Process natural language relocation queries via Gemini agent, maintaining session preferences and returning 2–3 labelled trade-off options.

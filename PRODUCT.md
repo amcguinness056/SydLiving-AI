@@ -26,7 +26,9 @@ Relocation planning, rental house hunting, and commute evaluation. Used on deskt
 - Semantic vector search over listing descriptions and neighborhood vibe profiles (e.g. "quiet, leafy, near good coffee"), breaking beyond rigid keyword filters.
 - Multi-option trade-off synthesis delivering 2–3 labelled recommendations (Cheapest, Fastest Commute, Best Overall) with explicit trade-off reasoning.
 - Session-based user preference persistence tracking budget, bedroom counts, workplace destinations, and lifestyle vibes across multi-turn chats.
-- Interactive split-screen UI layout featuring a glassmorphic chat interface, React-Leaflet map view, trade-off cards, and property listing cards with real-time indicators.
+- AWS-native Tenancy Lease & Inspection Auditor powered by AWS Textract and Comprehend, parsing legal agreements and evaluating them against NSW Fair Trading tenancy laws to detect bond traps, excessive penalties, and unlawful repair clauses.
+- Decoupled Step Functions search orchestration workflow (`property_orchestrator.asl.json`) separating listing retrieval, commute calculations, lifestyle scoring, and trade-off synthesis into discrete state tasks.
+- Interactive split-screen UI layout featuring a glassmorphic chat interface, React-Leaflet map view, trade-off cards, lease audit modal, and property listing cards with real-time indicators.
 - Resilient local fallback architecture ensuring seamless local development and offline automated testing without requiring live credentials.
 
 ## Brand Commitments

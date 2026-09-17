@@ -1,8 +1,8 @@
 import sqlite3
 import traceback
-from fastapi import FastAPI, Depends, Query, HTTPException
+from fastapi import FastAPI, Depends, Query, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from database import get_db_connection
 from models import (
@@ -15,6 +15,8 @@ from domain_client import domain_client
 from cache import commute_cache, property_cache, departure_cache
 from semantic_search import semantic_engine
 from session_store import session_store
+from lease_audit import lease_auditor, LeaseAuditResult
+from orchestrator import orchestrator
 import agent
 
 app = FastAPI(title="SydLiving AI API", version="1.0.0")
@@ -160,6 +162,51 @@ def delete_session_preferences(session_id: str = Query("default-session")):
     """Resets stored user preferences for a session."""
     session_store.clear(session_id)
     return {"status": "session cleared", "session_id": session_id}
+
+@app.post("/api/lease/audit", response_model=LeaseAuditResult)
+async def audit_lease_endpoint(
+    file: Optional[UploadFile] = File(None),
+    lease_text: Optional[str] = Form(None)
+):
+    """Audits a tenancy agreement or condition report PDF using AWS Textract, Comprehend, and NSW Red Flag rules."""
+    try:
+        raw_text = ""
+        if file:
+            content = await file.read()
+            raw_text = lease_auditor.extract_document_text(content, filename=file.filename or "lease.pdf")
+        elif lease_text:
+            raw_text = lease_text
+        else:
+            raise HTTPException(status_code=400, detail="Either file upload or lease_text must be provided.")
+
+        result = lease_auditor.audit_lease(raw_text)
+        return result
+    except Exception as e:
+        print(f"Error in audit_lease_endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/orchestrator/search")
+def orchestrated_property_search(
+    suburb: Optional[str] = Query(None),
+    max_rent: Optional[float] = Query(None),
+    min_bedrooms: Optional[int] = Query(None),
+    destination_hub: str = Query("Martin Place"),
+    vibe_query: Optional[str] = Query(None)
+):
+    """Executes the Step Functions state machine search -> commute -> lifestyle -> trade-offs workflow."""
+    try:
+        return orchestrator.execute_workflow(
+            suburb=suburb,
+            max_rent=max_rent,
+            min_bedrooms=min_bedrooms,
+            destination_hub=destination_hub,
+            vibe_query=vibe_query
+        )
+    except Exception as e:
+        print(f"Error in orchestrated_property_search: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):

@@ -4,9 +4,10 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { api, type Property, type AgentAction } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X } from 'lucide-react';
+import { Sparkles, Maximize, Minimize, MessageCircle, X, ShieldCheck } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
+import { LeaseAuditModal } from './components/LeaseAuditModal';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -19,6 +20,7 @@ function App() {
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(0);
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
@@ -153,13 +155,23 @@ function App() {
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => toggleMaximize('list')}
-                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/80 rounded-xl border border-transparent hover:border-slate-200 transition-all"
-                title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
-              >
-                {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => setIsAuditModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-colors shadow-xs"
+                  title="Audit tenancy agreement for illegal clauses"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Audit Lease</span>
+                </button>
+                <button 
+                  onClick={() => toggleMaximize('list')}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/80 rounded-xl border border-transparent hover:border-slate-200 transition-all"
+                  title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
+                >
+                  {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                </button>
+              </div>
             </header>
 
             {activeFilters && (
@@ -293,6 +305,12 @@ function App() {
           )}
         </button>
       </div>
+
+      {/* Lease & Inspection Report Audit Modal */}
+      <LeaseAuditModal 
+        isOpen={isAuditModalOpen} 
+        onClose={() => setIsAuditModalOpen(false)} 
+      />
 
     </div>
   );

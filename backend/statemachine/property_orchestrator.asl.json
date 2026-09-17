@@ -1,0 +1,81 @@
+{
+  "Comment": "SydLiving AI Step Functions Search & Commute Orchestration State Machine",
+  "StartAt": "SearchListingsTask",
+  "States": {
+    "SearchListingsTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SearchListingsLambdaArn}",
+        "Payload": {
+          "suburb.$": "$.suburb",
+          "max_rent.$": "$.max_rent",
+          "min_bedrooms.$": "$.min_bedrooms"
+        }
+      },
+      "ResultSelector": {
+        "listings.$": "$.Payload.results"
+      },
+      "ResultPath": "$.searchResults",
+      "Next": "CalculateCommutesTask"
+    },
+    "CalculateCommutesTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${CalculateCommuteLambdaArn}",
+        "Payload": {
+          "origin.$": "$.suburb",
+          "destination.$": "$.destination_hub"
+        }
+      },
+      "ResultSelector": {
+        "commute.$": "$.Payload.commute"
+      },
+      "ResultPath": "$.commuteResults",
+      "Next": "ScoreLifestyleAndVibeTask"
+    },
+    "ScoreLifestyleAndVibeTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ScoreLifestyleLambdaArn}",
+        "Payload": {
+          "vibe_query.$": "$.vibe_query",
+          "listings.$": "$.searchResults.listings"
+        }
+      },
+      "ResultSelector": {
+        "scored_listings.$": "$.Payload.ranked_listings"
+      },
+      "ResultPath": "$.lifestyleResults",
+      "Next": "SynthesizeTradeoffsTask"
+    },
+    "SynthesizeTradeoffsTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SynthesizeTradeoffsLambdaArn}",
+        "Payload": {
+          "listings.$": "$.lifestyleResults.scored_listings",
+          "destination_hub.$": "$.destination_hub"
+        }
+      },
+      "ResultSelector": {
+        "tradeoffs.$": "$.Payload.tradeoffs"
+      },
+      "ResultPath": "$.tradeoffResults",
+      "Next": "OrchestrationComplete"
+    },
+    "OrchestrationComplete": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "SUCCEEDED",
+        "tradeoffs.$": "$.tradeoffResults.tradeoffs",
+        "total_listings_evaluated.$": "States.ArrayLength($.searchResults.listings)",
+        "destination_hub.$": "$.destination_hub"
+      },
+      "End": true
+    }
+  }
+}

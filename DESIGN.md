@@ -168,6 +168,15 @@ The form language is defined by generous, friendly organic curves and rounded pi
 - **Best Overall Pill:** `bg-amber-500/10 border-amber-500/30 text-amber-700` with award icon. Highlights composite balance of vibe score, transit, and price.
 - **Session Hub Badge:** Pill indicator in chat header (`bg-white/80 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-semibold`) displaying active workplace destination without re-prompting.
 
+### Lease & Inspection Auditor Modal (Phase 3)
+- **Modal Wrapper:** Floating centered card `max-w-2xl w-full max-h-[90vh] bg-white/95 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white/60`.
+- **Drag-and-Drop Uploader:** `border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-6 bg-indigo-50/20` with rounded circular icon badge.
+- **Risk Score Banners:**
+  - High Risk: `bg-rose-500/10 text-rose-700 border-rose-500/30` with `ShieldAlert` icon.
+  - Moderate Risk: `bg-amber-500/10 text-amber-700 border-amber-500/30` with `AlertTriangle` icon.
+  - Low Risk: `bg-emerald-500/10 text-emerald-700 border-emerald-500/30` with `ShieldCheck` icon.
+- **Red Flag Cards:** Distinct white container with hairline border, severity dot, verbatim clause block in monospace font, and legislative citation pills.
+
 ## Do's and Don'ts
 
 ### Do:

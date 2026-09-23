@@ -132,7 +132,7 @@ Give concise, reassuring, and precise answers highlighting commute times, transi
             temperature=0.3,
         )
         
-        model_name = "gemini-3.7-flash"
+        model_name = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
         chat = client.chats.create(model=model_name, config=config)
         
         if history:

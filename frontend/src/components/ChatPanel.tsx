@@ -104,7 +104,7 @@ export function ChatPanel({
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span>AI Relocation Advisor</span>
           </h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Semantic Vibe Search • Trade-off Engine • TfNSW Live Transit</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Powered by Gemini 3.8 Flash • Sydney Metro & TfNSW Transit Sync</p>
         </div>
         <div className="flex items-center gap-2">
           {sessionPreferences?.preferred_cbd_hub && (

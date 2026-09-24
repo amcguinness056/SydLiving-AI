@@ -265,8 +265,7 @@ async def process_chat(message: str, history: list, session_id: str = "default-s
             tools=tools,
             temperature=0.3,
         )
-
-        model_name = "gemini-2.5-flash"
+        model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
         chat = client.chats.create(model=model_name, config=config)
         if history:
             chat._history = contents[:-1]
@@ -275,7 +274,7 @@ async def process_chat(message: str, history: list, session_id: str = "default-s
             response = chat.send_message(message)
         except Exception as api_err:
             if "503" in str(api_err) or "UNAVAILABLE" in str(api_err) or "not found" in str(api_err).lower():
-                model_name = "gemini-2.0-flash"
+                model_name = "gemini-3.6-flash"
                 chat = client.chats.create(model=model_name, config=config)
                 if history:
                     chat._history = contents[:-1]

@@ -87,13 +87,13 @@ def test_login_and_google_auth():
     assert "id" in user1
 
     resp2 = client.post("/api/auth/google", json={
-        "name": "Aaron McGuinness",
-        "email": "aaron@example.com",
+        "name": "Test Google User",
+        "email": "testgoogle@example.com",
         "avatar_url": "https://example.com/avatar.png"
     })
     assert resp2.status_code == 200
     user2 = resp2.json()
-    assert user2["username"] == "Aaron McGuinness"
-    assert user2["email"] == "aaron@example.com"
+    assert user2["username"] == "Test Google User"
+    assert user2["email"] == "testgoogle@example.com"
     assert user2["avatar_url"] == "https://example.com/avatar.png"
     assert user2["auth_provider"] == "google"

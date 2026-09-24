@@ -33,9 +33,20 @@ import agent
 
 app = FastAPI(title="SydLiving AI API", version="1.0.0")
 
+cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:3000",
+]
+if os.environ.get("ALLOWED_ORIGINS"):
+    cors_origins.extend([o.strip() for o in os.environ["ALLOWED_ORIGINS"].split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

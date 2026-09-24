@@ -4,7 +4,7 @@
 [![React 19](https://img.shields.io/badge/Frontend-React_19-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS v4](https://img.shields.io/badge/Styling-Tailwind_CSS_v4-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Gemini](https://img.shields.io/badge/AI_Agent-Gemini_3.6_Flash-4285F4?style=flat&logo=google-gemini&logoColor=white)](https://ai.google.dev)
+[![Gemini](https://img.shields.io/badge/AI_Agent-Gemini_3.8_Flash-4285F4?style=flat&logo=google-gemini&logoColor=white)](https://ai.google.dev)
 [![Leaflet](https://img.shields.io/badge/Maps-React_Leaflet-199900?style=flat&logo=leaflet&logoColor=white)](https://leafletjs.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@ Moving to Sydney often means balancing high rental costs against long, complex p
 
 ---
 
-![SydLiving AI Dark Mode Overview](docs/screenshots/dark_mode_commute_map.png)
+![SydLiving AI Overview](docs/screenshots/dark_mode_commute_map.png)
 
 ---
 
@@ -32,7 +32,7 @@ Filter properties by door-to-door transit commute travel time to major Sydney em
 ---
 
 ### 2. Shortlist & Side-by-Side Commute Comparison
-Compare up to 10 shortlisted properties side-by-side to make confident rental decisions.
+Compare shortlisted properties side-by-side to make confident rental decisions.
 
 - **Financial Clarity:** View weekly rent paired with estimated monthly housing expenses.
 - **Door-to-Door Commute Breakdown:** Compare travel minutes and transit lines to your selected workplace hub.
@@ -40,54 +40,16 @@ Compare up to 10 shortlisted properties side-by-side to make confident rental de
 - **Lifestyle Metrics:** Proximity to Sydney beaches (Bondi, Manly, Coogee, Bronte) and direct route transfers.
 - **Map Synchronization:** Jump directly from the comparison modal to highlight any property on the interactive map.
 
-![Shortlist Comparison Demo](docs/screenshots/shortlist_comparison_demo.gif)
-
-<br/>
-
 ![Shortlist Comparison Modal](docs/screenshots/shortlist_compare_modal.png)
 
 ---
 
 ### 3. Conversational AI Relocation Assistant
-Powered by Google Gemini with native function calling, the assistant consults on Sydney suburbs, rent affordability, and public transit connectivity.
+Powered by **Google Gemini 3.8 Flash** with native function calling, the assistant consults on Sydney suburbs, rent affordability, and public transit connectivity.
 
 - **Tool Execution:** Automatically calls backend tools (`query_properties`, `get_commute`, `filter_by_commute_reach`) to query listings and transit matrices.
 - **Live UI Synchronization:** AI recommendations immediately update map bounds, active hub filters, and listing results.
 - **Curated Prompt Suggestions:** One-tap chips for newcomer queries like *"Show rentals under 25 mins to Barangaroo"*, *"Metro-connected 2BR under $850/wk"*, and *"Compare commute from Manly vs Bondi Beach"*.
-
-![AI Relocation Assistant](docs/screenshots/ai_chat_relocation_agent.png)
-
----
-
-### 4. Property Detail Drawer & Route Breakdown
-Click any map pin or property card to inspect deep listing metadata:
-
-- **Verified Listing Details:** Photos, weekly pricing, bedroom/bathroom configuration, and beach proximity.
-- **Commute Itinerary:** Primary transit line, transfer counts, estimated weekly Opal spend, and direct route summaries.
-- **Spatial Drawing:** Built-in Leaflet Draw tools to sketch custom search polygons, circles, or bounding boxes.
-
-![Property Details View](docs/screenshots/property_details_view.png)
-
----
-
-### 5. Day & Night Theming
-Tailored for productivity at any hour, switch effortlessly between dark mode (Sydney Harbour by Night) and daylight mode.
-
-- **Dark Mode:** Deep slate palette (`#020617` / `#0f172a`) with high-contrast text and luminous route lines.
-- **Light Mode:** Crisp glassmorphic frosted glass panels with warm Voyager basemap tiles.
-
-![Theme Toggle Demo](docs/screenshots/theme_toggle_demo.gif)
-
-<table>
-  <tr>
-    <td width="50%"><b>Dark Mode (Night Palette)</b></td>
-    <td width="50%"><b>Light Mode (Daylight Palette)</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/dark_mode_commute_map.png" alt="Dark Mode" width="100%"/></td>
-    <td><img src="docs/screenshots/light_mode_commute_map.png" alt="Light Mode" width="100%"/></td>
-  </tr>
-</table>
 
 ---
 
@@ -98,7 +60,7 @@ SydLiving AI is architected as a local-first, full-stack platform:
 - **Backend:** FastAPI (Python 3.11+), Pydantic v2
 - **Database:** SQLite (local database: `sydliving.db` with spatial coordinates & commute matrices)
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Lucide Icons, React-Leaflet
-- **AI Agent:** Google Gemini (`gemini-3.6-flash`) with function calling and multi-turn chat sessions
+- **AI Agent:** Google Gemini (`gemini-3.8-flash`) with function calling and multi-turn chat sessions
 
 ```mermaid
 graph TD
@@ -108,7 +70,7 @@ graph TD
     UI <-->|REST API & JSON| API[FastAPI Backend]
     
     API <-->|Tool Execution & Search| DB[(SQLite Database: sydliving.db)]
-    API <-->|Native Function Calling| LLM((Gemini Flash Agent))
+    API <-->|Native Function Calling| LLM((Gemini 3.8 Flash Agent))
     
     DB -->|75+ Properties & Commute Matrices| API
     LLM -.->|Determines Tool & Filters| API
@@ -147,7 +109,7 @@ Create a `.env` file in `backend/`:
 ```env
 # Google Gemini API Key for conversational AI agent
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.8-flash
 
 # Optional: Domain Group API Key & Google Places API Key
 DOMAIN_API_KEY=

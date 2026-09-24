@@ -132,7 +132,7 @@ Give concise, reassuring, and precise answers highlighting commute times, transi
             temperature=0.3,
         )
         
-        model_name = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+        model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
         chat = client.chats.create(model=model_name, config=config)
         
         if history:
@@ -142,7 +142,7 @@ Give concise, reassuring, and precise answers highlighting commute times, transi
             response = chat.send_message(message)
         except Exception as api_err:
             if "503" in str(api_err) or "UNAVAILABLE" in str(api_err):
-                model_name = "gemini-3.5-flash"
+                model_name = "gemini-3.6-flash"
                 chat = client.chats.create(model=model_name, config=config)
                 if history:
                     chat._history = contents[:-1]

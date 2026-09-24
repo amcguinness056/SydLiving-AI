@@ -80,11 +80,10 @@ The application is architected as a modern, local-first full-stack system with s
 - **Caching Layer:** High-performance thread-safe TTL Cache (`backend/cache.py`) preventing duplicate external API calls with hit-rate monitoring.
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, React-Leaflet
 - **AI Agent:** Google Gemini (`gemini-3.8-flash`) with function calling and multi-turn chat sessions
-- **AWS Cloud Infrastructure (AWS CDK v2 TypeScript):**
-  - Amazon API Gateway HTTP API proxying to Python 3.11 Lambda.
-  - Amazon S3 Private Bucket + CloudFront CDN with Origin Access Control (OAC) and SPA rewrite rules.
-  - AWS Step Functions state machine orchestrator (`SydLiving-PropertyOrchestrator`).
-  - Least-privilege IAM roles scoped to DynamoDB, Textract OCR, and Comprehend NLP.
+- **Cloud & Serverless Ready:**
+  - Python 3.11 Lambda ASGI adapter (`backend/lambda_handler.py`).
+  - AWS Step Functions state machine orchestrator (`backend/statemachine/property_orchestrator.asl.json`).
+  - Dual-mode database compatibility (local SQLite or AWS DynamoDB single-table schema).
 
 ```mermaid
 graph TD
@@ -200,86 +199,14 @@ The frontend application will be live at `http://localhost:5173`.
 
 ---
 
-## ☁️ AWS Production Deployment (AWS CDK v2)
+## ☁️ Cloud & Production Readiness
 
-The application includes an enterprise-grade Infrastructure-as-Code (IaC) configuration located in `cdk/` written with AWS CDK v2 (TypeScript).
+The application architecture includes serverless-ready components:
+- **FastAPI Lambda Adapter:** Mangum ASGI adapter configured for AWS Lambda (`backend/lambda_handler.py`).
+- **AWS Step Functions Pipeline:** Multi-step search workflow definition in Amazon States Language (`backend/statemachine/property_orchestrator.asl.json`).
+- **DynamoDB Single-Table Schema:** Single-table persistence (`backend/dynamo_db.py`) and seeding tool (`backend/seed_dynamodb.py`).
 
-### Cloud Architecture & Resources
-- **Amazon DynamoDB:** Single-Table design (`SydLiving-Core`) with On-Demand billing (PAY_PER_REQUEST), point-in-time recovery, and GSI1 index.
-- **AWS Lambda:** Python 3.11 runtime wrapping the FastAPI application via the `Mangum` ASGI adapter (`backend/lambda_handler.py`).
-- **Amazon API Gateway:** HTTP API proxy (`$default` route) with configured CORS preflight.
-- **AWS Step Functions:** State machine (`SydLiving-PropertyOrchestrator`) orchestrating multi-step property searches.
-- **Amazon S3 + CloudFront:** Private S3 bucket with CloudFront Origin Access Control (OAC), HTTPS redirection, and client-side SPA routing (rewriting 403/404 to `/index.html`).
-- **IAM Least Privilege:** Dedicated execution roles with permissions scoped strictly to DynamoDB table ARNs, Step Functions, AWS Textract OCR, and AWS Comprehend NLP.
-
-### Deployment Prerequisites
-1. **AWS CLI v2** configured with credentials:
-   ```bash
-   aws configure
-   ```
-2. **Node.js (v18+)** and **npm**
-3. **AWS CDK Toolkit** installed globally or run via `npx`:
-   ```bash
-   npm install -g aws-cdk
-   ```
-
-### Step 1: CDK Bootstrap & Deployment
-
-```bash
-cd cdk
-
-# Install dependencies
-npm install
-
-# Compile TypeScript constructs
-npm run build
-
-# Bootstrap AWS environment (first-time deployment only)
-cdk bootstrap aws://<YOUR_ACCOUNT_ID>/ap-southeast-2
-
-# Deploy the complete production stack
-cdk deploy
-```
-
-Upon successful deployment, CDK outputs the following endpoints:
-- `SydLivingStack.ApiEndpoint`: `https://<api-id>.execute-api.ap-southeast-2.amazonaws.com`
-- `SydLivingStack.CloudFrontUrl`: `https://<distribution-id>.cloudfront.net`
-- `SydLivingStack.FrontendBucketName`: `<bucket-name>`
-- `SydLivingStack.DynamoDBTableName`: `SydLiving-Core`
-- `SydLivingStack.StateMachineArn`: `arn:aws:states:ap-southeast-2:<account>:stateMachine:SydLiving-PropertyOrchestrator`
-
-### Step 2: Seed DynamoDB Single Table
-Populate the deployed `SydLiving-Core` DynamoDB table with initial Sydney rental listings and commute itineraries:
-
-```bash
-cd backend
-python3 seed_dynamodb.py --table-name SydLiving-Core
-```
-
-### Step 3: Build & Deploy Frontend to S3 and CloudFront
-Build the production React 19 bundle pointing to the deployed API Gateway endpoint:
-
-```bash
-cd frontend
-
-# Set the production API URL
-export VITE_API_URL="https://<api-id>.execute-api.ap-southeast-2.amazonaws.com/api"
-
-# Build static SPA bundle
-npm run build
-
-# Sync built assets to the S3 bucket created by CDK
-aws s3 sync dist/ s3://<YOUR_FRONTEND_BUCKET_NAME> --delete
-
-# Invalidate CloudFront edge cache
-aws cloudfront create-invalidation --distribution-id <YOUR_DISTRIBUTION_ID> --paths "/*"
-```
-
-### Step 4: Verification & Live Smoke Testing
-Visit your CloudFront domain (`https://<distribution-id>.cloudfront.net`):
-- Verify property listings render from the API Gateway endpoint.
-- Verify commute calculations, interactive heatmap layer, and shortlist favorites.
-- Test the Lease Auditor tool by pasting a rental agreement or uploading a tenancy document.
+Infrastructure as Code (CDK or Terraform) will be provisioned once AWS account access is established.
 
 ---
 

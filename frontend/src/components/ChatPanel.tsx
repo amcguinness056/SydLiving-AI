@@ -82,7 +82,7 @@ export function ChatPanel({
             <span className="truncate">AI Relocation Assistant</span>
           </h2>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-            {agentMode === 'deep' ? 'LangChain Deep Agents Harness • Multi-Agent' : 'Powered by Gemini 3.7 Flash • Transit Sync'}
+            {agentMode === 'deep' ? 'LangChain Deep Agents Harness • Multi-Agent' : 'Powered by Gemini 3.8 Flash • Transit Sync'}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

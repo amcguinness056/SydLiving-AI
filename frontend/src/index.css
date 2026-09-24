@@ -43,6 +43,11 @@
   background: rgba(15, 23, 42, 0.95) !important;
 }
 
+/* Watermark-free OSM Dark Map Filter */
+.dark .leaflet-tile-pane {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
 /* Leaflet Draw & Bar Controls Dark Mode */
 .dark .leaflet-bar a,
 .dark .leaflet-draw-toolbar a {

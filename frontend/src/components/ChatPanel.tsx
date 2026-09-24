@@ -8,6 +8,8 @@ export interface Message {
   id: string;
   role: 'user' | 'model';
   content: string;
+  agentType?: 'standard' | 'deep_agent';
+  latencySeconds?: number;
 }
 
 interface ChatPanelProps {
@@ -17,6 +19,8 @@ interface ChatPanelProps {
   onSelectSession?: (sessionId: string | null) => void;
   currentSessionId?: string | null;
   isLoggedIn?: boolean;
+  agentMode?: 'standard' | 'deep';
+  onToggleAgentMode?: (mode: 'standard' | 'deep') => void;
 }
 
 const SUGGESTIONS = [
@@ -27,7 +31,16 @@ const SUGGESTIONS = [
   "Compare commute from Manly vs Bondi Beach"
 ];
 
-export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession, currentSessionId, isLoggedIn }: ChatPanelProps) {
+export function ChatPanel({ 
+  messages, 
+  isThinking, 
+  onSendMessage, 
+  onSelectSession, 
+  currentSessionId, 
+  isLoggedIn,
+  agentMode = 'standard',
+  onToggleAgentMode
+}: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -62,15 +75,37 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
       <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-indigo-500/10 dark:from-indigo-500/5 to-transparent pointer-events-none" />
       
       {/* Header */}
-      <div className="px-5 py-4 border-b border-white/30 dark:border-slate-800 bg-white/50 dark:bg-slate-900/60 backdrop-blur-md shrink-0 flex items-center justify-between">
-        <div>
+      <div className="px-5 py-4 border-b border-white/30 dark:border-slate-800 bg-white/50 dark:bg-slate-900/60 backdrop-blur-md shrink-0 flex items-center justify-between gap-2">
+        <div className="min-w-0">
           <h2 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
-            <Sparkles className="w-4 h-4 text-indigo-500" />
-            <span>AI Relocation Assistant</span>
+            <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span className="truncate">AI Relocation Assistant</span>
           </h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Powered by Gemini 3.7 Flash • Sydney Metro & TfNSW Transit Sync</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+            {agentMode === 'deep' ? 'LangChain Deep Agents Harness • Multi-Agent' : 'Powered by Gemini 3.7 Flash • Transit Sync'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Mode Toggle */}
+          <div className="flex items-center bg-slate-200/70 dark:bg-slate-800/80 p-0.5 rounded-lg text-[10px] font-bold border border-slate-300/60 dark:border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => onToggleAgentMode?.('standard')}
+              className={`px-2 py-1 rounded-md transition-all ${agentMode === 'standard' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}
+              title="Fast single-turn Gemini tool calling"
+            >
+              ⚡ Fast
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleAgentMode?.('deep')}
+              className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${agentMode === 'deep' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}
+              title="LangChain Deep Agents Harness (Subagents, Planning & Reflection)"
+            >
+              <span>🧠 Deep Agent</span>
+            </button>
+          </div>
+
           {isLoggedIn && (
             <button 
               onClick={() => setShowHistory(!showHistory)}
@@ -80,9 +115,6 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
               {showHistory ? <X className="w-4 h-4" /> : <History className="w-4 h-4" />}
             </button>
           )}
-          <div className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-full text-[10px] font-bold">
-            Live Agent
-          </div>
         </div>
       </div>
 
@@ -177,6 +209,20 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.content}
                     </ReactMarkdown>
+
+                    {msg.role === 'model' && msg.agentType === 'deep_agent' && (
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold not-prose">
+                        <span className="flex items-center gap-1">
+                          <span>🧠 LangChain Deep Agent</span>
+                          <span className="text-slate-400 dark:text-slate-500">• Multi-Agent Plan</span>
+                        </span>
+                        {msg.latencySeconds && (
+                          <span className="text-slate-400 dark:text-slate-400 font-mono text-[9px]">
+                            {msg.latencySeconds}s
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -186,7 +232,11 @@ export function ChatPanel({ messages, isThinking, onSendMessage, onSelectSession
               <div className="self-start flex flex-col max-w-[85%]">
                 <div className="px-4 py-3 bg-white/90 dark:bg-slate-800/90 border border-white/60 dark:border-slate-700/60 rounded-2xl rounded-tl-xs shadow-xs backdrop-blur-md flex items-center gap-2 text-xs">
                   <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
-                  <span className="text-slate-700 dark:text-slate-200 font-semibold">SydLiving AI is evaluating listings...</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-semibold">
+                    {agentMode === 'deep' 
+                      ? '🧠 Deep Agent is planning, calling specialists & compiling dossier...' 
+                      : 'SydLiving AI is evaluating listings...'}
+                  </span>
                 </div>
               </div>
             )}

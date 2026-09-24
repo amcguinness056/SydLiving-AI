@@ -64,6 +64,8 @@ export interface AgentAction {
 export interface ChatResponse {
   reply: string;
   actions: AgentAction[];
+  latency_seconds?: number;
+  agent_type?: 'standard' | 'deep_agent';
 }
 
 export interface User {
@@ -197,6 +199,16 @@ export const api = {
   sendChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
     const userId = localStorage.getItem('user_id');
     const res = await fetch(`${BASE_URL}/chat`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
+    });
+    return await res.json();
+  },
+
+  sendDeepChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
+    const userId = localStorage.getItem('user_id');
+    const res = await fetch(`${BASE_URL}/chat/deep`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })

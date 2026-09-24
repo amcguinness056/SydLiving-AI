@@ -20,6 +20,7 @@ from models import (
 )
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
 import agent
+import deep_agent
 
 app = FastAPI(title="SydLiving AI API", version="0.2.0")
 
@@ -358,7 +359,59 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
         if session_id:
             actions.append(AgentAction(action_type="set_session", data={"session_id": session_id}))
 
-        return ChatResponse(reply=result["reply"], actions=actions)
+        return ChatResponse(reply=result["reply"], actions=actions, agent_type="standard")
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat/deep", response_model=ChatResponse)
+async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
+    try:
+        session_id = request.session_id
+        cursor = db.cursor()
+        now = datetime.now().isoformat()
+        
+        if request.user_id:
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
+                cursor.execute(
+                    "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (session_id, request.user_id, title, now, now)
+                )
+            
+            if session_id:
+                msg_id = str(uuid.uuid4())
+                cursor.execute(
+                    "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (msg_id, session_id, "user", request.message, now)
+                )
+                cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
+                db.commit()
+
+        result = await deep_agent.process_deep_chat(request.message, request.history)
+        
+        if session_id:
+            msg_id = str(uuid.uuid4())
+            now_resp = datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (msg_id, session_id, "model", result["reply"], now_resp)
+            )
+            cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now_resp, session_id))
+            db.commit()
+
+        actions = [AgentAction(**action) for action in result["actions"]]
+        if session_id:
+            actions.append(AgentAction(action_type="set_session", data={"session_id": session_id}))
+
+        return ChatResponse(
+            reply=result["reply"], 
+            actions=actions, 
+            latency_seconds=result.get("latency_seconds"),
+            agent_type="deep_agent"
+        )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+

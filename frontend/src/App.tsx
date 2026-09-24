@@ -87,6 +87,7 @@ function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [agentMode, setAgentMode] = useState<'standard' | 'deep'>('standard');
 
   // Apply dark mode class to html document
   useEffect(() => {
@@ -272,9 +273,17 @@ function App() {
     setIsThinking(true);
 
     try {
-      const response = await api.sendChatMessage(text, chatHistory, currentSessionId || undefined);
+      const response = agentMode === 'deep'
+        ? await api.sendDeepChatMessage(text, chatHistory, currentSessionId || undefined)
+        : await api.sendChatMessage(text, chatHistory, currentSessionId || undefined);
       
-      const agentMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: response.reply };
+      const agentMsg: Message = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'model', 
+        content: response.reply,
+        agentType: response.agent_type,
+        latencySeconds: response.latency_seconds
+      };
       setMessages(prev => [...prev, agentMsg]);
       
       setChatHistory(prev => [
@@ -641,6 +650,8 @@ function App() {
                   onSelectSession={handleSelectSession}
                   currentSessionId={currentSessionId}
                   isLoggedIn={!!user}
+                  agentMode={agentMode}
+                  onToggleAgentMode={setAgentMode}
                 />
               </div>
             </div>

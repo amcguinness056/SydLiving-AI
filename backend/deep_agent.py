@@ -166,9 +166,10 @@ def create_deep_sydliving_agent():
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY is not configured.")
 
-    # Primary model: gemini-3.7-flash
+    # Primary model: configurable via GEMINI_MODEL or gemini-3.8-flash
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     model = ChatGoogleGenerativeAI(
-        model="gemini-3.7-flash",
+        model=model_name,
         google_api_key=gemini_key,
         temperature=0.2
     )

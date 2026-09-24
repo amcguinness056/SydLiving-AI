@@ -285,12 +285,8 @@ export function Map({
 
         <TileLayer
           key={isDarkMode ? 'dark-tiles' : 'light-tiles'}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          url={
-            isDarkMode
-              ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-              : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          }
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         {/* Dynamic Isochrone Reach Rings centered on active Hub */}

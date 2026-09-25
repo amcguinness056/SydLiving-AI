@@ -1,8 +1,11 @@
 import sqlite3
 import traceback
 import uuid
-import os
+from pathlib import Path
 from dotenv import load_dotenv
+
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from datetime import datetime
@@ -22,10 +25,13 @@ from models import (
     ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
 )
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from starlette.middleware.gzip import GZipMiddleware
 import agent
 import deep_agent
 
 app = FastAPI(title="SydLiving AI API", version="0.2.0")
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,

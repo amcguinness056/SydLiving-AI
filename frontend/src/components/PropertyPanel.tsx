@@ -164,7 +164,7 @@ export function PropertyPanel({
               )}
             </div>
           ) : (
-            <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+            <p className="text-slate-700 dark:text-slate-200 text-xs leading-relaxed font-medium">
               Select a destination hub above to view exact door-to-door transit schedules and weekly Opal costs.
             </p>
           )}
@@ -173,7 +173,7 @@ export function PropertyPanel({
         {/* Description */}
         <div className="space-y-2">
           <h3 className="font-bold text-slate-900 dark:text-white text-sm">Property Overview</h3>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs">
+          <p className="text-slate-700 dark:text-slate-200 leading-relaxed text-xs">
             {property.description || `This exceptional ${property.bedrooms} bedroom residence in ${property.suburb} provides an authentic Sydney lifestyle. Located just ${property.distance_to_beach_km.toFixed(1)} km from the coastline with rapid access to local dining precincts, parks, and frequent public transit connections.`}
           </p>
         </div>
@@ -188,7 +188,7 @@ export function PropertyPanel({
               <h4 className="font-extrabold text-slate-900 dark:text-white text-xs">
                 Ask Kai About This Home
               </h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
                 Deep Agent evaluation of transit, rent value & vibe
               </p>
             </div>

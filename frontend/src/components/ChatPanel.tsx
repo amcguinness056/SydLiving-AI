@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { 
   Send, 
   Sparkles, 
@@ -215,8 +215,24 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function linkifyProperties(content: string, properties?: Property[]): string {
-  if (!content || !properties || properties.length === 0) return content;
+interface LinkifyCacheData {
+  combinedRegex: RegExp | null;
+  patternToId: Map<string, string>;
+}
+
+let cachedLinkifyKey = '';
+let cachedLinkifyData: LinkifyCacheData = { combinedRegex: null, patternToId: new Map() };
+
+function getLinkifyData(properties?: Property[]): LinkifyCacheData {
+  if (!properties || properties.length === 0) {
+    return { combinedRegex: null, patternToId: new Map() };
+  }
+
+  // Fast signature check based on property count and ID concatenation
+  const key = properties.length + ':' + properties.map(p => p.id).join(',');
+  if (key === cachedLinkifyKey) {
+    return cachedLinkifyData;
+  }
 
   // Build candidate terms mapped to property IDs
   const candidates: { pattern: string; id: string }[] = [];
@@ -247,9 +263,12 @@ function linkifyProperties(content: string, properties?: Property[]): string {
     }
   }
 
-  if (candidates.length === 0) return content;
+  if (candidates.length === 0) {
+    cachedLinkifyKey = key;
+    cachedLinkifyData = { combinedRegex: null, patternToId: new Map() };
+    return cachedLinkifyData;
+  }
 
-  // Sort candidates by length descending so longer titles match first
   candidates.sort((a, b) => b.pattern.length - a.pattern.length);
 
   const patternToId = new Map<string, string>();
@@ -259,17 +278,24 @@ function linkifyProperties(content: string, properties?: Property[]): string {
   });
 
   const combinedRegex = new RegExp(`(${regexParts.join('|')})`, 'gi');
+  cachedLinkifyKey = key;
+  cachedLinkifyData = { combinedRegex, patternToId };
+  return cachedLinkifyData;
+}
+
+function linkifyProperties(content: string, properties?: Property[]): string {
+  if (!content) return content;
+  const { combinedRegex, patternToId } = getLinkifyData(properties);
+  if (!combinedRegex) return content;
 
   // Tokenize content into markdown links/code vs normal text
   const tokenRegex = /(\[[^\]]*\]\([^)]*\)|```[\s\S]*?```|`[^`\n]+`)/g;
   const parts = content.split(tokenRegex);
 
   return parts.map((part, index) => {
-    // If it's a captured token (markdown link or code block), leave it untouched
     if (index % 2 === 1) {
       return part;
     }
-    // Replace candidate mentions in normal text
     return part.replace(combinedRegex, (match) => {
       const id = patternToId.get(match.toLowerCase());
       if (id) {
@@ -279,6 +305,230 @@ function linkifyProperties(content: string, properties?: Property[]): string {
     });
   }).join('');
 }
+
+interface ChatMessageItemProps {
+  msg: Message;
+  properties?: Property[];
+  customMarkdownComponents: any;
+  isExpanded: boolean;
+  onToggleExpand: (id: string) => void;
+  traceViewMode: 'grouped' | 'timeline';
+  onSetTraceViewMode: (id: string, mode: 'grouped' | 'timeline') => void;
+}
+
+const ChatMessageItem = React.memo(function ChatMessageItem({
+  msg,
+  properties,
+  customMarkdownComponents,
+  isExpanded,
+  onToggleExpand,
+  traceViewMode,
+  onSetTraceViewMode
+}: ChatMessageItemProps) {
+  const groupedCategories = useMemo(() => {
+    return msg.steps && msg.steps.length > 0 ? groupStepsByCategory(msg.steps) : [];
+  }, [msg.steps]);
+
+  const parsedContent = useMemo(() => {
+    return linkifyProperties(msg.content, properties);
+  }, [msg.content, properties]);
+
+  if (msg.role === 'user') {
+    return (
+      <div className="self-end max-w-[85%]">
+        <div className="px-4 py-2.5 rounded-2xl rounded-tr-xs bg-blue-600 text-white text-xs font-medium leading-relaxed shadow-sm">
+          {msg.content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full space-y-3 pt-1 pb-4 text-slate-800 dark:text-slate-100 text-xs leading-relaxed border-b border-slate-100 dark:border-slate-800/60 last:border-b-0">
+      <div className="w-full">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]} 
+          urlTransform={(url) => url}
+          components={customMarkdownComponents}
+        >
+          {parsedContent}
+        </ReactMarkdown>
+      </div>
+
+      {/* Deep Agent Multi-Agent Trace Card */}
+      {msg.agentType === 'deep_agent' && (
+        <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
+          {msg.steps && msg.steps.length > 0 ? (
+            <div className="space-y-2">
+              {/* Trace Summary Bar */}
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => onToggleExpand(msg.id)}
+                  className="flex-1 flex items-center gap-2 min-w-0 text-left hover:opacity-85 transition-opacity"
+                >
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <BrainCircuit className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span className="font-semibold text-[11px] text-slate-800 dark:text-slate-100">
+                      Multi-Agent Trace
+                    </span>
+                  </div>
+
+                  {/* Compact Specialist Pills */}
+                  <div className="hidden sm:flex items-center gap-1.5 truncate">
+                    {groupedCategories.map(cat => {
+                      const Icon = cat.icon;
+                      return (
+                        <span 
+                          key={cat.key} 
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-medium shrink-0 ${cat.badgeClass}`}
+                        >
+                          <Icon className="w-2.5 h-2.5 shrink-0" />
+                          <span>{cat.steps.length} {cat.shortLabel}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {msg.latencySeconds && (
+                    <span className="flex items-center gap-1 text-[10px] font-mono tabular-nums text-slate-600 dark:text-slate-200 bg-white/90 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700">
+                      <Clock className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400" />
+                      <span>{msg.latencySeconds}s</span>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onToggleExpand(msg.id)}
+                    className="p-1 text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white rounded-md transition-colors"
+                  >
+                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded Detailed Breakdown */}
+              {isExpanded && (
+                <div className="mt-2 space-y-2.5 p-3 rounded-xl bg-slate-100/80 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-700/90 shadow-inner">
+                  {/* View Selector Tab */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-700/70">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                      {msg.steps.length} Steps Orchestrated
+                    </span>
+                    <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 text-[10px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => onSetTraceViewMode(msg.id, 'grouped')}
+                        className={`px-2 py-0.5 rounded transition-all ${
+                          traceViewMode === 'grouped' 
+                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
+                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                        }`}
+                      >
+                        By Specialist
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSetTraceViewMode(msg.id, 'timeline')}
+                        className={`px-2 py-0.5 rounded transition-all ${
+                          traceViewMode === 'timeline' 
+                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
+                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                        }`}
+                      >
+                        Timeline
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* View 1: Grouped By Specialist */}
+                  {traceViewMode === 'grouped' ? (
+                    <div className="space-y-2.5 pt-1">
+                      {groupedCategories.map(cat => {
+                        const Icon = cat.icon;
+                        return (
+                          <div 
+                            key={cat.key} 
+                            className="rounded-lg p-2.5 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-2"
+                          >
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-white">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`p-1 rounded-md border ${cat.badgeClass}`}>
+                                  <Icon className="w-3 h-3" />
+                                </div>
+                                <span>{cat.name}</span>
+                              </div>
+                              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                {cat.steps.length} actions
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5 pl-1">
+                              {cat.steps.map((st, sIdx) => (
+                                <div key={st.id || sIdx} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-slate-800 dark:text-slate-100">
+                                      {st.label}
+                                    </p>
+                                    {st.detail && (
+                                      <p className="text-[10px] text-slate-600 dark:text-slate-200 font-mono mt-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-900/90 border border-slate-200/60 dark:border-slate-700/60 break-all leading-normal">
+                                        {st.detail}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* View 2: Sequential Timeline */
+                    <div className="space-y-2 pt-1 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                      {msg.steps.map((st, idx) => (
+                        <div key={st.id || idx} className="flex items-start gap-2 text-[11px]">
+                          <span className="font-mono text-[9px] font-semibold text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0 mt-0.5">
+                            #{idx + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 font-medium text-slate-900 dark:text-slate-100">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <span className="truncate">{st.label}</span>
+                            </div>
+                            {st.detail && (
+                              <p className="text-[10px] text-slate-600 dark:text-slate-200 font-mono mt-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-900/90 border border-slate-200/60 dark:border-slate-700/60 break-all leading-normal pl-2">
+                                {st.detail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold px-1">
+              <span className="flex items-center gap-1.5">
+                <BrainCircuit className="w-3.5 h-3.5" />
+                <span>LangChain Deep Agent Execution</span>
+              </span>
+              {msg.latencySeconds && (
+                <span className="text-slate-400 font-mono text-[10px]">
+                  {msg.latencySeconds}s
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 export function ChatPanel({ 
   messages, 
@@ -342,6 +592,14 @@ export function ChatPanel({
     }
   }), [onSelectProperty]);
 
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedStepsMap(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const handleSetTraceViewMode = useCallback((id: string, mode: 'grouped' | 'timeline') => {
+    setTraceViewModeMap(prev => ({ ...prev, [id]: mode }));
+  }, []);
+
   useEffect(() => {
     let interval: any;
     if (isThinking) {
@@ -349,17 +607,34 @@ export function ChatPanel({
       const start = Date.now();
       interval = setInterval(() => {
         setElapsedSecs(Math.round((Date.now() - start) / 100) / 10);
-      }, 100);
+      }, 250);
     } else {
       setElapsedSecs(0);
     }
     return () => clearInterval(interval);
   }, [isThinking]);
 
+  const scrollRafRef = useRef<number | null>(null);
+  const userScrolledUpRef = useRef<boolean>(false);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    // If user scrolled up more than 100px from bottom, keep their view steady
+    userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100;
+  }, []);
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (userScrolledUpRef.current) return;
+    if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      if (scrollRef.current && !userScrolledUpRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+    return () => {
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    };
   }, [messages, isThinking, activeThinkingSteps, streamingContent]);
 
   useEffect(() => {
@@ -531,6 +806,7 @@ export function ChatPanel({
           {/* Main Message Canvas: Unboxed & Spacious */}
           <div 
             ref={scrollRef}
+            onScroll={handleScroll}
             className="flex-1 p-5 overflow-y-auto flex flex-col gap-5 custom-scrollbar relative z-10"
           >
             {messages.length === 0 ? (
@@ -566,210 +842,18 @@ export function ChatPanel({
                 </div>
               </div>
             ) : (
-              messages.map((msg) => {
-                const groupedCategories = msg.steps && msg.steps.length > 0 
-                  ? groupStepsByCategory(msg.steps) 
-                  : [];
-                const isExpanded = expandedStepsMap[msg.id] ?? false;
-                const traceViewMode = traceViewModeMap[msg.id] ?? 'grouped';
-
-                return msg.role === 'user' ? (
-                  /* User Bubble: Clean pill aligned to the right */
-                  <div key={msg.id} className="self-end max-w-[85%]">
-                    <div className="px-4 py-2.5 rounded-2xl rounded-tr-xs bg-blue-600 text-white text-xs font-medium leading-relaxed shadow-sm">
-                      {msg.content}
-                    </div>
-                  </div>
-                ) : (
-                  /* Assistant Response: Full-width unboxed canvas with generous breathing room */
-                  <div 
-                    key={msg.id} 
-                    className="w-full space-y-3 pt-1 pb-4 text-slate-800 dark:text-slate-100 text-xs leading-relaxed border-b border-slate-100 dark:border-slate-800/60 last:border-b-0"
-                  >
-                    <div className="w-full">
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]} 
-                        urlTransform={(url) => url}
-                        components={customMarkdownComponents}
-                      >
-                        {linkifyProperties(msg.content, properties)}
-                      </ReactMarkdown>
-                    </div>
-
-                    {/* Deep Agent Multi-Agent Trace Card */}
-                    {msg.agentType === 'deep_agent' && (
-                      <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
-                        {msg.steps && msg.steps.length > 0 ? (
-                          <div className="space-y-2">
-                            {/* Trace Summary Bar */}
-                            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedStepsMap(prev => ({ ...prev, [msg.id]: !isExpanded }))}
-                                className="flex-1 flex items-center gap-2 min-w-0 text-left hover:opacity-85 transition-opacity"
-                              >
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <BrainCircuit className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                  <span className="font-semibold text-[11px] text-slate-800 dark:text-slate-100">
-                                    Multi-Agent Trace
-                                  </span>
-                                </div>
-
-                                {/* Compact Specialist Pills */}
-                                <div className="hidden sm:flex items-center gap-1.5 truncate">
-                                  {groupedCategories.map(cat => {
-                                    const Icon = cat.icon;
-                                    return (
-                                      <span 
-                                        key={cat.key} 
-                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-medium shrink-0 ${cat.badgeClass}`}
-                                      >
-                                        <Icon className="w-2.5 h-2.5 shrink-0" />
-                                        <span>{cat.steps.length} {cat.shortLabel}</span>
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              </button>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                {msg.latencySeconds && (
-                                  <span className="flex items-center gap-1 text-[10px] font-mono tabular-nums text-slate-600 dark:text-slate-200 bg-white/90 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700">
-                                    <Clock className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400" />
-                                    <span>{msg.latencySeconds}s</span>
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedStepsMap(prev => ({ ...prev, [msg.id]: !isExpanded }))}
-                                  className="p-1 text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white rounded-md transition-colors"
-                                >
-                                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Expanded Detailed Breakdown */}
-                            {isExpanded && (
-                              <div className="mt-2 space-y-2.5 p-3 rounded-xl bg-slate-100/80 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-700/90 shadow-inner">
-                                {/* View Selector Tab */}
-                                <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-700/70">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                                    {msg.steps.length} Steps Orchestrated
-                                  </span>
-                                  <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 text-[10px] font-medium">
-                                    <button
-                                      type="button"
-                                      onClick={() => setTraceViewModeMap(prev => ({ ...prev, [msg.id]: 'grouped' }))}
-                                      className={`px-2 py-0.5 rounded transition-all ${
-                                        traceViewMode === 'grouped' 
-                                          ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
-                                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-                                      }`}
-                                    >
-                                      By Specialist
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setTraceViewModeMap(prev => ({ ...prev, [msg.id]: 'timeline' }))}
-                                      className={`px-2 py-0.5 rounded transition-all ${
-                                        traceViewMode === 'timeline' 
-                                          ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
-                                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-                                      }`}
-                                    >
-                                      Timeline
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* View 1: Grouped By Specialist */}
-                                {traceViewMode === 'grouped' ? (
-                                  <div className="space-y-2.5 pt-1">
-                                    {groupedCategories.map(cat => {
-                                      const Icon = cat.icon;
-                                      return (
-                                        <div 
-                                          key={cat.key} 
-                                          className="rounded-lg p-2.5 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-2"
-                                        >
-                                          <div className="flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-white">
-                                            <div className="flex items-center gap-1.5">
-                                              <div className={`p-1 rounded-md border ${cat.badgeClass}`}>
-                                                <Icon className="w-3 h-3" />
-                                              </div>
-                                              <span>{cat.name}</span>
-                                            </div>
-                                            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                              {cat.steps.length} actions
-                                            </span>
-                                          </div>
-
-                                          <div className="space-y-1.5 pl-1">
-                                            {cat.steps.map((st, sIdx) => (
-                                              <div key={st.id || sIdx} className="flex items-start gap-1.5 text-[11px] leading-tight">
-                                                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
-                                                <div className="min-w-0 flex-1">
-                                                  <p className="font-medium text-slate-800 dark:text-slate-100">
-                                                    {st.label}
-                                                  </p>
-                                                  {st.detail && (
-                                                    <p className="text-[10px] text-slate-600 dark:text-slate-200 font-mono mt-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-900/90 border border-slate-200/60 dark:border-slate-700/60 break-all leading-normal">
-                                                      {st.detail}
-                                                    </p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  /* View 2: Sequential Timeline */
-                                  <div className="space-y-2 pt-1 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                                    {msg.steps.map((st, idx) => (
-                                      <div key={st.id || idx} className="flex items-start gap-2 text-[11px]">
-                                        <span className="font-mono text-[9px] font-semibold text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0 mt-0.5">
-                                          #{idx + 1}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-1.5 font-medium text-slate-900 dark:text-slate-100">
-                                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                                            <span className="truncate">{st.label}</span>
-                                          </div>
-                                          {st.detail && (
-                                            <p className="text-[10px] text-slate-600 dark:text-slate-200 font-mono mt-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-900/90 border border-slate-200/60 dark:border-slate-700/60 break-all leading-normal pl-2">
-                                              {st.detail}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold px-1">
-                            <span className="flex items-center gap-1.5">
-                              <BrainCircuit className="w-3.5 h-3.5" />
-                              <span>LangChain Deep Agent Execution</span>
-                            </span>
-                            {msg.latencySeconds && (
-                              <span className="text-slate-400 font-mono text-[10px]">
-                                {msg.latencySeconds}s
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+              messages.map((msg) => (
+                <ChatMessageItem
+                  key={msg.id}
+                  msg={msg}
+                  properties={properties}
+                  customMarkdownComponents={customMarkdownComponents}
+                  isExpanded={expandedStepsMap[msg.id] ?? false}
+                  onToggleExpand={handleToggleExpand}
+                  traceViewMode={traceViewModeMap[msg.id] ?? 'grouped'}
+                  onSetTraceViewMode={handleSetTraceViewMode}
+                />
+              ))
             )}
             
             {/* Live Thinking / Streaming Card */}

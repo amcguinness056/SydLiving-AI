@@ -5,8 +5,11 @@ import time
 import traceback
 import contextvars
 from typing import List, Dict, Any, Optional
+from pathlib import Path
 from dotenv import load_dotenv
 
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from langchain_google_genai import ChatGoogleGenerativeAI

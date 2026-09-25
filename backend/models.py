@@ -115,3 +115,5 @@ class AgentAction(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     actions: List[AgentAction] = []
+    latency_seconds: Optional[float] = None
+    agent_type: Optional[str] = "standard"

@@ -47,3 +47,11 @@ Thumbs.db
 
 # Playwright CLI
 .playwright-cli/
+
+# Agent directories
+.agent/
+.agents/
+.codex/
+.gemini/
+.opencode/
+

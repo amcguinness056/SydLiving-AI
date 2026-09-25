@@ -12,7 +12,6 @@ interface PropertyCardProps {
   isSaved?: boolean;
   onToggleFavorite?: (id: string) => void;
   onToggleSave?: (id: string, isSaved: boolean) => void;
-  selectedHubName?: string;
   index?: number;
 }
 
@@ -25,7 +24,6 @@ export function PropertyCard({
   isSaved,
   onToggleFavorite, 
   onToggleSave,
-  selectedHubName, 
   index = 0 
 }: PropertyCardProps) {
   const isHeartActive = isFavorite !== undefined ? isFavorite : isSaved;
@@ -41,6 +39,7 @@ export function PropertyCard({
 
   return (
     <div
+      id={`property-card-${property.id}`}
       onClick={onClick}
       style={{ animationDelay: `${index * 50}ms` }}
       className={cn(
@@ -65,7 +64,7 @@ export function PropertyCard({
 
       {/* Top row: Title, Heart & Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
-        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
           {property.title}
         </h3>
         
@@ -95,13 +94,11 @@ export function PropertyCard({
         <span className="truncate">{property.address}</span>
       </p>
 
-      {/* Commute Badge if available */}
-      {property.commute_duration_minutes !== undefined && property.commute_duration_minutes !== null && (
-        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold">
-          <Train className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span className="truncate">
-            {property.commute_duration_minutes}m to {selectedHubName || "Hub"} {property.transit_mode ? `• ${property.transit_mode}` : ''}
-          </span>
+      {/* Local Transit Badge if available */}
+      {property.route_summary && (
+        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+          <Train className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+          <span className="truncate">{property.route_summary}</span>
         </div>
       )}
 

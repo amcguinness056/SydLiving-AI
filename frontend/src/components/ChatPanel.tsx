@@ -716,7 +716,7 @@ export function ChatPanel({
           {onToggleWide && !isMaximized && (
             <button
               onClick={onToggleWide}
-              className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${
+              className={`hidden sm:flex p-1.5 rounded-lg transition-colors items-center justify-center ${
                 isWide 
                   ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' 
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -731,7 +731,7 @@ export function ChatPanel({
           {onToggleMaximize && (
             <button 
               onClick={onToggleMaximize}
-              className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="hidden sm:flex p-1.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               title={isMaximized ? "Restore view" : "Maximize chat window"}
             >
               {isMaximized ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}

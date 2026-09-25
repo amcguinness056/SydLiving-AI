@@ -43,7 +43,7 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
       {/* Proactive Speech Bubble / Teaser Card */}
       {showGreeting && (
         <div 
-          className="w-80 bg-white/95 dark:bg-slate-900/95 border border-blue-200/90 dark:border-blue-900/80 rounded-2xl p-3.5 shadow-2xl shadow-blue-500/15 backdrop-blur-xl transition-all duration-300 relative animate-in fade-in slide-in-from-bottom-3"
+          className="w-[calc(100vw-2.5rem)] max-w-sm sm:w-80 bg-white/95 dark:bg-slate-900/95 border border-blue-200/90 dark:border-blue-900/80 rounded-2xl p-3 sm:p-3.5 shadow-2xl shadow-blue-500/15 backdrop-blur-xl transition-all duration-300 relative animate-in fade-in slide-in-from-bottom-3"
           role="region"
           aria-label="Kai concierge greeting"
         >
@@ -108,13 +108,13 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
       {/* Main Concierge Capsule Button */}
       <button
         onClick={onOpenChat}
-        className="px-4 py-2.5 bg-white/95 dark:bg-slate-900/95 hover:bg-white dark:hover:bg-slate-900 text-slate-900 dark:text-white rounded-full shadow-xl shadow-blue-500/20 dark:shadow-blue-950/60 border border-blue-200/80 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-600 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 group relative z-50 cursor-pointer"
+        className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 hover:bg-white dark:hover:bg-slate-900 text-slate-900 dark:text-white rounded-full shadow-xl shadow-blue-500/20 dark:shadow-blue-950/60 border border-blue-200/80 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-600 flex items-center gap-2.5 sm:gap-3 transition-all hover:scale-105 active:scale-95 group relative z-50 cursor-pointer"
         title="Chat with Kai — Sydney AI Concierge"
         aria-label="Open chat with Kai Sydney AI Concierge"
       >
         {/* Avatar Medallion with Live Pulse Dot */}
         <div className="relative">
-          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-sm group-hover:bg-blue-700 transition-colors">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-sm group-hover:bg-blue-700 transition-colors">
             <Sparkles className="w-4 h-4 text-white group-hover:rotate-12 transition-transform" />
           </div>
           <span 
@@ -133,7 +133,7 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
               AI Guide
             </span>
           </div>
-          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+          <span className="hidden sm:inline-block text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
             Sydney Living Concierge
           </span>
         </div>

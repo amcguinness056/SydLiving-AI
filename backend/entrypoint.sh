@@ -12,13 +12,36 @@ if [ -n "${TARGET_DIR}" ] && [ ! -d "${TARGET_DIR}" ]; then
     mkdir -p "${TARGET_DIR}"
 fi
 
-# Seed database if missing
+# Seed database if missing or outdated (< 200 properties)
+NEED_SEED=false
 if [ ! -f "${TARGET_DB}" ]; then
-    echo "[SydLiving Backend] Database file not found. Seeding initial schema and Sydney data..."
+    NEED_SEED=true
+else
+    # Check if database has the full upgraded 252 property dataset
+    PROP_COUNT=$(python -c "
+import sqlite3
+try:
+    conn = sqlite3.connect('${TARGET_DB}')
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM properties')
+    print(c.fetchone()[0])
+    conn.close()
+except Exception:
+    print(0)
+" 2>/dev/null || echo 0)
+    echo "[SydLiving Backend] Detected ${PROP_COUNT} properties in ${TARGET_DB}."
+    if [ "${PROP_COUNT}" -lt 200 ]; then
+        echo "[SydLiving Backend] Dataset is outdated (< 200 properties). Re-seeding upgraded dataset..."
+        NEED_SEED=true
+    fi
+fi
+
+if [ "${NEED_SEED}" = true ]; then
+    echo "[SydLiving Backend] Seeding complete 252-property dataset..."
     python seed.py
     echo "[SydLiving Backend] Database seed completed successfully."
 else
-    echo "[SydLiving Backend] Existing database detected. Skipping seed."
+    echo "[SydLiving Backend] Database already has full dataset. Skipping seed."
 fi
 
 PORT="${PORT:-8080}"

@@ -8,7 +8,7 @@ import { api, type Property, type AgentAction, type User, type DeepAgentStep } f
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { KaiLauncher } from './components/KaiLauncher';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sparkles, Maximize, Minimize, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X } from 'lucide-react';
+import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
@@ -847,172 +847,153 @@ function App() {
           >
           
           {/* Left Panel: Property List */}
-          {maximizedPanel !== 'map' && (
-            <Panel defaultSize={maximizedPanel === 'list' ? 100 : 25} minSize={20} maxSize={maximizedPanel === 'list' ? 100 : 40} className="bg-slate-50/80 dark:bg-slate-950 flex flex-col h-full min-w-0">
-              <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950 h-full w-full">
-                <header className="flex flex-col px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                        Sydney Rental Listings
-                      </h2>
-                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                        {loading ? 'Finding listings...' : `${displayedProperties.length} properties available`}
-                      </p>
-                    </div>
-                    <button 
-                      onClick={() => toggleMaximize('list')}
-                      className={cn(
-                        "flex items-center gap-1.5 p-1.5 px-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white/80 dark:hover:bg-slate-800 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all",
-                        maximizedPanel === 'list' && "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
-                      )}
-                      title={maximizedPanel === 'list' ? "Restore view (Esc)" : "Enlarge list"}
-                    >
-                      {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                      {maximizedPanel === 'list' && <span className="text-xs font-bold hidden sm:inline">Minimize</span>}
-                    </button>
+          <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-slate-50/80 dark:bg-slate-950 flex flex-col h-full min-w-0">
+            <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950 h-full w-full">
+              <header className="flex flex-col px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                      Sydney Rental Listings
+                    </h2>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      {loading ? 'Finding listings...' : `${displayedProperties.length} properties available`}
+                    </p>
                   </div>
-
-                  {/* Filter Tabs */}
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setShowSavedOnly(false)}
-                      className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
-                    >
-                      All Properties
-                    </button>
-                    <button 
-                      onClick={() => setShowSavedOnly(true)}
-                      className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
-                    >
-                      <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
-                    </button>
-                  </div>
-                </header>
-
-                {/* Keyword & Type Search */}
-                <SearchFilterBar 
-                  keyword={keywordFilter} 
-                  propertyType={typeFilter} 
-                  onSearch={handleSearchFilter} 
-                  onAskKai={handleAskAgent} 
-                />
-
-                {activeFilters && (
-                  <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
-                    <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Filter Active</span>
-                    </span>
-                    <button 
-                      onClick={() => {
-                        setKeywordFilter('');
-                        setTypeFilter('');
-                        setSpatialFilter(null);
-                        loadProperties();
-                      }}
-                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3.5 custom-scrollbar relative z-0">
-                  {loading ? (
-                    <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
-                      Loading Sydney properties...
-                    </div>
-                  ) : displayedProperties.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-800 text-xs">
-                      {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : "No properties match your current search filters. Try clearing your search or filters!"}
-                    </div>
-                  ) : (
-                    displayedProperties.map((p, idx) => (
-                      <PropertyCard 
-                        key={p.id}
-                        property={p} 
-                        index={idx}
-                        isActive={selectedId === p.id}
-                        isFavorite={shortlistedIds.includes(p.id)}
-                        isSaved={savedPropertiesList.some(sp => sp.id === p.id)}
-                        onToggleFavorite={handleToggleFavorite}
-                        onToggleSave={handleToggleSave}
-                        onClick={() => {
-                          setSelectedId(p.id);
-                          setModalPropertyId(p.id);
-                          setSelectedProperty(p);
-                          if (maximizedPanel === 'list') setMaximizedPanel(null);
-                        }}
-                      />
-                    ))
-                  )}
                 </div>
-              </div>
-            </Panel>
-          )}
 
-          {maximizedPanel !== 'list' && (
-            <>
-              {maximizedPanel !== 'map' && (
-                <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
-              )}
-              
-              {/* Center Panel: Map Canvas */}
-              <Panel defaultSize={maximizedPanel === 'map' ? 100 : undefined} className="bg-slate-200 dark:bg-slate-950 min-w-0">
-                <div className="w-full h-full relative bg-slate-200 dark:bg-slate-950 min-w-0">
-                  <Map 
-                    properties={displayedProperties} 
-                    selectedPropertyId={selectedId} 
-                    onSelectProperty={handleMapSelect}
-                    isMaximized={maximizedPanel === 'map'}
-                    onToggleMaximize={() => toggleMaximize('map')}
-                    isDarkMode={isDarkMode}
-                    onDrawCreated={(layer: any, type: string) => {
-                      let spatial: any = null;
-                      if (type === 'circle') {
-                        const latlng = layer.getLatLng();
-                        const radius = layer.getRadius();
-                        spatial = { circle: `${latlng.lat},${latlng.lng},${radius}` };
-                      } else if (type === 'polygon' || type === 'rectangle') {
-                        const latlngs = layer.getLatLngs()[0];
-                        const points = latlngs.map((ll: any) => `${ll.lat},${ll.lng}`).join(';');
-                        spatial = { polygon: points };
-                      }
-                      setSpatialFilter(spatial);
-                    }}
-                    onDrawDeleted={() => {
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowSavedOnly(false)}
+                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                  >
+                    All Properties
+                  </button>
+                  <button 
+                    onClick={() => setShowSavedOnly(true)}
+                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                  >
+                    <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
+                  </button>
+                </div>
+              </header>
+
+              {/* Keyword & Type Search */}
+              <SearchFilterBar 
+                keyword={keywordFilter} 
+                propertyType={typeFilter} 
+                onSearch={handleSearchFilter} 
+                onAskKai={handleAskAgent} 
+              />
+
+              {activeFilters && (
+                <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Filter Active</span>
+                  </span>
+                  <button 
+                    onClick={() => {
+                      setKeywordFilter('');
+                      setTypeFilter('');
                       setSpatialFilter(null);
+                      loadProperties();
                     }}
-                  />
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
+                  >
+                    Reset
+                  </button>
                 </div>
-              </Panel>
-            </>
-          )}
+              )}
+
+              <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3.5 custom-scrollbar relative z-0">
+                {loading ? (
+                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
+                    Loading Sydney properties...
+                  </div>
+                ) : displayedProperties.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-800 text-xs">
+                    {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : "No properties match your current search filters. Try clearing your search or filters!"}
+                  </div>
+                ) : (
+                  displayedProperties.map((p, idx) => (
+                    <PropertyCard 
+                      key={p.id}
+                      property={p} 
+                      index={idx}
+                      isActive={selectedId === p.id}
+                      isFavorite={shortlistedIds.includes(p.id)}
+                      isSaved={savedPropertiesList.some(sp => sp.id === p.id)}
+                      onToggleFavorite={handleToggleFavorite}
+                      onToggleSave={handleToggleSave}
+                      onClick={() => {
+                        setSelectedId(p.id);
+                        setModalPropertyId(p.id);
+                        setSelectedProperty(p);
+                        if (maximizedPanel === 'list') setMaximizedPanel(null);
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </Panel>
+
+          <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+          
+          {/* Center Panel: Map Canvas */}
+          <Panel className="bg-slate-200 dark:bg-slate-950 min-w-0">
+            <div className="w-full h-full relative bg-slate-200 dark:bg-slate-950 min-w-0">
+              <Map 
+                properties={displayedProperties} 
+                selectedPropertyId={selectedId} 
+                onSelectProperty={handleMapSelect}
+                isMaximized={maximizedPanel === 'map'}
+                onToggleMaximize={() => toggleMaximize('map')}
+                isDarkMode={isDarkMode}
+                onDrawCreated={(layer: any, type: string) => {
+                  let spatial: any = null;
+                  if (type === 'circle') {
+                    const latlng = layer.getLatLng();
+                    const radius = layer.getRadius();
+                    spatial = { circle: `${latlng.lat},${latlng.lng},${radius}` };
+                  } else if (type === 'polygon' || type === 'rectangle') {
+                    const latlngs = layer.getLatLngs()[0];
+                    const points = latlngs.map((ll: any) => `${ll.lat},${ll.lng}`).join(';');
+                    spatial = { polygon: points };
+                  }
+                  setSpatialFilter(spatial);
+                }}
+                onDrawDeleted={() => {
+                  setSpatialFilter(null);
+                }}
+              />
+            </div>
+          </Panel>
 
           {/* Right Panel: Property Details */}
-          {maximizedPanel !== 'list' && maximizedPanel !== 'map' && modalPropertyId && activeModalProperty && (
-            <>
-              <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
-              <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
-                <div className="w-full h-full relative bg-white dark:bg-slate-900">
-                  <ErrorBoundary>
-                    <PropertyPanel 
-                      property={activeModalProperty} 
-                      onClose={() => {
-                        setModalPropertyId(null);
-                        setSelectedProperty(null);
-                      }} 
-                      isMaximized={false}
-                      onToggleMaximize={() => toggleMaximize('details')}
-                      isFavorite={shortlistedIds.includes(activeModalProperty.id)}
-                      onToggleFavorite={handleToggleFavorite}
-                      onAskAgent={handleAskAgent}
-                    />
-                  </ErrorBoundary>
-                </div>
-              </Panel>
-            </>
+          {modalPropertyId && activeModalProperty && (
+            <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+          )}
+          {modalPropertyId && activeModalProperty && (
+            <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
+              <div className="w-full h-full relative bg-white dark:bg-slate-900">
+                <ErrorBoundary>
+                  <PropertyPanel 
+                    property={activeModalProperty} 
+                    onClose={() => {
+                      setModalPropertyId(null);
+                      setSelectedProperty(null);
+                    }} 
+                    isMaximized={false}
+                    onToggleMaximize={() => toggleMaximize('details')}
+                    isFavorite={shortlistedIds.includes(activeModalProperty.id)}
+                    onToggleFavorite={handleToggleFavorite}
+                    onAskAgent={handleAskAgent}
+                  />
+                </ErrorBoundary>
+              </div>
+            </Panel>
           )}
 
         </PanelGroup>

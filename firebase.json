@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "public": "frontend/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "sydliving-backend",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "sydliving-frontend",
+          "region": "australia-southeast1"
+        }
+      }
+    ]
+  }
+}

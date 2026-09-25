@@ -8,6 +8,9 @@
 [![LangChain](https://img.shields.io/badge/Orchestration-LangChain_Deep_Agents-1C3C3C?style=flat&logo=langchain&logoColor=white)](https://python.langchain.com)
 [![Leaflet](https://img.shields.io/badge/Maps-React_Leaflet-199900?style=flat&logo=leaflet&logoColor=white)](https://leafletjs.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Live Site](https://img.shields.io/badge/Live_Demo-sydliving.com-2563eb?style=flat&logo=google-chrome&logoColor=white)](https://sydliving.com)
+
+> 🌐 **Live Application**: **[https://sydliving.com](https://sydliving.com)** (or **[https://www.sydliving.com](https://www.sydliving.com)**)
 
 **SydLiving AI** is an AI-augmented property discovery and commute intelligence platform tailored for professionals, students, and expats relocating to Sydney, Australia.
 
@@ -150,6 +153,47 @@ npm install
 npm run dev
 ```
 The frontend application will be live at `http://localhost:5173`.
+
+---
+
+## Cloud Deployment (Google Cloud Platform & Terraform)
+
+SydLiving AI includes automated Infrastructure as Code (IaC) configurations for deploying to **Google Cloud Platform (GCP)** using **Terraform**, **Cloud Run**, **Google Secret Manager**, and **Artifact Registry**.
+
+### 🌐 Live Production Endpoints
+- **Primary Custom Domain:** [https://sydliving.com](https://sydliving.com) (and [https://www.sydliving.com](https://www.sydliving.com))
+- **Edge CDN Mirror:** [https://sydliving-ai.web.app](https://sydliving-ai.web.app)
+- **Cloud Run Backend:** [https://sydliving-backend-rnlsfkvaba-ts.a.run.app](https://sydliving-backend-rnlsfkvaba-ts.a.run.app)
+
+For the detailed step-by-step deployment guide, see [docs/gcp_deployment_guide.md](docs/gcp_deployment_guide.md).
+
+### Quickstart GCP Deployment
+
+1. **Configure Terraform:**
+   ```bash
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   # Fill in project_id, gemini_api_key, etc.
+   terraform init
+   terraform apply
+   ```
+
+2. **Build and Deploy Containers:**
+   ```bash
+   ./scripts/build_and_deploy.sh YOUR_GCP_PROJECT_ID australia-southeast1
+   ```
+
+### Cloud Environment Variables
+- `SQLITE_DB_PATH`: Path to SQLite database (defaults to `sydliving.db` locally, or `/data/sydliving.db` on Cloud Run).
+- `ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins for FastAPI.
+- `GEMINI_API_KEY`: API key for Google Gemini model inference (managed via Secret Manager in production).
+- `GOOGLE_MAPS_API_KEY`: API key for Google Distance Matrix and Places APIs.
+- `DOMAIN_API_KEY`: API key for Domain Australia real estate listings.
+- `VITE_API_URL`: Frontend base API endpoint (defaults to `/api` or custom backend URL).
+
+### Automated CI/CD via GitHub Actions
+SydLiving AI supports keyless automated deployments on push to `main` using **GitHub Actions** and **Workload Identity Federation (WIF)**.
+See the comprehensive guide: [docs/github_actions_gcp_guide.md](docs/github_actions_gcp_guide.md).
 
 ---
 

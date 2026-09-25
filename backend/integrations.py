@@ -5,7 +5,7 @@ from database import DB_PATH
 
 def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> list:
     api_key = os.environ.get("DOMAIN_API_KEY")
-    if api_key:
+    if api_key and api_key.lower() not in ("", "none", "dummy"):
         try:
             headers = {"X-API-Key": api_key}
             response = requests.post(

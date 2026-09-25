@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import traceback
 import uuid
@@ -33,9 +34,27 @@ app = FastAPI(title="SydLiving AI API", version="0.2.0")
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:3000",
+    "https://sydliving.com",
+    "https://www.sydliving.com",
+]
+if allowed_origins_env:
+    for o in allowed_origins_env.split(","):
+        stripped = o.strip()
+        if stripped and stripped not in origins:
+            origins.append(stripped)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:3000"],
+    allow_origins=origins if "*" not in origins else ["*"],
+    allow_origin_regex=r"https://.*\.a\.run\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

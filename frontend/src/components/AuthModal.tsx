@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Sparkles, Shield, User as UserIcon } from "lucide-react";
 import { api, type User } from "../api/client";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "752861145108-ql61rl87or43s9pg5la1j7s54f8rcinu.apps.googleusercontent.com";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,10 +15,9 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [customEmail, setCustomEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
-
-  const handleGoogleLogin = async (name: string, email: string, avatarUrl: string) => {
+  const handleGoogleLogin = useCallback(async (name: string, email: string, avatarUrl: string) => {
     setLoading(true);
     try {
       const user = await api.loginWithGoogle({
@@ -31,7 +32,67 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onSuccess, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const setupGoogleAuth = () => {
+      if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
+        try {
+          (window as any).google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: (response: { credential?: string }) => {
+              if (!response.credential) return;
+              try {
+                const base64Url = response.credential.split(".")[1];
+                const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+                const jsonPayload = decodeURIComponent(
+                  atob(base64)
+                    .split("")
+                    .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join("")
+                );
+                const payload = JSON.parse(jsonPayload);
+                handleGoogleLogin(
+                  payload.name || payload.email || "Google User",
+                  payload.email || "",
+                  payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || "User")}&background=4285F4&color=fff&rounded=true`
+                );
+              } catch (parseErr) {
+                console.error("Error parsing Google credential", parseErr);
+              }
+            }
+          });
+
+          if (googleBtnRef.current) {
+            googleBtnRef.current.innerHTML = "";
+            (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
+              theme: "outline",
+              size: "large",
+              width: 360,
+              text: "continue_with",
+              shape: "pill"
+            });
+          }
+        } catch (e) {
+          console.error("Google Identity Services setup error", e);
+        }
+      }
+    };
+
+    if ((window as any).google?.accounts?.id) {
+      setupGoogleAuth();
+    } else {
+      const timer = setInterval(() => {
+        if ((window as any).google?.accounts?.id) {
+          clearInterval(timer);
+          setupGoogleAuth();
+        }
+      }, 100);
+      return () => clearInterval(timer);
+    }
+  }, [isOpen, handleGoogleLogin]);
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +102,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     handleGoogleLogin(customName.trim(), email, avatar);
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/60 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
@@ -48,7 +111,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         {/* Header */}
         <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
@@ -71,44 +134,18 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         {/* Body */}
         <div className="p-6 flex flex-col gap-4">
           
-          {/* Main Sign in with Google Button */}
-          <button
-            onClick={() => handleGoogleLogin(
-              "Aaron McGuinness",
-              "aaron.mcguinness@gmail.com",
-              "https://ui-avatars.com/api/?name=Aaron+McGuinness&background=4285F4&color=fff&rounded=true&bold=true"
-            )}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-100 font-bold text-sm rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
-          >
-            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>{loading ? "Signing in..." : "Continue with Google"}</span>
-          </button>
+          {/* Real Google Identity Services Button Container */}
+          <div className="w-full flex justify-center min-h-[44px]">
+            <div ref={googleBtnRef} className="w-full flex justify-center" />
+          </div>
 
           {/* Quick Profile Selectors */}
-          <div className="relative my-2">
+          <div className="relative my-1">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-slate-700" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-white/95 dark:bg-slate-900/95 px-2 text-slate-400 dark:text-slate-500 font-medium">or choose Google account</span>
+              <span className="bg-white/95 dark:bg-slate-900/95 px-2 text-slate-400 dark:text-slate-500 font-medium">or test profile</span>
             </div>
           </div>
 

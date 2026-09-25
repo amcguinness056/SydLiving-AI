@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "sydliving.db")
+from database import DB_PATH
 
 def create_tables(cursor):
     cursor.execute('DROP TABLE IF EXISTS properties;')

@@ -552,7 +552,7 @@ function App() {
   }, [modalPropertyId, properties, savedPropertiesList, selectedProperty]);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col p-2.5 sm:p-4 gap-2.5 sm:gap-4 h-screen font-sans overflow-hidden relative transition-colors duration-300">
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-full bg-slate-100 dark:bg-slate-950 flex flex-col p-2 sm:p-4 gap-2 sm:gap-4 font-sans overflow-hidden transition-colors duration-300">
       
       {/* Top Header Bar */}
       <header className="h-13 sm:h-14 px-3 sm:px-5 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-2xl shadow-sm flex items-center justify-between shrink-0 z-30">
@@ -689,7 +689,7 @@ function App() {
               )}
 
               {/* Scrollable list */}
-              <div className="flex-1 overflow-y-auto p-3.5 pb-24 flex flex-col gap-3.5 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-3.5 pb-24 flex flex-col gap-3.5 custom-scrollbar overscroll-contain touch-pan-y">
                 {loading ? (
                   <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
                     Loading Sydney properties...
@@ -721,7 +721,7 @@ function App() {
             </div>
           ) : (
             /* Mobile Map View */
-            <div className="relative w-full h-full bg-slate-200 dark:bg-slate-950">
+            <div className="relative w-full h-full min-h-0 flex-1 overflow-hidden bg-slate-200 dark:bg-slate-950">
               <Map 
                 properties={displayedProperties} 
                 selectedPropertyId={selectedId} 

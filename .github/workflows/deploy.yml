@@ -117,11 +117,33 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # ----------------------------------------------------
-      # 3. Deployment Summary
+      # 3. Deploy to Firebase Hosting CDN (Custom Domain)
+      # ----------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Frontend for Firebase Hosting
+        env:
+          VITE_API_URL: /api
+          VITE_GOOGLE_MAPS_API_KEY: ${{ steps.maps-key.outputs.key }}
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          npx firebase-tools deploy --only hosting --project ${{ env.PROJECT_ID }}
+
+      # ----------------------------------------------------
+      # 4. Deployment Summary
       # ----------------------------------------------------
       - name: Output Deployment URLs
         run: |
           echo "### 🚀 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend API URL:** [${{ steps.deploy-backend.outputs.url }}](${{ steps.deploy-backend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend Web URL:** [${{ steps.deploy-frontend.outputs.url }}](${{ steps.deploy-frontend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Live Custom Domain:** [https://sydliving.com](https://sydliving.com)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Firebase Hosting URL:** [https://${{ env.PROJECT_ID }}.web.app](https://${{ env.PROJECT_ID }}.web.app)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Cloud Run URL:** [${{ steps.deploy-frontend.outputs.url }}](${{ steps.deploy-frontend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Cloud Run URL:** [${{ steps.deploy-backend.outputs.url }}](${{ steps.deploy-backend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

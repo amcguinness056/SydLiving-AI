@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Sparkles, Shield, User as UserIcon } from "lucide-react";
+import { X, Sparkles, Shield } from "lucide-react";
 import { api, type User } from "../api/client";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "752861145108-ql61rl87or43s9pg5la1j7s54f8rcinu.apps.googleusercontent.com";
@@ -11,10 +11,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
-  const [customName, setCustomName] = useState("");
-  const [customEmail, setCustomEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showManual, setShowManual] = useState(false);
+  const [, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const handleGoogleLogin = useCallback(async (name: string, email: string, avatarUrl: string) => {
@@ -94,19 +91,11 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     }
   }, [isOpen, handleGoogleLogin]);
 
-  const handleCustomSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customName.trim()) return;
-    const email = customEmail.trim() || `${customName.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
-    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(customName.trim())}&background=4285F4&color=fff&rounded=true&bold=true`;
-    handleGoogleLogin(customName.trim(), email, avatar);
-  };
-
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/60 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/60 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
@@ -132,101 +121,15 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         </div>
 
         {/* Body */}
-        <div className="p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-5">
           
           {/* Real Google Identity Services Button Container */}
           <div className="w-full flex justify-center min-h-[44px]">
             <div ref={googleBtnRef} className="w-full flex justify-center" />
           </div>
 
-          {/* Quick Profile Selectors */}
-          <div className="relative my-1">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200 dark:border-slate-700" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-white/95 dark:bg-slate-900/95 px-2 text-slate-400 dark:text-slate-500 font-medium">or test profile</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              onClick={() => handleGoogleLogin(
-                "Aaron McGuinness",
-                "aaron.mcguinness@gmail.com",
-                ""
-              )}
-              className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 bg-white dark:bg-slate-800 hover:bg-indigo-50/50 dark:hover:bg-slate-750 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                A
-              </div>
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Aaron M</div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">aaron@gmail.com</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => handleGoogleLogin(
-                "Sydney Explorer",
-                "explorer@gmail.com",
-                ""
-              )}
-              className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 bg-white dark:bg-slate-800 hover:bg-indigo-50/50 dark:hover:bg-slate-750 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                S
-              </div>
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Explorer</div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">explorer@gmail.com</div>
-              </div>
-            </button>
-          </div>
-
-
-          {/* Toggle Custom Account Details */}
-          <div className="pt-2">
-            {!showManual ? (
-              <button
-                type="button"
-                onClick={() => setShowManual(true)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold hover:underline flex items-center gap-1 mx-auto"
-              >
-                <UserIcon className="w-3.5 h-3.5" />
-                Sign in with a different name / email
-              </button>
-            ) : (
-              <form onSubmit={handleCustomSubmit} className="flex flex-col gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 animate-in fade-in duration-200">
-                <input
-                  type="text"
-                  placeholder="Your Full Name"
-                  value={customName}
-                  onChange={(e) => setCustomName(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="Google Email (optional)"
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={loading || !customName.trim()}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors shadow-sm disabled:opacity-50"
-                >
-                  Sign In
-                </button>
-              </form>
-            )}
-          </div>
-
           {/* Security footnote */}
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-2">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800/80">
             <Shield className="w-3.5 h-3.5 text-emerald-500" />
             <span>Secure authentication provided via Google Identity</span>
           </div>

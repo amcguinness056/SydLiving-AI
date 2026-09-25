@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Sparkles, Shield, User as UserIcon } from "lucide-react";
 import { api, type User } from "../api/client";
 
@@ -17,7 +17,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [showManual, setShowManual] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const handleGoogleLogin = async (name: string, email: string, avatarUrl: string) => {
+  const handleGoogleLogin = useCallback(async (name: string, email: string, avatarUrl: string) => {
     setLoading(true);
     try {
       const user = await api.loginWithGoogle({
@@ -32,7 +32,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onSuccess, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,7 +92,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       }, 100);
       return () => clearInterval(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, handleGoogleLogin]);
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();

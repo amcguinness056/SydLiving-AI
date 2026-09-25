@@ -84,3 +84,12 @@ resource "google_project_iam_member" "gh_secret_accessor" {
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.github_actions_sa[0].email}"
 }
+
+# Allow GitHub Actions Service Account to deploy Firebase Hosting CDN
+resource "google_project_iam_member" "gh_firebase_admin" {
+  count   = local.enable_github_actions ? 1 : 0
+  project = var.project_id
+  role    = "roles/firebasehosting.admin"
+  member  = "serviceAccount:${google_service_account.github_actions_sa[0].email}"
+}
+

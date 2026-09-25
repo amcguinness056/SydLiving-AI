@@ -1,15 +1,21 @@
 name: Deploy SydLiving AI to GCP Cloud Run
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Build and Test SydLiving AI"]
     branches:
       - main
-      - gcp_iac_deployment
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - '.github/workflows/**'
+    types:
+      - completed
   workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Deployment target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
 
 # Mandatory permissions for requesting the GitHub OIDC JWT token
 permissions:
@@ -27,10 +33,19 @@ jobs:
     name: Build & Deploy to Cloud Run
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success') }}
 
     steps:
+      - name: Determine Target Commit SHA
+        id: target-commit
+        run: |
+          TARGET_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target-commit.outputs.sha }}
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         id: gcp-auth
@@ -54,7 +69,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: ${{ runner.os }}-buildx-${{ steps.target-commit.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 
@@ -67,7 +82,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:${{ github.sha }},${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:latest
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:${{ steps.target-commit.outputs.sha }},${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
@@ -76,7 +91,7 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.APP_NAME }}-backend
-          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:${{ github.sha }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend:${{ steps.target-commit.outputs.sha }}
           region: ${{ env.REGION }}
 
       # ----------------------------------------------------
@@ -98,7 +113,7 @@ jobs:
             VITE_API_URL=${{ steps.deploy-backend.outputs.url }}
             VITE_GOOGLE_MAPS_API_KEY=${{ steps.maps-key.outputs.key }}
           push: true
-          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:${{ github.sha }},${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:latest
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:${{ steps.target-commit.outputs.sha }},${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
@@ -107,7 +122,7 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.APP_NAME }}-frontend
-          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:${{ github.sha }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:${{ steps.target-commit.outputs.sha }}
           region: ${{ env.REGION }}
 
       # Update cache ref
@@ -117,11 +132,33 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # ----------------------------------------------------
-      # 3. Deployment Summary
+      # 3. Deploy to Firebase Hosting CDN (Custom Domain)
+      # ----------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Frontend for Firebase Hosting
+        env:
+          VITE_API_URL: /api
+          VITE_GOOGLE_MAPS_API_KEY: ${{ steps.maps-key.outputs.key }}
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          npx firebase-tools deploy --only hosting --project ${{ env.PROJECT_ID }}
+
+      # ----------------------------------------------------
+      # 4. Deployment Summary
       # ----------------------------------------------------
       - name: Output Deployment URLs
         run: |
           echo "### 🚀 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend API URL:** [${{ steps.deploy-backend.outputs.url }}](${{ steps.deploy-backend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend Web URL:** [${{ steps.deploy-frontend.outputs.url }}](${{ steps.deploy-frontend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Live Custom Domain:** [https://sydliving.com](https://sydliving.com)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Firebase Hosting URL:** [https://${{ env.PROJECT_ID }}.web.app](https://${{ env.PROJECT_ID }}.web.app)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Cloud Run URL:** [${{ steps.deploy-frontend.outputs.url }}](${{ steps.deploy-frontend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Cloud Run URL:** [${{ steps.deploy-backend.outputs.url }}](${{ steps.deploy-backend.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Commit:** \`${{ steps.target-commit.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY

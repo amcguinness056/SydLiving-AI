@@ -189,6 +189,21 @@ export const api = {
     }
   },
 
+  syncSavedProperties: async (propertyIds: string[] = []): Promise<Property[]> => {
+    try {
+      const res = await fetch(`${BASE_URL}/properties/saved/sync`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ property_ids: propertyIds })
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
   saveProperty: async (propertyId: string): Promise<void> => {
     await fetch(`${BASE_URL}/properties/saved/${propertyId}`, { method: 'POST', headers: getHeaders() });
   },

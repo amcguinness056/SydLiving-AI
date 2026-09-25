@@ -27,7 +27,7 @@ export function CompareModal({
   const shortlistedProps = properties.filter(p => shortlistedIds.includes(p.id));
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 md:p-8 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-6 md:p-8 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
         onClick={onClose}
@@ -35,34 +35,34 @@ export function CompareModal({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
+      <div className="relative w-full max-w-5xl max-h-[94vh] sm:max-h-[90vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40 shadow-xs">
-              <Sparkles className="w-5 h-5" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40 shadow-xs shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
                 Shortlist & Commute Comparison
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Comparing {shortlistedProps.length} selected {shortlistedProps.length === 1 ? 'property' : 'properties'} with pricing, transit, and beach proximity
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                Comparing {shortlistedProps.length} selected {shortlistedProps.length === 1 ? 'property' : 'properties'}
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 sm:p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+        <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 custom-scrollbar">
           {shortlistedProps.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <div className="w-14 h-14 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">

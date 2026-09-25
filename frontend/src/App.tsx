@@ -488,18 +488,6 @@ function App() {
             </button>
           )}
 
-          {/* Ask Kai Quick Header Launcher */}
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 group cursor-pointer"
-            title="Ask Kai — Sydney Living Concierge"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-200 group-hover:rotate-12 transition-transform shrink-0" />
-            <span>Ask Kai</span>
-            <span className="hidden sm:inline-block text-[10px] font-bold bg-blue-500/70 text-blue-100 px-1.5 py-0.2 rounded-md">
-              AI Concierge
-            </span>
-          </button>
 
           {/* Shortlist Comparison Button */}
           <button

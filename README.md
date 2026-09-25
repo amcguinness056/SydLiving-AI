@@ -8,6 +8,9 @@
 [![LangChain](https://img.shields.io/badge/Orchestration-LangChain_Deep_Agents-1C3C3C?style=flat&logo=langchain&logoColor=white)](https://python.langchain.com)
 [![Leaflet](https://img.shields.io/badge/Maps-React_Leaflet-199900?style=flat&logo=leaflet&logoColor=white)](https://leafletjs.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Live Site](https://img.shields.io/badge/Live_Demo-sydliving.com-2563eb?style=flat&logo=google-chrome&logoColor=white)](https://sydliving.com)
+
+> 🌐 **Live Application**: **[https://sydliving.com](https://sydliving.com)** (or **[https://www.sydliving.com](https://www.sydliving.com)**)
 
 **SydLiving AI** is an AI-augmented property discovery and commute intelligence platform tailored for professionals, students, and expats relocating to Sydney, Australia.
 
@@ -156,6 +159,11 @@ The frontend application will be live at `http://localhost:5173`.
 ## Cloud Deployment (Google Cloud Platform & Terraform)
 
 SydLiving AI includes automated Infrastructure as Code (IaC) configurations for deploying to **Google Cloud Platform (GCP)** using **Terraform**, **Cloud Run**, **Google Secret Manager**, and **Artifact Registry**.
+
+### 🌐 Live Production Endpoints
+- **Primary Custom Domain:** [https://sydliving.com](https://sydliving.com) (and [https://www.sydliving.com](https://www.sydliving.com))
+- **Edge CDN Mirror:** [https://sydliving-ai.web.app](https://sydliving-ai.web.app)
+- **Cloud Run Backend:** [https://sydliving-backend-rnlsfkvaba-ts.a.run.app](https://sydliving-backend-rnlsfkvaba-ts.a.run.app)
 
 For the detailed step-by-step deployment guide, see [docs/gcp_deployment_guide.md](docs/gcp_deployment_guide.md).
 

@@ -170,6 +170,10 @@ function App() {
       return [];
     }
   });
+  const shortlistedIdsRef = React.useRef(shortlistedIds);
+  useEffect(() => {
+    shortlistedIdsRef.current = shortlistedIds;
+  }, [shortlistedIds]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
 
   // Search & Filter State
@@ -219,13 +223,18 @@ function App() {
     }
   }, []);
 
-  const loadSavedProperties = useCallback(async () => {
+  const syncUserSavedProperties = useCallback(async (currentShortlist: string[]) => {
     try {
-      const data = await api.getSavedProperties();
-      setSavedProperties(Array.isArray(data) ? data : []);
+      const remoteProps = await api.syncSavedProperties(currentShortlist);
+      if (Array.isArray(remoteProps)) {
+        setSavedProperties(remoteProps);
+        const remoteIds = remoteProps.map(p => p.id);
+        const mergedIds = Array.from(new Set([...currentShortlist, ...remoteIds]));
+        setShortlistedIds(mergedIds);
+        localStorage.setItem('sydliving_shortlist', JSON.stringify(mergedIds));
+      }
     } catch (err) {
-      console.error("Failed to load saved properties", err);
-      setSavedProperties([]);
+      console.error("Failed to sync saved properties", err);
     }
   }, []);
 
@@ -259,14 +268,15 @@ function App() {
     loadProperties();
   }, [loadProperties]);
 
+  // When user is authenticated (on mount or after login), sync with backend
   useEffect(() => {
     if (user) {
-      loadSavedProperties();
+      syncUserSavedProperties(shortlistedIdsRef.current);
     } else {
       setSavedProperties([]);
       setShowSavedOnly(false);
     }
-  }, [user, loadSavedProperties]);
+  }, [user, syncUserSavedProperties]);
 
   const handleSearchFilter = useCallback((newKeyword: string, newType: string) => {
     setKeywordFilter(newKeyword);
@@ -279,28 +289,40 @@ function App() {
     });
   }, [spatialFilter, loadProperties]);
 
-  const handleToggleFavorite = useCallback((id: string) => {
-    setShortlistedIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  }, []);
+  const handleToggleFavorite = useCallback(async (id: string) => {
+    const isCurrentlySaved = shortlistedIds.includes(id);
+    const nextIds = isCurrentlySaved 
+      ? shortlistedIds.filter(item => item !== id) 
+      : [...shortlistedIds, id];
 
-  const handleToggleSave = useCallback(async (id: string, isSaved: boolean) => {
-    if (!user) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-    try {
-      if (isSaved) {
-        await api.unsaveProperty(id);
-      } else {
-        await api.saveProperty(id);
+    // Optimistic UI update
+    setShortlistedIds(nextIds);
+    localStorage.setItem('sydliving_shortlist', JSON.stringify(nextIds));
+
+    if (isCurrentlySaved) {
+      setSavedProperties(prev => prev.filter(p => p.id !== id));
+    } else {
+      const match = properties.find(p => p.id === id);
+      if (match) {
+        setSavedProperties(prev => [match, ...prev.filter(p => p.id !== id)]);
       }
-      loadSavedProperties();
-    } catch (err) {
-      console.error("Failed to toggle save", err);
     }
-  }, [user, loadSavedProperties]);
+
+    // Sync with backend database when logged in
+    if (user) {
+      try {
+        if (isCurrentlySaved) {
+          await api.unsaveProperty(id);
+        } else {
+          await api.saveProperty(id);
+        }
+      } catch (err) {
+        console.error("Failed to sync toggle save with backend", err);
+      }
+    }
+  }, [shortlistedIds, user, properties]);
+
+  const handleToggleSave = handleToggleFavorite;
 
   const handleLogin = () => {
     setIsAuthModalOpen(true);
@@ -312,6 +334,7 @@ function App() {
     localStorage.setItem('username', newUser.username);
     if (newUser.email) localStorage.setItem('user_email', newUser.email);
     if (newUser.avatar_url) localStorage.setItem('user_avatar', newUser.avatar_url);
+    syncUserSavedProperties(shortlistedIds);
   };
 
   const handleLogout = () => {
@@ -320,6 +343,9 @@ function App() {
     localStorage.removeItem('username');
     localStorage.removeItem('user_email');
     localStorage.removeItem('user_avatar');
+    setSavedProperties([]);
+    setShortlistedIds([]);
+    localStorage.removeItem('sydliving_shortlist');
     setCurrentSessionId(null);
     setMessages([]);
     setChatHistory([]);
@@ -549,19 +575,33 @@ function App() {
 
   const savedPropertiesList = useMemo(() => Array.isArray(savedProperties) ? savedProperties : [], [savedProperties]);
 
-  const displayedProperties = useMemo(() => {
+  // Combined pool of all known properties (search results + saved properties across devices)
+  const allPropertiesPool = useMemo<Property[]>(() => {
+    const propertyMap: Record<string, Property> = {};
+    for (const p of savedPropertiesList) propertyMap[p.id] = p;
+    for (const p of properties) propertyMap[p.id] = p;
+    return Object.values(propertyMap);
+  }, [properties, savedPropertiesList]);
+
+  const displayedProperties = useMemo<Property[]>(() => {
     if (!showSavedOnly) return properties;
-    const savedIds = new Set(savedPropertiesList.map(sp => sp.id));
     const shortIds = new Set(shortlistedIds);
-    return properties.filter(p => savedIds.has(p.id) || shortIds.has(p.id));
+    const propertyMap: Record<string, Property> = {};
+    for (const p of savedPropertiesList) {
+      if (shortIds.has(p.id)) propertyMap[p.id] = p;
+    }
+    for (const p of properties) {
+      if (shortIds.has(p.id)) propertyMap[p.id] = p;
+    }
+    return Object.values(propertyMap);
   }, [properties, showSavedOnly, savedPropertiesList, shortlistedIds]);
 
-  const activeModalProperty = useMemo(() => {
+  const activeModalProperty = useMemo<Property | null>(() => {
     if (modalPropertyId) {
-      return properties.find(p => p.id === modalPropertyId) || savedPropertiesList.find(p => p.id === modalPropertyId) || null;
+      return allPropertiesPool.find(p => p.id === modalPropertyId) || null;
     }
     return selectedProperty;
-  }, [modalPropertyId, properties, savedPropertiesList, selectedProperty]);
+  }, [modalPropertyId, allPropertiesPool, selectedProperty]);
 
   return (
     <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-full bg-slate-100 dark:bg-slate-950 flex flex-col p-2 sm:p-4 gap-2 sm:gap-4 font-sans overflow-hidden transition-colors duration-300">
@@ -1099,7 +1139,7 @@ function App() {
       <CompareModal
         isOpen={isCompareOpen}
         onClose={() => setIsCompareOpen(false)}
-        properties={properties}
+        properties={allPropertiesPool}
         shortlistedIds={shortlistedIds}
         onRemoveFromShortlist={handleToggleFavorite}
         onAskAgent={(prompt) => {

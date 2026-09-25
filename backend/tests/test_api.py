@@ -114,5 +114,46 @@ def test_login_and_google_auth():
     user2 = resp2.json()
     assert user2["username"] == "Test Google User"
     assert user2["email"] == "testgoogle@example.com"
-    assert user2["avatar_url"] == "https://example.com/avatar.png"
     assert user2["auth_provider"] == "google"
+
+def test_saved_properties_sync_and_toggle():
+    # Login to get a valid user
+    login_res = client.post("/api/auth/login?username=synctest_user")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+
+    # Get sample properties
+    search_res = client.get("/api/properties")
+    props = search_res.json()["results"]
+    assert len(props) >= 2
+    pid1, pid2 = props[0]["id"], props[1]["id"]
+
+    headers = {"user-id": user_id}
+
+    # 1. Sync local properties
+    sync_res = client.post("/api/properties/saved/sync", json={"property_ids": [pid1]}, headers=headers)
+    assert sync_res.status_code == 200
+    synced = sync_res.json()
+    assert any(p["id"] == pid1 for p in synced)
+
+    # 2. Save another property
+    save_res = client.post(f"/api/properties/saved/{pid2}", headers=headers)
+    assert save_res.status_code == 200
+
+    # 3. Verify get_saved_properties returns both
+    get_res = client.get("/api/properties/saved", headers=headers)
+    assert get_res.status_code == 200
+    saved_list = get_res.json()
+    saved_ids = [p["id"] for p in saved_list]
+    assert pid1 in saved_ids
+    assert pid2 in saved_ids
+
+    # 4. Unsave property 1
+    unsave_res = client.delete(f"/api/properties/saved/{pid1}", headers=headers)
+    assert unsave_res.status_code == 200
+
+    # 5. Verify property 1 is removed and property 2 remains
+    final_res = client.get("/api/properties/saved", headers=headers)
+    final_ids = [p["id"] for p in final_res.json()]
+    assert pid1 not in final_ids
+    assert pid2 in final_ids

@@ -263,6 +263,33 @@ def search_properties(
 
     return PropertySearchResponse(results=results, total=len(results))
 
+class SavedPropertiesSyncPayload(BaseModel):
+    property_ids: List[str] = []
+
+@app.post("/api/properties/saved/sync", response_model=List[Property])
+def sync_saved_properties(
+    payload: SavedPropertiesSyncPayload,
+    user_id: str = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    cursor = db.cursor()
+    for pid in payload.property_ids:
+        try:
+            cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, pid))
+        except sqlite3.Error:
+            pass
+    db.commit()
+
+    cursor.execute('''
+        SELECT p.* FROM properties p
+        JOIN saved_properties sp ON p.id = sp.property_id
+        WHERE sp.user_id = ?
+    ''', (user_id,))
+    rows = cursor.fetchall()
+    return [Property(**dict(row)) for row in rows]
+
 @app.get("/api/properties/saved")
 def get_saved_properties(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
     if not user_id:
@@ -282,9 +309,9 @@ def save_property(property_id: str, user_id: str = Depends(get_current_user), db
         raise HTTPException(status_code=401, detail="Unauthorized")
     cursor = db.cursor()
     try:
-        cursor.execute("INSERT INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, property_id))
+        cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, property_id))
         db.commit()
-    except sqlite3.IntegrityError:
+    except sqlite3.Error:
         pass
     return {"status": "ok"}
 

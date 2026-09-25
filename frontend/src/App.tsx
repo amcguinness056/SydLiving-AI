@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Map } from './components/Map';
 import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
@@ -36,6 +36,80 @@ function UserAvatar({ user, className = "w-6 h-6" }: { user: { username?: string
     />
   );
 }
+
+interface SearchFilterBarProps {
+  keyword: string;
+  propertyType: string;
+  onSearch: (keyword: string, propertyType: string) => void;
+  onAskKai: (prompt: string) => void;
+}
+
+const SearchFilterBar = React.memo(function SearchFilterBar({
+  keyword,
+  propertyType,
+  onSearch,
+  onAskKai
+}: SearchFilterBarProps) {
+  const [localKeyword, setLocalKeyword] = useState(keyword);
+  const [localType, setLocalType] = useState(propertyType);
+
+  useEffect(() => {
+    setLocalKeyword(keyword);
+  }, [keyword]);
+
+  useEffect(() => {
+    setLocalType(propertyType);
+  }, [propertyType]);
+
+  const handleApply = () => {
+    onSearch(localKeyword, localType);
+  };
+
+  return (
+    <div className="px-4 py-2.5 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border-b border-white/40 dark:border-slate-800 shadow-sm z-10 shrink-0 flex flex-col gap-2">
+      <input 
+        type="text"
+        placeholder="Search listings & descriptions..."
+        className="w-full px-3 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+        value={localKeyword}
+        onChange={e => setLocalKeyword(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && handleApply()}
+      />
+      <div className="flex gap-2">
+        <select 
+          className="flex-1 px-2.5 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-700 dark:text-slate-200"
+          value={localType}
+          onChange={e => {
+            setLocalType(e.target.value);
+            onSearch(localKeyword, e.target.value);
+          }}
+        >
+          <option value="">All Types</option>
+          <option value="Apartment">Apartment</option>
+          <option value="House">House</option>
+          <option value="Studio">Studio</option>
+          <option value="Terrace">Terrace</option>
+          <option value="Sharehouse">Sharehouse</option>
+        </select>
+        <button 
+          onClick={handleApply}
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+        >
+          Search
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onAskKai("Show 2-bedroom rentals near Sydney Metro stations with high walkability")}
+        className="text-left text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1.5 transition-colors group cursor-pointer pt-0.5"
+      >
+        <Sparkles className="w-3 h-3 text-blue-500 group-hover:rotate-12 transition-transform shrink-0" />
+        <span className="truncate">Or ask Kai: "2BR near Metro with high walkability"</span>
+      </button>
+    </div>
+  );
+});
 
 function App() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -126,26 +200,7 @@ function App() {
     }
   }, []);
 
-  // Reload properties on initial mount or when spatial filters change
-  useEffect(() => {
-    loadProperties({ 
-      keyword: keywordFilter || undefined,
-      property_type: typeFilter || undefined,
-      circle: spatialFilter?.circle,
-      polygon: spatialFilter?.polygon
-    });
-  }, [spatialFilter]);
-
-  useEffect(() => {
-    if (user) {
-      loadSavedProperties();
-    } else {
-      setSavedProperties([]);
-      setShowSavedOnly(false);
-    }
-  }, [user]);
-
-  async function loadSavedProperties() {
+  const loadSavedProperties = useCallback(async () => {
     try {
       const data = await api.getSavedProperties();
       setSavedProperties(Array.isArray(data) ? data : []);
@@ -153,9 +208,9 @@ function App() {
       console.error("Failed to load saved properties", err);
       setSavedProperties([]);
     }
-  }
+  }, []);
 
-  async function loadProperties(filters?: any) {
+  const loadProperties = useCallback(async (filters?: any) => {
     setLoading(true);
     const combinedFilters = {
       keyword: keywordFilter || undefined,
@@ -164,7 +219,12 @@ function App() {
       polygon: spatialFilter?.polygon,
       ...(filters || {})
     };
-    setActiveFilters(filters?.suburb || filters?.max_rent || filters?.min_bedrooms || filters?.keyword || filters?.property_type || filters?.circle || filters?.polygon ? combinedFilters : null);
+    setActiveFilters(
+      combinedFilters.suburb || combinedFilters.max_rent || combinedFilters.min_bedrooms || 
+      combinedFilters.keyword || combinedFilters.property_type || combinedFilters.circle || combinedFilters.polygon 
+        ? combinedFilters 
+        : null
+    );
     try {
       const data = await api.getProperties(combinedFilters);
       setProperties(data);
@@ -173,24 +233,40 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [keywordFilter, typeFilter, spatialFilter]);
 
-  const applyFilters = () => {
+  // Reload properties on initial mount or when spatial filters change
+  useEffect(() => {
+    loadProperties();
+  }, [loadProperties]);
+
+  useEffect(() => {
+    if (user) {
+      loadSavedProperties();
+    } else {
+      setSavedProperties([]);
+      setShowSavedOnly(false);
+    }
+  }, [user, loadSavedProperties]);
+
+  const handleSearchFilter = useCallback((newKeyword: string, newType: string) => {
+    setKeywordFilter(newKeyword);
+    setTypeFilter(newType);
     loadProperties({
-      keyword: keywordFilter || undefined,
-      property_type: typeFilter || undefined,
+      keyword: newKeyword || undefined,
+      property_type: newType || undefined,
       circle: spatialFilter?.circle,
       polygon: spatialFilter?.polygon
     });
-  };
+  }, [spatialFilter, loadProperties]);
 
-  const handleToggleFavorite = (id: string) => {
+  const handleToggleFavorite = useCallback((id: string) => {
     setShortlistedIds(prev => 
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const handleToggleSave = async (id: string, isSaved: boolean) => {
+  const handleToggleSave = useCallback(async (id: string, isSaved: boolean) => {
     if (!user) {
       setIsAuthModalOpen(true);
       return;
@@ -205,7 +281,7 @@ function App() {
     } catch (err) {
       console.error("Failed to toggle save", err);
     }
-  };
+  }, [user, loadSavedProperties]);
 
   const handleLogin = () => {
     setIsAuthModalOpen(true);
@@ -230,7 +306,7 @@ function App() {
     setChatHistory([]);
   };
 
-  const handleAgentAction = (action: AgentAction) => {
+  const handleAgentAction = useCallback((action: AgentAction) => {
     if (action.action_type === 'update_properties') {
       loadProperties(action.data);
     } else if (action.action_type === 'update_commute_filters') {
@@ -244,9 +320,9 @@ function App() {
     } else if (action.action_type === 'set_session') {
       setCurrentSessionId(action.data.session_id);
     }
-  };
+  }, [loadProperties]);
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
@@ -357,14 +433,14 @@ function App() {
       setActiveStatusLabel(null);
       setStreamingContent('');
     }
-  };
+  }, [chatHistory, currentSessionId, handleAgentAction]);
 
-  const handleAskAgent = (prompt: string) => {
+  const handleAskAgent = useCallback((prompt: string) => {
     setIsChatOpen(true);
     handleSendMessage(prompt);
-  };
+  }, [handleSendMessage]);
 
-  const handleSelectSession = async (sessionId: string | null) => {
+  const handleSelectSession = useCallback(async (sessionId: string | null) => {
     setCurrentSessionId(sessionId);
     if (!sessionId) {
       setMessages([]);
@@ -380,23 +456,21 @@ function App() {
     } catch (err) {
       console.error("Failed to load session messages", err);
     }
-  };
+  }, []);
 
   const toggleMaximize = (panel: MaximizedState) => {
     setMaximizedPanel(prev => prev === panel ? null : panel);
   };
 
-  const handleMapSelect = (id: string) => {
+  const handleMapSelect = useCallback((id: string) => {
     setSelectedId(id);
     setModalPropertyId(id);
     const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
     if (match) setSelectedProperty(match);
-    if (maximizedPanel === 'chat') {
-      setMaximizedPanel(null);
-    }
-  };
+    setMaximizedPanel(prev => prev === 'chat' ? null : prev);
+  }, [properties, savedProperties]);
 
-  const handleChatSelectProperty = async (id: string) => {
+  const handleChatSelectProperty = useCallback(async (id: string) => {
     setSelectedId(id);
     const exists = properties.some(p => p.id === id) || savedProperties.some(p => p.id === id);
     if (!exists) {
@@ -409,16 +483,14 @@ function App() {
         console.error("Failed to load property for selection", err);
       }
     }
-    if (maximizedPanel === 'chat') {
-      setMaximizedPanel(null);
-    }
+    setMaximizedPanel(prev => prev === 'chat' ? null : prev);
     setTimeout(() => {
       const card = document.getElementById(`property-card-${id}`);
       if (card) {
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }, 100);
-  };
+  }, [properties, savedProperties]);
 
   const getMaximizedClasses = (panelName: MaximizedState) => {
     if (maximizedPanel === panelName) {
@@ -435,12 +507,21 @@ function App() {
     return `${widthClass} h-[680px] max-h-[88vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto transition-all duration-300 relative z-10`;
   };
 
-  const savedPropertiesList = Array.isArray(savedProperties) ? savedProperties : [];
-  const displayedProperties = showSavedOnly 
-    ? properties.filter(p => savedPropertiesList.some(sp => sp.id === p.id) || shortlistedIds.includes(p.id)) 
-    : properties;
+  const savedPropertiesList = useMemo(() => Array.isArray(savedProperties) ? savedProperties : [], [savedProperties]);
 
-  const activeModalProperty = (modalPropertyId ? properties.find(p => p.id === modalPropertyId) || savedPropertiesList.find(p => p.id === modalPropertyId) : null) || selectedProperty;
+  const displayedProperties = useMemo(() => {
+    if (!showSavedOnly) return properties;
+    const savedIds = new Set(savedPropertiesList.map(sp => sp.id));
+    const shortIds = new Set(shortlistedIds);
+    return properties.filter(p => savedIds.has(p.id) || shortIds.has(p.id));
+  }, [properties, showSavedOnly, savedPropertiesList, shortlistedIds]);
+
+  const activeModalProperty = useMemo(() => {
+    if (modalPropertyId) {
+      return properties.find(p => p.id === modalPropertyId) || savedPropertiesList.find(p => p.id === modalPropertyId) || null;
+    }
+    return selectedProperty;
+  }, [modalPropertyId, properties, savedPropertiesList, selectedProperty]);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 h-screen font-sans overflow-hidden relative transition-colors duration-300">
@@ -518,13 +599,13 @@ function App() {
       <div className="flex-1 min-h-0 relative">
         <PanelGroup 
           orientation="horizontal" 
-          className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/50 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl"
+          className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70"
         >
           
           {/* Left Panel: Property List */}
-          <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-white/20 dark:bg-slate-900/20 flex flex-col h-full min-w-0">
-            <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-white/20 dark:bg-slate-900/20 backdrop-blur-xl h-full")}>
-              <header className="flex flex-col px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-white/60 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
+          <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-slate-50/80 dark:bg-slate-950 flex flex-col h-full min-w-0">
+            <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-slate-50/80 dark:bg-slate-950 h-full")}>
+              <header className="flex flex-col px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
@@ -561,46 +642,12 @@ function App() {
               </header>
 
               {/* Keyword & Type Search */}
-              <div className="px-4 py-2.5 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border-b border-white/40 dark:border-slate-800 shadow-sm z-10 shrink-0 flex flex-col gap-2">
-                <input 
-                  type="text"
-                  placeholder="Search listings & descriptions..."
-                  className="w-full px-3 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-                  value={keywordFilter}
-                  onChange={e => setKeywordFilter(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && applyFilters()}
-                />
-                <div className="flex gap-2">
-                  <select 
-                    className="flex-1 px-2.5 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-700 dark:text-slate-200"
-                    value={typeFilter}
-                    onChange={e => setTypeFilter(e.target.value)}
-                  >
-                    <option value="">All Types</option>
-                    <option value="Apartment">Apartment</option>
-                    <option value="House">House</option>
-                    <option value="Studio">Studio</option>
-                    <option value="Terrace">Terrace</option>
-                    <option value="Sharehouse">Sharehouse</option>
-                  </select>
-                  <button 
-                    onClick={applyFilters}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
-                  >
-                    Search
-                  </button>
-                </div>
-
-                {/* Ask Kai Natural Search Helper */}
-                <button
-                  type="button"
-                  onClick={() => handleAskAgent("Show 2-bedroom rentals near Sydney Metro stations with high walkability")}
-                  className="text-left text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1.5 transition-colors group cursor-pointer pt-0.5"
-                >
-                  <Sparkles className="w-3 h-3 text-blue-500 group-hover:rotate-12 transition-transform shrink-0" />
-                  <span className="truncate">Or ask Kai: "2BR near Metro with high walkability"</span>
-                </button>
-              </div>
+              <SearchFilterBar 
+                keyword={keywordFilter} 
+                propertyType={typeFilter} 
+                onSearch={handleSearchFilter} 
+                onAskKai={handleAskAgent} 
+              />
 
               {activeFilters && (
                 <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">

@@ -31,6 +31,30 @@
   border-radius: 1.5rem;
 }
 
+/* Google Maps InfoWindow Dark Mode Styling */
+.dark .gm-style .gm-style-iw-c {
+  background-color: #0f172a !important; /* slate-900 */
+  border: 1px solid #334155 !important; /* slate-700 */
+  border-radius: 1.25rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7) !important;
+  padding: 8px !important;
+}
+
+.dark .gm-style .gm-style-iw-tc::after {
+  background-color: #0f172a !important; /* slate-900 arrow */
+}
+
+.dark .gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  color: #f8fafc !important;
+}
+
+.dark .gm-style .gm-ui-hover-effect {
+  filter: invert(1) brightness(2) !important;
+  top: 4px !important;
+  right: 4px !important;
+}
+
 .dark .leaflet-popup-content-wrapper {
   background: rgba(15, 23, 42, 0.95) !important;
   color: #f8fafc !important;

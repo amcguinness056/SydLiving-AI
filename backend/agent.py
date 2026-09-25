@@ -2,10 +2,13 @@ import os
 import sqlite3
 import json
 from typing import Optional
+from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from database import get_db_connection

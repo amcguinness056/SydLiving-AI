@@ -10,6 +10,8 @@ venv.bak/
 # Database
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
 
 # Node
 node_modules/
@@ -44,6 +46,16 @@ MANIFEST
 # System
 .DS_Store
 Thumbs.db
+
+# Playwright CLI
+.playwright-cli/
+
+# Agent directories
+.agent/
+.agents/
+.codex/
+.gemini/
+.opencode/
 
 # Terraform
 **/.terraform/*

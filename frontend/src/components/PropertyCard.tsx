@@ -12,11 +12,10 @@ interface PropertyCardProps {
   isSaved?: boolean;
   onToggleFavorite?: (id: string) => void;
   onToggleSave?: (id: string, isSaved: boolean) => void;
-  selectedHubName?: string;
   index?: number;
 }
 
-export function PropertyCard({ 
+export const PropertyCard = React.memo(function PropertyCard({ 
   property, 
   className, 
   onClick, 
@@ -25,7 +24,6 @@ export function PropertyCard({
   isSaved,
   onToggleFavorite, 
   onToggleSave,
-  selectedHubName, 
   index = 0 
 }: PropertyCardProps) {
   const isHeartActive = isFavorite !== undefined ? isFavorite : isSaved;
@@ -41,11 +39,16 @@ export function PropertyCard({
 
   return (
     <div
+      id={`property-card-${property.id}`}
       onClick={onClick}
-      style={{ animationDelay: `${index * 50}ms` }}
+      style={{ 
+        animationDelay: `${Math.min(index, 8) * 35}ms`,
+        contentVisibility: 'auto',
+        containIntrinsicSize: '0 280px'
+      }}
       className={cn(
-        "bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-800/90 backdrop-blur-md rounded-2xl p-4 shadow-sm hover:shadow-md border border-slate-200/80 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden animate-spring-entry",
-        isActive && "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-500/60 shadow-md shadow-indigo-100/50 dark:shadow-indigo-950/50 -translate-y-1",
+        "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 rounded-2xl p-4 shadow-xs hover:shadow-md border border-slate-200/90 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/50 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer flex flex-col shrink-0 group relative overflow-hidden",
+        isActive && "ring-2 ring-blue-500 bg-blue-50/70 dark:bg-blue-950/50 border-blue-300 dark:border-blue-500/60 shadow-md shadow-blue-100/50 dark:shadow-blue-950/50 -translate-y-0.5",
         className
       )}
     >
@@ -55,17 +58,18 @@ export function PropertyCard({
           src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
           alt={property.title} 
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
           }}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60 pointer-events-none" />
       </div>
 
       {/* Top row: Title, Heart & Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
-        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
           {property.title}
         </h3>
         
@@ -83,46 +87,44 @@ export function PropertyCard({
             <Heart className={cn("w-4 h-4", isHeartActive && "fill-rose-500")} />
           </button>
 
-          <div className="bg-indigo-600 dark:bg-indigo-500 text-white px-2.5 py-1 rounded-full text-xs font-black whitespace-nowrap shadow-xs">
-            ${property.weekly_rent}<span className="text-[10px] font-normal text-indigo-100">/wk</span>
+          <div className="bg-blue-600 dark:bg-blue-500 text-white px-2.5 py-1 rounded-full text-xs font-black whitespace-nowrap shadow-xs">
+            ${property.weekly_rent}<span className="text-[10px] font-normal text-blue-100">/wk</span>
           </div>
         </div>
       </div>
       
       {/* Address */}
-      <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center mb-2 font-medium">
-        <MapPin className="w-3.5 h-3.5 mr-1 text-indigo-400 shrink-0" />
+      <p className="text-slate-600 dark:text-slate-300 text-xs flex items-center mb-2 font-medium">
+        <MapPin className="w-3.5 h-3.5 mr-1 text-blue-500 dark:text-blue-400 shrink-0" />
         <span className="truncate">{property.address}</span>
       </p>
 
-      {/* Commute Badge if available */}
-      {property.commute_duration_minutes !== undefined && property.commute_duration_minutes !== null && (
-        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold">
-          <Train className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span className="truncate">
-            {property.commute_duration_minutes}m to {selectedHubName || "Hub"} {property.transit_mode ? `• ${property.transit_mode}` : ''}
-          </span>
+      {/* Local Transit Badge if available */}
+      {property.route_summary && (
+        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 text-[11px] font-medium">
+          <Train className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+          <span className="truncate">{property.route_summary}</span>
         </div>
       )}
 
       {/* Metrics Row */}
-      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 text-xs font-semibold mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between text-slate-700 dark:text-slate-200 text-xs font-semibold mt-auto pt-2 border-t border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-            <BedDouble className="w-4 h-4 text-indigo-500" />
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
+            <BedDouble className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             <span>{property.bedrooms} Bed</span>
           </div>
-          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-            <Bath className="w-4 h-4 text-indigo-500" />
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
+            <Bath className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             <span>{property.bathrooms} Bath</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-800/60 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+        <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800/80 px-2 py-0.5 rounded-md font-bold text-[11px]">
           <Waves className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
           <span>{property.distance_to_beach_km.toFixed(1)} km</span>
         </div>
       </div>
     </div>
   );
-}
+});

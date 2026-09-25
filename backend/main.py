@@ -1,16 +1,22 @@
 import sqlite3
 import traceback
 import uuid
-import os
+from pathlib import Path
 from dotenv import load_dotenv
+
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from datetime import datetime
 from fastapi import FastAPI, Depends, Query, HTTPException, Header
+from starlette.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 
+import json
+import database
 from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
@@ -19,12 +25,23 @@ from models import (
     ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
 )
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from starlette.middleware.gzip import GZipMiddleware
 import agent
+import deep_agent
 
 app = FastAPI(title="SydLiving AI API", version="0.2.0")
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
-origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:3000"
+]
 if allowed_origins_env:
     for o in allowed_origins_env.split(","):
         stripped = o.strip()
@@ -34,6 +51,7 @@ if allowed_origins_env:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins if "*" not in origins else ["*"],
+    allow_origin_regex=r"https://.*\.a\.run\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -276,6 +294,37 @@ def unsave_property(property_id: str, user_id: str = Depends(get_current_user), 
     db.commit()
     return {"status": "ok"}
 
+@app.get("/api/properties/{property_id}", response_model=Property)
+def get_property_by_id(
+    property_id: str,
+    destination_hub: Optional[str] = Query(None, description="Optional destination hub for commute calculation"),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    if destination_hub:
+        query = """
+            SELECT p.*, 
+                   cm.duration_minutes AS commute_duration_minutes,
+                   cm.transit_mode,
+                   cm.transfers,
+                   cm.estimated_opal_fare,
+                   cm.route_summary
+            FROM properties p
+            LEFT JOIN commute_matrix cm 
+              ON p.suburb = cm.origin_suburb 
+             AND (cm.destination_cbd_hub = ? OR cm.destination_cbd_hub LIKE ?)
+            WHERE p.id = ?
+        """
+        hub_like = f"%{destination_hub}%"
+        row = db.execute(query, (destination_hub, hub_like, property_id)).fetchone()
+    else:
+        query = "SELECT * FROM properties WHERE id = ?"
+        row = db.execute(query, (property_id,)).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    return dict(row)
+
 @app.get("/api/commute", response_model=CommuteResponse)
 def get_commute(
     origin_suburb: str = Query(..., description="The origin suburb"),
@@ -325,6 +374,16 @@ def get_chat_messages(session_id: str, user_id: str = Depends(get_current_user),
     rows = cursor.fetchall()
     return ChatMessageResponse(messages=[ChatMessage(**dict(row)) for row in rows])
 
+@app.delete("/api/chat/sessions/{session_id}")
+def delete_chat_session(session_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    cursor = db.cursor()
+    cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+    cursor.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
+    db.commit()
+    return {"status": "deleted", "session_id": session_id}
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
     try:
@@ -366,7 +425,149 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
         if session_id:
             actions.append(AgentAction(action_type="set_session", data={"session_id": session_id}))
 
-        return ChatResponse(reply=result["reply"], actions=actions)
+        return ChatResponse(reply=result["reply"], actions=actions, agent_type="standard")
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat/deep", response_model=ChatResponse)
+async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
+    try:
+        session_id = request.session_id
+        cursor = db.cursor()
+        now = datetime.now().isoformat()
+        
+        if request.user_id:
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
+                cursor.execute(
+                    "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (session_id, request.user_id, title, now, now)
+                )
+            
+            if session_id:
+                msg_id = str(uuid.uuid4())
+                cursor.execute(
+                    "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (msg_id, session_id, "user", request.message, now)
+                )
+                cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
+                db.commit()
+
+        result = await deep_agent.process_deep_chat(request.message, request.history)
+        
+        if session_id:
+            msg_id = str(uuid.uuid4())
+            now_resp = datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (msg_id, session_id, "model", result["reply"], now_resp)
+            )
+            cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now_resp, session_id))
+            db.commit()
+
+        actions = [AgentAction(**action) for action in result["actions"]]
+        if session_id:
+            actions.append(AgentAction(action_type="set_session", data={"session_id": session_id}))
+
+        return ChatResponse(
+            reply=result["reply"], 
+            actions=actions, 
+            latency_seconds=result.get("latency_seconds"),
+            agent_type="deep_agent"
+        )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat/deep/stream")
+async def chat_deep_stream_endpoint(request: ChatRequest):
+    async def event_generator():
+        session_id = request.session_id
+        now = datetime.now().isoformat()
+        
+        # 1. If user is logged in, create or update session and save user message
+        if request.user_id:
+            try:
+                with sqlite3.connect(database.DB_PATH) as conn:
+                    cursor = conn.cursor()
+                    if not session_id:
+                        session_id = str(uuid.uuid4())
+                        title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
+                        cursor.execute(
+                            "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                            (session_id, request.user_id, title, now, now)
+                        )
+                    
+                    msg_id = str(uuid.uuid4())
+                    cursor.execute(
+                        "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (msg_id, session_id, "user", request.message, now)
+                    )
+                    cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
+                    conn.commit()
+            except Exception as db_err:
+                print(f"[DeepStream] Error saving user message to DB: {db_err}")
+
+        # Yield set_session action event immediately if session_id is available
+        if session_id:
+            set_session_action = {"action_type": "set_session", "data": {"session_id": session_id}}
+            yield f"event: action\ndata: {json.dumps(set_session_action)}\n\n"
+
+        # 2. Stream events from deep_agent
+        accumulated_text = ""
+
+        try:
+            async for sse_chunk in deep_agent.stream_deep_chat(request.message, request.history):
+                # If we encounter the "done" event, make sure set_session action is in its actions array
+                if session_id and "event: done" in sse_chunk:
+                    try:
+                        lines = sse_chunk.split("\n")
+                        data_line = next((l for l in lines if l.startswith("data: ")), None)
+                        if data_line:
+                            done_data = json.loads(data_line[6:])
+                            actions = done_data.get("actions", [])
+                            if not any(a.get("action_type") == "set_session" for a in actions):
+                                actions.append({"action_type": "set_session", "data": {"session_id": session_id}})
+                                done_data["actions"] = actions
+                            if done_data.get("reply"):
+                                accumulated_text = done_data["reply"]
+                            sse_chunk = f"event: done\ndata: {json.dumps(done_data)}\n\n"
+                    except Exception as parse_e:
+                        print(f"[DeepStream] Error augmenting done event: {parse_e}")
+
+                if "event: chunk" in sse_chunk:
+                    for line in sse_chunk.split("\n"):
+                        if line.startswith("data: "):
+                            try:
+                                chunk_data = json.loads(line[6:])
+                                if "text" in chunk_data:
+                                    accumulated_text += chunk_data["text"]
+                            except Exception:
+                                pass
+
+                yield sse_chunk
+        finally:
+            # 3. On completion (or interruption), save model reply to DB if user is logged in
+            if request.user_id and session_id and accumulated_text:
+                try:
+                    with sqlite3.connect(database.DB_PATH) as conn:
+                        cursor = conn.cursor()
+                        now_resp = datetime.now().isoformat()
+                        msg_id = str(uuid.uuid4())
+                        cursor.execute(
+                            "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                            (msg_id, session_id, "model", accumulated_text, now_resp)
+                        )
+                        cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now_resp, session_id))
+                        conn.commit()
+                except Exception as db_err:
+                    print(f"[DeepStream] Error saving model message to DB: {db_err}")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
+
+

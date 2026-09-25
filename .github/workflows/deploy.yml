@@ -82,6 +82,13 @@ jobs:
       # ----------------------------------------------------
       # 2. Build and Deploy Frontend Service
       # ----------------------------------------------------
+      - name: Fetch Google Maps API Key from Secret Manager
+        id: maps-key
+        run: |
+          KEY=$(gcloud secrets versions access latest --secret=${{ env.APP_NAME }}-google-maps-api-key --project=${{ env.PROJECT_ID }} 2>/dev/null || echo "")
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> $GITHUB_OUTPUT
+
       - name: Build & Push Frontend Container Image
         uses: docker/build-push-action@v6
         with:
@@ -89,6 +96,7 @@ jobs:
           file: ./frontend/Dockerfile
           build-args: |
             VITE_API_URL=${{ steps.deploy-backend.outputs.url }}
+            VITE_GOOGLE_MAPS_API_KEY=${{ steps.maps-key.outputs.key }}
           push: true
           tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:${{ github.sha }},${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/frontend:latest
           cache-from: type=local,src=/tmp/.buildx-cache

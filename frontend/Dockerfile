@@ -3,9 +3,12 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Accept API URL build argument
+# Accept build arguments
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
+
+ARG VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 
 COPY package.json package-lock.json ./
 RUN npm ci

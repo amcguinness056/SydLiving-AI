@@ -1,4 +1,5 @@
-import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck, Heart, DollarSign, Repeat, Compass } from "lucide-react";
+import { useState } from "react";
+import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck, Heart, DollarSign, Repeat, Compass, Sparkles, Send } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -10,6 +11,7 @@ interface PropertyPanelProps {
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
   selectedHubName?: string;
+  onAskAgent?: (query: string, property: Property) => void;
 }
 
 export function PropertyPanel({ 
@@ -19,8 +21,12 @@ export function PropertyPanel({
   onToggleMaximize,
   isFavorite,
   onToggleFavorite,
-  selectedHubName
+  selectedHubName,
+  onAskAgent
 }: PropertyPanelProps) {
+  const [customQuestion, setCustomQuestion] = useState("");
+  if (!property) return null;
+
   const hasCommuteData = property.commute_duration_minutes !== undefined && property.commute_duration_minutes !== null;
   const weeklyOpal = property.estimated_opal_fare ? (property.estimated_opal_fare * 10).toFixed(2) : "38.00";
 
@@ -89,7 +95,7 @@ export function PropertyPanel({
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 dark:text-white leading-tight mb-1.5">{property.title}</h2>
           <p className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-xs font-medium">
-            <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
+            <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
             <span>{property.address}</span>
           </p>
         </div>
@@ -97,11 +103,11 @@ export function PropertyPanel({
         {/* 3-Pill Metrics Grid */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
-            <BedDouble className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <BedDouble className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.bedrooms} Beds</span>
           </div>
           <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
-            <Bath className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <Bath className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.bathrooms} Baths</span>
           </div>
           <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
@@ -111,15 +117,15 @@ export function PropertyPanel({
         </div>
 
         {/* Enriched Commute Intelligence Card */}
-        <div className="bg-gradient-to-br from-indigo-50/90 to-blue-50/60 dark:from-slate-900 dark:to-indigo-950/40 border border-indigo-100/90 dark:border-indigo-900/50 rounded-2xl p-4.5 shadow-sm space-y-3">
+        <div className="bg-blue-50/50 dark:bg-slate-900 border border-blue-100/80 dark:border-slate-800 rounded-2xl p-4.5 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
 
-            <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-200 font-bold text-sm">
-              <Train className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Transit to {selectedHubName || "CBD Hub"}</span>
+            <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+              <Train className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
+              <span>{selectedHubName ? `Transit to ${selectedHubName}` : "Transit & Connectivity"}</span>
             </div>
             {hasCommuteData && (
-              <span className="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-extrabold text-xs shadow-xs">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-extrabold text-xs shadow-xs">
                 {property.commute_duration_minutes} mins
               </span>
             )}
@@ -127,16 +133,16 @@ export function PropertyPanel({
 
           {hasCommuteData ? (
             <div className="space-y-2.5 pt-1 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-indigo-100/70 dark:border-slate-700/60">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100/60 dark:border-slate-800">
                 <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Compass className="w-3.5 h-3.5 text-indigo-500" /> Primary Line
+                  <Compass className="w-3.5 h-3.5 text-blue-500" /> Primary Line
                 </span>
                 <span className="font-bold text-slate-800 dark:text-slate-200">{property.transit_mode || "Public Transit"}</span>
               </div>
 
-              <div className="flex items-center justify-between py-1 border-b border-indigo-100/70 dark:border-slate-700/60">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100/60 dark:border-slate-800">
                 <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Repeat className="w-3.5 h-3.5 text-indigo-500" /> Route Transfers
+                  <Repeat className="w-3.5 h-3.5 text-blue-500" /> Route Transfers
                 </span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
                   {property.transfers === 0 ? "Direct (0 transfers)" : `${property.transfers} transfer`}
@@ -158,7 +164,7 @@ export function PropertyPanel({
               )}
             </div>
           ) : (
-            <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+            <p className="text-slate-700 dark:text-slate-200 text-xs leading-relaxed font-medium">
               Select a destination hub above to view exact door-to-door transit schedules and weekly Opal costs.
             </p>
           )}
@@ -167,9 +173,92 @@ export function PropertyPanel({
         {/* Description */}
         <div className="space-y-2">
           <h3 className="font-bold text-slate-900 dark:text-white text-sm">Property Overview</h3>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs">
+          <p className="text-slate-700 dark:text-slate-200 leading-relaxed text-xs">
             {property.description || `This exceptional ${property.bedrooms} bedroom residence in ${property.suburb} provides an authentic Sydney lifestyle. Located just ${property.distance_to_beach_km.toFixed(1)} km from the coastline with rapid access to local dining precincts, parks, and frequent public transit connections.`}
           </p>
+        </div>
+
+        {/* Ask Kai AI Concierge Card */}
+        <div className="bg-slate-50/90 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 space-y-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-slate-900 dark:text-white text-xs">
+                Ask Kai About This Home
+              </h4>
+              <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
+                Deep Agent evaluation of transit, rent value & vibe
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Prompt Chips */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => onAskAgent?.(`What's the door-to-door transit commute from [${property.title}](property:${property.id}) in ${property.suburb} into the Sydney CBD or major employment hubs? Break down the exact lines, transfers, and travel times.`, property)}
+              className="text-left p-2 rounded-xl bg-white dark:bg-slate-900/90 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 text-[11px] font-medium transition-all flex items-center gap-1.5 group shadow-2xs"
+            >
+              <Train className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">Commute breakdown</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onAskAgent?.(`How is the coastal and beach lifestyle near [${property.title}](property:${property.id})? What's the walk like to the beach and coastal parks?`, property)}
+              className="text-left p-2 rounded-xl bg-white dark:bg-slate-900/90 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 text-[11px] font-medium transition-all flex items-center gap-1.5 group shadow-2xs"
+            >
+              <Waves className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">Beach & coastal vibe</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onAskAgent?.(`Is $${property.weekly_rent}/week good value for this ${property.bedrooms}BR ${property.bathrooms}Bath property in ${property.suburb}? Compare it to average rental benchmarks in the area.`, property)}
+              className="text-left p-2 rounded-xl bg-white dark:bg-slate-900/90 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 text-[11px] font-medium transition-all flex items-center gap-1.5 group shadow-2xs"
+            >
+              <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="truncate">Fair rent analysis</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onAskAgent?.(`What are the nearest cafes, supermarkets, gyms, and dining spots within walking distance of [${property.title}](property:${property.id}) on ${property.address}?`, property)}
+              className="text-left p-2 rounded-xl bg-white dark:bg-slate-900/90 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 text-[11px] font-medium transition-all flex items-center gap-1.5 group shadow-2xs"
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="truncate">Local cafes & spots</span>
+            </button>
+          </div>
+
+          {/* Custom Question Input */}
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!customQuestion.trim()) return;
+              onAskAgent?.(`Regarding [${property.title}](property:${property.id}) in ${property.suburb}: ${customQuestion.trim()}`, property);
+              setCustomQuestion("");
+            }}
+            className="relative flex items-center pt-1"
+          >
+            <input 
+              type="text"
+              value={customQuestion}
+              onChange={(e) => setCustomQuestion(e.target.value)}
+              placeholder="Ask Kai anything about this home..."
+              className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs"
+            />
+            <button
+              type="submit"
+              disabled={!customQuestion.trim()}
+              className="absolute right-1 p-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg transition-colors shadow-xs disabled:shadow-none"
+              title="Send to Kai"
+            >
+              <Send className="w-3 h-3" />
+            </button>
+          </form>
         </div>
         
         {/* Footer Actions */}
@@ -178,7 +267,7 @@ export function PropertyPanel({
             <CalendarDays className="w-4 h-4 text-emerald-500" />
             Available Now
           </div>
-          <button className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-200 dark:shadow-indigo-950/50 transition-all hover:scale-[1.02] active:scale-[0.98] text-xs">
+          <button className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-200 dark:shadow-blue-950/50 transition-all hover:scale-[1.02] active:scale-[0.98] text-xs">
             Submit Application
           </button>
         </div>

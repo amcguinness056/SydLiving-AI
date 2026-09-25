@@ -3,7 +3,7 @@ import uuid
 import random
 from datetime import datetime, timedelta
 
-DB_PATH = "sydliving.db"
+from database import DB_PATH
 
 def create_tables(cursor):
     cursor.execute('DROP TABLE IF EXISTS saved_properties;')

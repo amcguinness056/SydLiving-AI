@@ -1,4 +1,5 @@
-const BASE_URL = 'http://localhost:8000/api';
+const API_ORIGIN = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE_URL = API_ORIGIN.endsWith('/api') ? API_ORIGIN : `${API_ORIGIN.replace(/\/$/, '')}/api`;
 
 export interface DestinationHub {
   id: string;

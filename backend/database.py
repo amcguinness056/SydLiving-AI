@@ -9,15 +9,24 @@ if db_dir and not os.path.exists(db_dir):
 
 def init_db_performance(conn: sqlite3.Connection):
     """Enable SQLite performance optimizations and ensure essential indexes."""
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    conn.execute("PRAGMA cache_size=-10000;")
-    conn.execute("PRAGMA temp_store=MEMORY;")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_properties_suburb ON properties(suburb);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_properties_rent_bed ON properties(weekly_rent, bedrooms);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_commute_dest ON commute_matrix(destination_cbd_hub, duration_minutes);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_saved_properties_user ON saved_properties(user_id);")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except Exception:
+        pass
+    try:
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA cache_size=-10000;")
+        conn.execute("PRAGMA temp_store=MEMORY;")
+    except Exception:
+        pass
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_properties_suburb ON properties(suburb);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_properties_rent_bed ON properties(weekly_rent, bedrooms);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_commute_dest ON commute_matrix(destination_cbd_hub, duration_minutes);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_saved_properties_user ON saved_properties(user_id);")
+    except Exception:
+        pass
 
 def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
     """Dependency to get a SQLite database connection with performance optimizations."""

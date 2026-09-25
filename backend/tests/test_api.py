@@ -36,6 +36,25 @@ def test_search_properties():
     assert "total" in data
     assert isinstance(data["results"], list)
 
+def test_get_property_by_id():
+    # First search for a property to get a valid ID
+    search_res = client.get("/api/properties")
+    assert search_res.status_code == 200
+    first_prop = search_res.json()["results"][0]
+    prop_id = first_prop["id"]
+
+    # Test single property fetch
+    res = client.get(f"/api/properties/{prop_id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["id"] == prop_id
+    assert "title" in data
+    assert "suburb" in data
+
+    # Test non-existent property
+    bad_res = client.get("/api/properties/non-existent-id")
+    assert bad_res.status_code == 404
+
 def test_search_properties_with_commute_filter():
     response = client.get("/api/properties?destination_hub=Barangaroo&max_commute_mins=25")
     assert response.status_code == 200

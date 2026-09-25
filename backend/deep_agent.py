@@ -160,18 +160,22 @@ lifestyle_subagent = {
     "tools": [deep_get_places_tool]
 }
 
-def create_deep_sydliving_agent():
+def create_deep_sydliving_agent(model_name: Optional[str] = None):
     """Instantiates a Deep Agent compiled graph with subagents and planning capabilities."""
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY is not configured.")
 
-    # Primary model: configurable via GEMINI_MODEL or gemini-3.8-flash
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+    # Ensure langchain-google-genai uses the Gemini key rather than Maps key
+    os.environ["GOOGLE_API_KEY"] = gemini_key
+
+    # Primary model: gemini-3.8-flash default, configurable via GEMINI_MODEL
+    active_model = model_name or os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     model = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=active_model,
         google_api_key=gemini_key,
-        temperature=0.2
+        temperature=0.2,
+        max_retries=1
     )
 
     top_level_tools = [
@@ -188,15 +192,23 @@ def create_deep_sydliving_agent():
     ]
 
     system_prompt = (
-        "You are SydLiving AI (Deep Agent Harness), Sydney's autonomous relocation intelligence assistant.\n"
-        "You have access to specialized subagents:\n"
+        "You are Kai, Sydney's dedicated AI Living & Relocation Concierge.\n"
+        "You possess deep, authentic local knowledge of Sydney's neighborhoods, micro-climates, morning coffee scenes, "
+        "rental markets, and transit infrastructure (Sydney Metro M1, Light Rail L1/L2/L3, Eastern Suburbs T4, Sydney Ferries, and Express Buses).\n"
+        "You are warm, sharp, pragmatic, and genuinely helpful—like a trusted local friend guiding someone to their ideal Sydney home.\n\n"
+        "You orchestrate a team of specialized subagents:\n"
         " - property_scout: Searches Domain and database rentals by budget, bedrooms, and location.\n"
-        " - commute_specialist: Computes transit times across Sydney Metro M1, trains, ferries, and buses.\n"
-        " - lifestyle_scout: Finds cafes, gyms, beaches, and local facilities via Google Places.\n\n"
-        "When handling complex or multi-criteria queries (e.g. commute + rent + lifestyle), plan your approach, "
-        "delegate to the appropriate specialist subagent, or use the tools directly to get exact data. "
-        "Synthesize all findings into a structured, clear, and reassuring recommendation highlighting travel times, "
-        "specific transit lines, and rental costs."
+        " - commute_specialist: Computes door-to-door transit times across Sydney Metro M1, trains, ferries, and buses.\n"
+        " - lifestyle_scout: Investigates cafes, gyms, beaches, grocers, and neighborhood vibe via Google Places.\n\n"
+        "When a user asks about a specific listing or asks you to compare properties, provide an objective, high-signal breakdown:\n"
+        " - Weigh commute reliability, door-to-door travel times, and transfer convenience.\n"
+        " - Assess weekly rent value vs. suburb benchmarks and amenity proximity (beaches, parks, dining).\n"
+        " - Highlight real-world trade-offs (e.g. vibrant cafe strip vs. quieter residential pockets).\n\n"
+        "CRITICAL PROPERTY LINKING RULE:\n"
+        "Whenever you list, compare, or mention any rental property, ALWAYS format its title as a clickable markdown link using its exact 'id' from the tool results or user prompt:\n"
+        "[Property Title](property:<id>)\n"
+        "Example: [Light-Filled 1BR Studio Loft](property:08322db0-85b8-217113b88abd) (Crows Nest) - $640/week\n"
+        "Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs."
     )
 
     return create_deep_agent(
@@ -219,8 +231,6 @@ async def process_deep_chat(message: str, history: list) -> dict:
                 "agent_type": "deep_agent"
             }
 
-        agent = create_deep_sydliving_agent()
-
         # Format history into LangChain messages
         langchain_messages = []
         for h in history:
@@ -236,8 +246,32 @@ async def process_deep_chat(message: str, history: list) -> dict:
         collected_actions: List[Dict[str, Any]] = []
         token = _active_actions_collector.set(collected_actions)
 
+        candidate_models = [
+            os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash"
+        ]
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
+        res = None
         try:
-            res = agent.invoke({"messages": langchain_messages})
+            for m_idx, current_model in enumerate(models_to_try):
+                try:
+                    agent = create_deep_sydliving_agent(model_name=current_model)
+                    res = agent.invoke({"messages": langchain_messages})
+                    break
+                except Exception as e:
+                    err_text = str(e)
+                    is_quota = "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text
+                    if is_quota and m_idx < len(models_to_try) - 1:
+                        print(f"[DeepAgent] Model {current_model} hit rate limit. Auto-falling back to {models_to_try[m_idx + 1]}...")
+                        continue
+                    raise e
         finally:
             _active_actions_collector.reset(token)
 
@@ -317,3 +351,229 @@ async def process_deep_chat(message: str, history: list) -> dict:
             "latency_seconds": elapsed,
             "agent_type": "deep_agent"
         }
+
+async def stream_deep_chat(message: str, history: list):
+    """Streams real-time thinking steps, subagent delegations, tool calls, and text chunks via SSE."""
+    start_time = time.time()
+    steps_log = []
+    collected_actions = []
+    accumulated_text = ""
+
+    def sse(event_name: str, data: dict) -> str:
+        return f"event: {event_name}\ndata: {json.dumps(data)}\n\n"
+
+    try:
+        gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not gemini_key:
+            yield sse("error", {"message": "GEMINI_API_KEY is not configured.", "latency_seconds": 0.0})
+            return
+
+        yield sse("status", {
+            "stage": "planning",
+            "label": "🧠 Deep Agent is analyzing requirements and structuring relocation search..."
+        })
+
+        langchain_messages = []
+        for h in history:
+            role = h.get("role")
+            content = h.get("parts", "")
+            if role == "user":
+                langchain_messages.append(HumanMessage(content=content))
+            elif role == "model":
+                langchain_messages.append(AIMessage(content=content))
+
+        langchain_messages.append(HumanMessage(content=message))
+
+        candidate_models = [
+            os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash"
+        ]
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
+        for m_idx, current_model in enumerate(models_to_try):
+            try:
+                agent = create_deep_sydliving_agent(model_name=current_model)
+
+                async for ev in agent.astream_events({"messages": langchain_messages}, version="v2"):
+                    ev_type = ev.get("event")
+                    name = ev.get("name", "")
+                    run_id = ev.get("run_id", "")
+
+                    if ev_type == "on_tool_start":
+                        input_data = ev.get("data", {}).get("input", {})
+                        step_obj = None
+
+                        if name == "task":
+                            subagent_type = input_data.get("subagent_type", "specialist")
+                            desc = input_data.get("description", "")
+                            label_map = {
+                                "commute_specialist": "🚆 Commute Specialist calculating transit routes & ETA",
+                                "property_scout": "🏠 Property Scout retrieving verified listings & prices",
+                                "lifestyle_scout": "☕ Lifestyle Scout checking neighborhood amenities"
+                            }
+                            label = label_map.get(subagent_type, f"🤖 Consulting {subagent_type}...")
+                            step_obj = {
+                                "id": run_id,
+                                "type": "subagent",
+                                "name": subagent_type,
+                                "label": label,
+                                "detail": desc[:150] + "..." if len(desc) > 150 else desc,
+                                "status": "running"
+                            }
+
+                        elif name == "write_todos":
+                            step_obj = {
+                                "id": run_id,
+                                "type": "plan",
+                                "name": "planner",
+                                "label": "📋 Updating step-by-step relocation plan",
+                                "detail": "Structured task milestones",
+                                "status": "running"
+                            }
+
+                        elif name in ("deep_query_properties_tool", "query_properties_tool"):
+                            suburb = input_data.get("suburb", "")
+                            max_rent = input_data.get("max_rent", 99999.0)
+                            min_beds = input_data.get("min_bedrooms", 0)
+                            step_obj = {
+                                "id": run_id,
+                                "type": "tool",
+                                "name": "property_search",
+                                "label": f"🏠 Searching listings in {suburb or 'Sydney'}",
+                                "detail": f"Max rent: ${max_rent}/wk, Min beds: {min_beds}",
+                                "status": "running"
+                            }
+                            action_item = {"action_type": "update_properties", "data": input_data}
+                            if action_item not in collected_actions:
+                                collected_actions.append(action_item)
+                                yield sse("action", action_item)
+
+                        elif name in ("deep_filter_by_commute_reach_tool", "filter_by_commute_reach_tool"):
+                            hub = input_data.get("destination_hub", "Barangaroo")
+                            max_mins = input_data.get("max_commute_minutes", 35)
+                            step_obj = {
+                                "id": run_id,
+                                "type": "tool",
+                                "name": "commute_filter",
+                                "label": f"🚆 Filtering {hub} reach within {max_mins} mins",
+                                "detail": f"Door-to-door transit isochrone reach to {hub}",
+                                "status": "running"
+                            }
+                            action_item = {"action_type": "update_commute_filters", "data": input_data}
+                            if action_item not in collected_actions:
+                                collected_actions.append(action_item)
+                                yield sse("action", action_item)
+
+                        elif name in ("deep_get_commute_tool", "get_commute_tool"):
+                            orig = input_data.get("origin_suburb", "")
+                            dest = input_data.get("destination_cbd_hub", "")
+                            step_obj = {
+                                "id": run_id,
+                                "type": "tool",
+                                "name": "commute_matrix",
+                                "label": f"⏱️ Calculating door-to-door route: {orig} → {dest}",
+                                "detail": f"Metro, train, bus, ferry connections",
+                                "status": "running"
+                            }
+                            action_item = {"action_type": "update_commute", "data": input_data}
+                            if action_item not in collected_actions:
+                                collected_actions.append(action_item)
+                                yield sse("action", action_item)
+
+                        elif name in ("deep_get_places_tool", "get_places_tool"):
+                            sub = input_data.get("suburb", "")
+                            ptype = input_data.get("place_type", "cafe")
+                            step_obj = {
+                                "id": run_id,
+                                "type": "tool",
+                                "name": "places",
+                                "label": f"☕ Scouting {ptype}s in {sub}",
+                                "detail": f"Local cafes, gyms, and lifestyle spots",
+                                "status": "running"
+                            }
+                            action_item = {"action_type": "update_places", "data": input_data}
+                            if action_item not in collected_actions:
+                                collected_actions.append(action_item)
+                                yield sse("action", action_item)
+
+                        if step_obj:
+                            steps_log.append(step_obj)
+                            yield sse("step", step_obj)
+
+                    elif ev_type == "on_tool_end":
+                        for s in steps_log:
+                            if s.get("id") == run_id:
+                                s["status"] = "completed"
+                        yield sse("step_done", {"id": run_id, "name": name})
+
+                    elif ev_type == "on_chat_model_stream":
+                        chunk = ev.get("data", {}).get("chunk")
+                        content = getattr(chunk, "content", chunk) if chunk else None
+                        chunk_text = ""
+                        if isinstance(content, str):
+                            chunk_text = content
+                        elif isinstance(content, list):
+                            parts = []
+                            for p in content:
+                                if isinstance(p, dict) and p.get("type") == "text":
+                                    parts.append(p.get("text", ""))
+                                elif isinstance(p, str):
+                                    parts.append(p)
+                            chunk_text = "".join(parts)
+
+                        if chunk_text:
+                            accumulated_text += chunk_text
+                            yield sse("chunk", {"text": chunk_text})
+
+                break  # Stream completed successfully
+            except Exception as stream_err:
+                err_text = str(stream_err)
+                is_quota = "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text
+                has_next = m_idx < len(models_to_try) - 1
+                if is_quota and has_next and not accumulated_text:
+                    next_model = models_to_try[m_idx + 1]
+                    print(f"[DeepAgent Stream] Model {current_model} rate limited or unavailable. Auto-falling back to {next_model}...")
+                    yield sse("status", {
+                        "stage": "fallback",
+                        "label": f"⚡ Switched model to {next_model} to avoid rate limits..."
+                    })
+                    continue
+                else:
+                    raise stream_err
+
+        elapsed = round(time.time() - start_time, 2)
+        if not accumulated_text:
+            accumulated_text = "I've synthesized the research and updated the map and property listings accordingly."
+
+        yield sse("done", {
+            "reply": accumulated_text,
+            "actions": collected_actions,
+            "latency_seconds": elapsed,
+            "steps": steps_log,
+            "agent_type": "deep_agent"
+        })
+
+    except Exception as e:
+        elapsed = round(time.time() - start_time, 2)
+        print(f"[DeepAgent Stream] ERROR: {str(e)}")
+        traceback.print_exc()
+        err_str = str(e)
+        user_msg = f"Oops! Deep Agent encountered an error: {type(e).__name__}."
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+            user_msg = "I'm sorry, but we've temporarily hit API rate limits for complex multi-agent reasoning. Please try again in a minute."
+        elif "503" in err_str or "UNAVAILABLE" in err_str:
+            user_msg = "The AI model is currently under high demand. Please retry in a few moments."
+            
+        yield sse("error", {
+            "message": user_msg,
+            "latency_seconds": elapsed,
+            "steps": steps_log,
+            "actions": collected_actions
+        })
+

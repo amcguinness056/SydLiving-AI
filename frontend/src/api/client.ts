@@ -165,9 +165,27 @@ export const api = {
     return data.results;
   },
 
-  getSavedProperties: async (): Promise<Property[]> => {
-    const res = await fetch(`${BASE_URL}/properties/saved`, { headers: getHeaders() });
+  getProperty: async (propertyId: string, destinationHub?: string): Promise<Property> => {
+    let url = `${BASE_URL}/properties/${encodeURIComponent(propertyId)}`;
+    if (destinationHub) {
+      url += `?destination_hub=${encodeURIComponent(destinationHub)}`;
+    }
+    const res = await fetch(url, { headers: getHeaders() });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch property: ${res.statusText}`);
+    }
     return await res.json();
+  },
+
+  getSavedProperties: async (): Promise<Property[]> => {
+    try {
+      const res = await fetch(`${BASE_URL}/properties/saved`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
 
   saveProperty: async (propertyId: string): Promise<void> => {
@@ -196,6 +214,10 @@ export const api = {
     return data.messages;
   },
 
+  deleteChatSession: async (sessionId: string): Promise<void> => {
+    await fetch(`${BASE_URL}/chat/sessions/${sessionId}`, { method: 'DELETE', headers: getHeaders() });
+  },
+
   sendChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
     const userId = localStorage.getItem('user_id');
     const res = await fetch(`${BASE_URL}/chat`, {
@@ -214,5 +236,102 @@ export const api = {
       body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
     });
     return await res.json();
+  },
+
+  streamDeepChatMessage: async (
+    message: string, 
+    history: any[] = [], 
+    sessionId: string | undefined,
+    callbacks: DeepAgentStreamCallbacks
+  ): Promise<void> => {
+    const userId = localStorage.getItem('user_id');
+    const response = await fetch(`${BASE_URL}/chat/deep/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders()
+      },
+      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      callbacks.onError?.({ message: `HTTP ${response.status}: ${errText}` });
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      callbacks.onError?.({ message: "No response stream available." });
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() || "";
+
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        let eventType = "message";
+        let dataStr = "";
+
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            dataStr = line.slice(6).trim();
+          }
+        }
+
+        if (!dataStr) continue;
+
+        try {
+          const payload = JSON.parse(dataStr);
+          if (eventType === "status") {
+            callbacks.onStatus?.(payload.stage, payload.label);
+          } else if (eventType === "step") {
+            callbacks.onStep?.(payload);
+          } else if (eventType === "step_done") {
+            callbacks.onStepDone?.(payload.id, payload.name);
+          } else if (eventType === "action") {
+            callbacks.onAction?.(payload);
+          } else if (eventType === "chunk") {
+            callbacks.onChunk?.(payload.text);
+          } else if (eventType === "done") {
+            callbacks.onDone?.(payload);
+          } else if (eventType === "error") {
+            callbacks.onError?.(payload);
+          }
+        } catch (e) {
+          console.error("Failed to parse SSE event:", e, block);
+        }
+      }
+    }
   }
 };
+
+export interface DeepAgentStep {
+  id: string;
+  type: 'subagent' | 'plan' | 'tool';
+  name: string;
+  label: string;
+  detail?: string;
+  status: 'running' | 'completed' | 'failed';
+}
+
+export interface DeepAgentStreamCallbacks {
+  onStatus?: (stage: string, label: string) => void;
+  onStep?: (step: DeepAgentStep) => void;
+  onStepDone?: (id: string, name: string) => void;
+  onAction?: (action: AgentAction) => void;
+  onChunk?: (text: string) => void;
+  onDone?: (result: { reply: string; actions: AgentAction[]; latency_seconds: number; steps?: DeepAgentStep[] }) => void;
+  onError?: (err: { message: string; latency_seconds?: number; steps?: DeepAgentStep[]; actions?: AgentAction[] }) => void;
+}

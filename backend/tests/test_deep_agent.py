@@ -112,3 +112,76 @@ def test_chat_deep_session_persistence():
         assert rows[0][0] == "Find places in Surry Hills"
         assert rows[1][1] == "model"
         assert rows[1][0] == mock_result["reply"]
+
+def test_chat_deep_stream_endpoint_mocked():
+    """Verify that POST /api/chat/deep/stream yields SSE events properly."""
+    async def mock_generator(message, history):
+        yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
+        yield "event: step\ndata: {\"id\": \"step-1\", \"type\": \"subagent\", \"name\": \"commute_specialist\", \"label\": \"Commute\", \"status\": \"running\"}\n\n"
+        yield "event: chunk\ndata: {\"text\": \"Found 3 \"}\n\n"
+        yield "event: chunk\ndata: {\"text\": \"rentals.\"\n\n"
+        yield "event: done\ndata: {\"reply\": \"Found 3 rentals.\", \"actions\": [], \"latency_seconds\": 1.2, \"steps\": []}\n\n"
+
+    with patch("deep_agent.stream_deep_chat", side_effect=mock_generator):
+        response = client.post("/api/chat/deep/stream", json={
+            "message": "Find rentals near Metro",
+            "history": []
+        })
+
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+        text = response.text
+        assert "event: status" in text
+        assert "Planning search..." in text
+        assert "event: step" in text
+        assert "commute_specialist" in text
+        assert "event: chunk" in text
+        assert "Found 3 " in text
+        assert "event: done" in text
+
+def test_chat_deep_stream_persistence():
+    """Verify that POST /api/chat/deep/stream persists session and messages when user_id is provided."""
+    async def mock_generator(message, history):
+        yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
+        yield "event: chunk\ndata: {\"text\": \"Streamed reply content\"}\n\n"
+        yield "event: done\ndata: {\"reply\": \"Streamed reply content\", \"actions\": [], \"latency_seconds\": 1.2, \"steps\": []}\n\n"
+
+    login_res = client.post("/api/auth/login?username=stream_persist_user")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+
+    with patch("deep_agent.stream_deep_chat", side_effect=mock_generator):
+        response = client.post("/api/chat/deep/stream", json={
+            "message": "Stream persistence test message",
+            "user_id": user_id,
+            "history": []
+        })
+        assert response.status_code == 200
+        text = response.text
+        assert "action_type" in text
+        assert "set_session" in text
+
+        # Check DB
+        db = sqlite3.connect(DB_PATH)
+        cursor = db.cursor()
+        cursor.execute("SELECT id, title FROM chat_sessions WHERE user_id = ?", (user_id,))
+        session = cursor.fetchone()
+        assert session is not None
+        session_id = session[0]
+
+        cursor.execute("SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC", (session_id,))
+        msgs = cursor.fetchall()
+        db.close()
+
+        assert len(msgs) == 2
+        assert msgs[0][0] == "user"
+        assert msgs[0][1] == "Stream persistence test message"
+        assert msgs[1][0] == "model"
+        assert msgs[1][1] == "Streamed reply content"
+
+        # Test delete session endpoint
+        del_res = client.delete(f"/api/chat/sessions/{session_id}", headers={"user-id": user_id})
+        assert del_res.status_code == 200
+        assert del_res.json()["status"] == "deleted"
+
+

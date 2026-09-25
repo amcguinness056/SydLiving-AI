@@ -4,9 +4,11 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { CompareModal } from './components/CompareModal';
 import { AuthModal } from './components/AuthModal';
-import { api, type Property, type AgentAction, type DestinationHub, type IsochroneResponse, type User } from './api/client';
+import { api, type Property, type AgentAction, type User, type DeepAgentStep } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
-import { Sparkles, Maximize, Minimize, MessageCircle, X, Sun, Moon, Heart, LogOut } from 'lucide-react';
+import { KaiLauncher } from './components/KaiLauncher';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Sparkles, Maximize, Minimize, Sun, Moon, Heart, LogOut } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
@@ -41,7 +43,18 @@ function App() {
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Keep selectedProperty in sync if properties update
+  useEffect(() => {
+    if (modalPropertyId) {
+      const match = properties.find(p => p.id === modalPropertyId) || savedProperties.find(p => p.id === modalPropertyId);
+      if (match) {
+        setSelectedProperty(match);
+      }
+    }
+  }, [properties, savedProperties, modalPropertyId]);
 
   
   // Dark Mode State
@@ -54,12 +67,6 @@ function App() {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-
-  // Hubs and Commute Reach State
-  const [hubs, setHubs] = useState<DestinationHub[]>([]);
-  const [activeHub, setActiveHub] = useState<string>('Barangaroo');
-  const [maxCommuteMins, setMaxCommuteMins] = useState<number>(35);
-  const [isochroneData, setIsochroneData] = useState<IsochroneResponse | null>(null);
 
   // Shortlist State
   const [shortlistedIds, setShortlistedIds] = useState<string[]>(() => {
@@ -81,13 +88,16 @@ function App() {
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatWidth, setChatWidth] = useState<'normal' | 'wide'>('normal');
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [agentMode, setAgentMode] = useState<'standard' | 'deep'>('standard');
+  const [activeThinkingSteps, setActiveThinkingSteps] = useState<DeepAgentStep[]>([]);
+  const [activeStatusLabel, setActiveStatusLabel] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>('');
 
   // Apply dark mode class to html document
   useEffect(() => {
@@ -105,7 +115,7 @@ function App() {
     localStorage.setItem('sydliving_shortlist', JSON.stringify(shortlistedIds));
   }, [shortlistedIds]);
 
-  // Auth restore & initial load
+  // Auth restore
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
     const username = localStorage.getItem('username');
@@ -114,33 +124,17 @@ function App() {
     if (userId && username) {
       setUser({ id: userId, username, email, avatar_url: avatarUrl });
     }
-
-    async function loadHubs() {
-      try {
-        const hubList = await api.getHubs();
-        setHubs(hubList);
-        if (hubList.length > 0 && !activeHub) {
-          setActiveHub(hubList[0].name);
-        }
-      } catch (err) {
-        console.error("Failed to load destination hubs", err);
-      }
-    }
-    loadHubs();
   }, []);
 
-  // Reload properties & isochrones when active hub, commute, or spatial filters change
+  // Reload properties on initial mount or when spatial filters change
   useEffect(() => {
     loadProperties({ 
-      destination_hub: activeHub, 
-      max_commute_mins: maxCommuteMins,
       keyword: keywordFilter || undefined,
       property_type: typeFilter || undefined,
       circle: spatialFilter?.circle,
       polygon: spatialFilter?.polygon
     });
-    loadIsochrones(activeHub, maxCommuteMins);
-  }, [activeHub, maxCommuteMins, spatialFilter]);
+  }, [spatialFilter]);
 
   useEffect(() => {
     if (user) {
@@ -154,26 +148,16 @@ function App() {
   async function loadSavedProperties() {
     try {
       const data = await api.getSavedProperties();
-      setSavedProperties(data);
+      setSavedProperties(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load saved properties", err);
-    }
-  }
-
-  async function loadIsochrones(hubName: string, maxMins: number) {
-    try {
-      const data = await api.getIsochrones(hubName, maxMins);
-      setIsochroneData(data);
-    } catch (err) {
-      console.error("Failed to load isochrones", err);
+      setSavedProperties([]);
     }
   }
 
   async function loadProperties(filters?: any) {
     setLoading(true);
     const combinedFilters = {
-      destination_hub: activeHub,
-      max_commute_mins: maxCommuteMins,
       keyword: keywordFilter || undefined,
       property_type: typeFilter || undefined,
       circle: spatialFilter?.circle,
@@ -250,15 +234,10 @@ function App() {
     if (action.action_type === 'update_properties') {
       loadProperties(action.data);
     } else if (action.action_type === 'update_commute_filters') {
-      if (action.data.destination_hub) {
-        setActiveHub(action.data.destination_hub);
-      }
-      if (action.data.max_commute_minutes) {
-        setMaxCommuteMins(action.data.max_commute_minutes);
-      }
       loadProperties({
-        destination_hub: action.data.destination_hub || activeHub,
-        max_commute_mins: action.data.max_commute_minutes || maxCommuteMins,
+        suburb: action.data.suburb,
+        destination_hub: action.data.destination_hub,
+        max_commute_mins: action.data.max_commute_minutes,
         max_rent: action.data.max_rent < 99999 ? action.data.max_rent : undefined,
         min_bedrooms: action.data.min_bedrooms > 0 ? action.data.min_bedrooms : undefined
       });
@@ -271,37 +250,118 @@ function App() {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
+    setActiveThinkingSteps([]);
+    setActiveStatusLabel(null);
+    setStreamingContent('');
 
     try {
-      const response = agentMode === 'deep'
-        ? await api.sendDeepChatMessage(text, chatHistory, currentSessionId || undefined)
-        : await api.sendChatMessage(text, chatHistory, currentSessionId || undefined);
-      
-      const agentMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: 'model', 
-        content: response.reply,
-        agentType: response.agent_type,
-        latencySeconds: response.latency_seconds
-      };
-      setMessages(prev => [...prev, agentMsg]);
-      
-      setChatHistory(prev => [
-        ...prev, 
-        { role: 'user', parts: text }, 
-        { role: 'model', parts: response.reply }
-      ]);
+      let accumulatedText = '';
+      let finalSteps: DeepAgentStep[] = [];
+      let finalLatency = 0;
+      let finalActions: AgentAction[] = [];
+      const seenActionKeys = new Set<string>();
 
-      if (response.actions && response.actions.length > 0) {
-        response.actions.forEach(action => handleAgentAction(action));
+      await api.streamDeepChatMessage(
+        text,
+        chatHistory,
+        currentSessionId || undefined,
+        {
+          onStatus: (_stage, label) => {
+            setActiveStatusLabel(label);
+          },
+          onStep: (step) => {
+            setActiveThinkingSteps(prev => {
+              const idx = prev.findIndex(s => s.id === step.id);
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], ...step };
+                return copy;
+              }
+              return [...prev, step];
+            });
+          },
+          onStepDone: (id) => {
+            setActiveThinkingSteps(prev =>
+              prev.map(s => s.id === id ? { ...s, status: 'completed' as const } : s)
+            );
+          },
+          onAction: (action) => {
+            const key = JSON.stringify(action);
+            if (!seenActionKeys.has(key)) {
+              seenActionKeys.add(key);
+              handleAgentAction(action);
+            }
+          },
+          onChunk: (chunk) => {
+            accumulatedText += chunk;
+            setStreamingContent(accumulatedText);
+          },
+          onDone: (result) => {
+            accumulatedText = result.reply || accumulatedText;
+            finalSteps = result.steps || [];
+            finalLatency = result.latency_seconds;
+            finalActions = result.actions || [];
+          },
+          onError: (err) => {
+            console.error("Deep agent stream error:", err);
+            if (err.steps) finalSteps = err.steps;
+            if (err.latency_seconds) finalLatency = err.latency_seconds;
+            if (err.actions) finalActions = err.actions;
+            if (!accumulatedText) {
+              accumulatedText = `Oops! ${err.message || 'Something went wrong while processing your request.'}`;
+            } else {
+              accumulatedText += `\n\n*(Note: Generation was interrupted: ${err.message})*`;
+            }
+          }
+        }
+      );
+
+      // Run any actions that were not executed during streaming
+      if (finalActions.length > 0) {
+        finalActions.forEach(action => {
+          const key = JSON.stringify(action);
+          if (!seenActionKeys.has(key)) {
+            seenActionKeys.add(key);
+            handleAgentAction(action);
+          }
+        });
       }
+
+      const replyContent = accumulatedText || "I've synthesized the research and updated the map and property listings.";
+      const agentMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'model',
+        content: replyContent,
+        agentType: 'deep_agent',
+        latencySeconds: finalLatency || undefined,
+        steps: finalSteps.length > 0 ? finalSteps : undefined
+      };
+
+      setMessages(prev => [...prev, agentMsg]);
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'user', parts: text },
+        { role: 'model', parts: replyContent }
+      ]);
     } catch (err) {
-      console.error("Failed to send message", err);
-      const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', content: 'Oops! I had trouble connecting to the server.' };
+      console.error("Failed to stream deep chat", err);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'model',
+        content: 'Oops! I had trouble connecting to the Deep Agent server.'
+      };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsThinking(false);
+      setActiveThinkingSteps([]);
+      setActiveStatusLabel(null);
+      setStreamingContent('');
     }
+  };
+
+  const handleAskAgent = (prompt: string) => {
+    setIsChatOpen(true);
+    handleSendMessage(prompt);
   };
 
   const handleSelectSession = async (sessionId: string | null) => {
@@ -329,6 +389,35 @@ function App() {
   const handleMapSelect = (id: string) => {
     setSelectedId(id);
     setModalPropertyId(id);
+    const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
+    if (match) setSelectedProperty(match);
+    if (maximizedPanel === 'chat') {
+      setMaximizedPanel(null);
+    }
+  };
+
+  const handleChatSelectProperty = async (id: string) => {
+    setSelectedId(id);
+    const exists = properties.some(p => p.id === id) || savedProperties.some(p => p.id === id);
+    if (!exists) {
+      try {
+        const fetched = await api.getProperty(id);
+        if (fetched) {
+          setProperties(prev => [fetched, ...prev.filter(p => p.id !== id)]);
+        }
+      } catch (err) {
+        console.error("Failed to load property for selection", err);
+      }
+    }
+    if (maximizedPanel === 'chat') {
+      setMaximizedPanel(null);
+    }
+    setTimeout(() => {
+      const card = document.getElementById(`property-card-${id}`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
   };
 
   const getMaximizedClasses = (panelName: MaximizedState) => {
@@ -342,12 +431,16 @@ function App() {
     if (maximizedPanel === 'chat') {
       return "fixed inset-4 z-[120] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-300";
     }
-    return "w-[420px] h-[620px] max-h-[82vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom-8 fade-in duration-300 relative z-10";
+    const widthClass = chatWidth === 'wide' ? 'w-[720px] max-w-[calc(100vw-2rem)]' : 'w-[520px] max-w-[calc(100vw-2rem)]';
+    return `${widthClass} h-[680px] max-h-[88vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto transition-all duration-300 relative z-10`;
   };
 
+  const savedPropertiesList = Array.isArray(savedProperties) ? savedProperties : [];
   const displayedProperties = showSavedOnly 
-    ? properties.filter(p => savedProperties.some(sp => sp.id === p.id) || shortlistedIds.includes(p.id)) 
+    ? properties.filter(p => savedPropertiesList.some(sp => sp.id === p.id) || shortlistedIds.includes(p.id)) 
     : properties;
+
+  const activeModalProperty = (modalPropertyId ? properties.find(p => p.id === modalPropertyId) || savedPropertiesList.find(p => p.id === modalPropertyId) : null) || selectedProperty;
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 h-screen font-sans overflow-hidden relative transition-colors duration-300">
@@ -355,11 +448,11 @@ function App() {
       {/* Top Header Bar */}
       <header className="h-14 px-5 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-2xl shadow-sm flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <Sparkles className="w-4.5 h-4.5" />
+          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+            <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-base font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-500 dark:from-indigo-400 dark:to-blue-400">
+            <span className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
               SydLiving AI
             </span>
             <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-100 dark:border-indigo-900/40">
@@ -375,7 +468,7 @@ function App() {
             <div className="flex items-center gap-2 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl px-2.5 py-1 shadow-xs">
               <UserAvatar user={user} className="w-5.5 h-5.5" />
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[110px] truncate">{user.username}</span>
-              <button onClick={handleLogout} className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5" title="Logout">
+              <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors ml-0.5" title="Logout">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -394,6 +487,19 @@ function App() {
               <span>Sign in</span>
             </button>
           )}
+
+          {/* Ask Kai Quick Header Launcher */}
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 group cursor-pointer"
+            title="Ask Kai — Sydney Living Concierge"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-200 group-hover:rotate-12 transition-transform shrink-0" />
+            <span>Ask Kai</span>
+            <span className="hidden sm:inline-block text-[10px] font-bold bg-blue-500/70 text-blue-100 px-1.5 py-0.2 rounded-md">
+              AI Concierge
+            </span>
+          </button>
 
           {/* Shortlist Comparison Button */}
           <button
@@ -434,10 +540,10 @@ function App() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                      Listings to {activeHub}
+                      Sydney Rental Listings
                     </h2>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      {loading ? 'Evaluating routes...' : `${displayedProperties.length} properties within ${maxCommuteMins}m`}
+                      {loading ? 'Finding listings...' : `${displayedProperties.length} properties available`}
                     </p>
                   </div>
                   <button 
@@ -461,7 +567,7 @@ function App() {
                     onClick={() => setShowSavedOnly(true)}
                     className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
                   >
-                    <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedProperties.length || shortlistedIds.length})
+                    <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
                   </button>
                 </div>
               </header>
@@ -491,11 +597,21 @@ function App() {
                   </select>
                   <button 
                     onClick={applyFilters}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
                   >
                     Search
                   </button>
                 </div>
+
+                {/* Ask Kai Natural Search Helper */}
+                <button
+                  type="button"
+                  onClick={() => handleAskAgent("Show 2-bedroom rentals near Sydney Metro stations with high walkability")}
+                  className="text-left text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1.5 transition-colors group cursor-pointer pt-0.5"
+                >
+                  <Sparkles className="w-3 h-3 text-blue-500 group-hover:rotate-12 transition-transform shrink-0" />
+                  <span className="truncate">Or ask Kai: "2BR near Metro with high walkability"</span>
+                </button>
               </div>
 
               {activeFilters && (
@@ -521,11 +637,11 @@ function App() {
               <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3.5 custom-scrollbar relative z-0">
                 {loading ? (
                   <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
-                    Calculating door-to-door transit commutes...
+                    Loading Sydney properties...
                   </div>
                 ) : displayedProperties.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-800 text-xs">
-                    {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : `No properties found within ${maxCommuteMins} mins of ${activeHub}. Try expanding the reach slider!`}
+                    {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : "No properties match your current search filters. Try clearing your search or filters!"}
                   </div>
                 ) : (
                   displayedProperties.map((p, idx) => (
@@ -535,13 +651,13 @@ function App() {
                       index={idx}
                       isActive={selectedId === p.id}
                       isFavorite={shortlistedIds.includes(p.id)}
-                      isSaved={savedProperties.some(sp => sp.id === p.id)}
+                      isSaved={savedPropertiesList.some(sp => sp.id === p.id)}
                       onToggleFavorite={handleToggleFavorite}
                       onToggleSave={handleToggleSave}
-                      selectedHubName={activeHub}
                       onClick={() => {
                         setSelectedId(p.id);
                         setModalPropertyId(p.id);
+                        setSelectedProperty(p);
                         if (maximizedPanel === 'list') setMaximizedPanel(null);
                       }}
                     />
@@ -563,12 +679,6 @@ function App() {
                 isMaximized={maximizedPanel === 'map'}
                 onToggleMaximize={() => toggleMaximize('map')}
                 isDarkMode={isDarkMode}
-                hubs={hubs}
-                activeHubName={activeHub}
-                onSelectHub={setActiveHub}
-                maxCommuteMins={maxCommuteMins}
-                onChangeMaxCommute={setMaxCommuteMins}
-                isochroneData={isochroneData}
                 onDrawCreated={(layer: any, type: string) => {
                   let spatial: any = null;
                   if (type === 'circle') {
@@ -590,21 +700,26 @@ function App() {
           </Panel>
 
           {/* Right Panel: Property Details */}
-          {modalPropertyId && (
+          {modalPropertyId && activeModalProperty && (
             <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
           )}
-          {modalPropertyId && (
+          {modalPropertyId && activeModalProperty && (
             <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
               <div className={cn(getMaximizedClasses('details'), "bg-white dark:bg-slate-900")}>
-                <PropertyPanel 
-                  property={properties.find(p => p.id === modalPropertyId)!} 
-                  onClose={() => setModalPropertyId(null)} 
-                  isMaximized={maximizedPanel === 'details'}
-                  onToggleMaximize={() => toggleMaximize('details')}
-                  isFavorite={shortlistedIds.includes(modalPropertyId)}
-                  onToggleFavorite={handleToggleFavorite}
-                  selectedHubName={activeHub}
-                />
+                <ErrorBoundary>
+                  <PropertyPanel 
+                    property={activeModalProperty} 
+                    onClose={() => {
+                      setModalPropertyId(null);
+                      setSelectedProperty(null);
+                    }} 
+                    isMaximized={maximizedPanel === 'details'}
+                    onToggleMaximize={() => toggleMaximize('details')}
+                    isFavorite={shortlistedIds.includes(activeModalProperty.id)}
+                    onToggleFavorite={handleToggleFavorite}
+                    onAskAgent={handleAskAgent}
+                  />
+                </ErrorBoundary>
               </div>
             </Panel>
           )}
@@ -619,56 +734,33 @@ function App() {
         {/* Chat Window */}
         {isChatOpen && (
           <div className={getChatClasses()}>
-            <div className="h-full relative z-10 bg-white/60 dark:bg-slate-900/70 backdrop-blur-3xl flex flex-col">
-              <div className="px-5 py-3.5 border-b border-indigo-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/60 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4.5 h-4.5 text-indigo-500" />
-                  <span className="font-bold text-slate-800 dark:text-white text-sm">SydLiving AI</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => toggleMaximize('chat')}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-                    title={maximizedPanel === 'chat' ? "Restore view" : "Enlarge chat"}
-                  >
-                    {maximizedPanel === 'chat' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                  </button>
-                  <button 
-                    onClick={() => setIsChatOpen(false)}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-                    title="Close chat"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 relative overflow-hidden">
-                <ChatPanel 
-                  messages={messages} 
-                  isThinking={isThinking} 
-                  onSendMessage={handleSendMessage} 
-                  onSelectSession={handleSelectSession}
-                  currentSessionId={currentSessionId}
-                  isLoggedIn={!!user}
-                  agentMode={agentMode}
-                  onToggleAgentMode={setAgentMode}
-                />
-              </div>
-            </div>
+            <ChatPanel 
+              messages={messages} 
+              isThinking={isThinking} 
+              onSendMessage={handleSendMessage} 
+              onSelectSession={handleSelectSession}
+              currentSessionId={currentSessionId}
+              isLoggedIn={!!user}
+              activeThinkingSteps={activeThinkingSteps}
+              activeStatusLabel={activeStatusLabel}
+              streamingContent={streamingContent}
+              isMaximized={maximizedPanel === 'chat'}
+              onToggleMaximize={() => toggleMaximize('chat')}
+              isWide={chatWidth === 'wide'}
+              onToggleWide={() => setChatWidth(w => w === 'normal' ? 'wide' : 'normal')}
+              onClose={() => setIsChatOpen(false)}
+              properties={properties}
+              onSelectProperty={handleChatSelectProperty}
+            />
           </div>
         )}
 
-        {/* Floating Action Button */}
-        <button
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className="w-15 h-15 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-300 dark:shadow-indigo-950/60 flex items-center justify-center transition-all hover:scale-105 active:scale-95 pointer-events-auto group relative z-50"
-        >
-          {isChatOpen ? (
-            <X className="w-6 h-6 transition-transform group-hover:rotate-90" />
-          ) : (
-            <MessageCircle className="w-6 h-6" />
-          )}
-        </button>
+        {/* Floating Concierge Launcher (only when chat is closed) */}
+        <KaiLauncher 
+          isChatOpen={isChatOpen}
+          onOpenChat={() => setIsChatOpen(true)}
+          onAskKai={handleAskAgent}
+        />
       </div>
 
       {/* Shortlist Comparison Modal */}
@@ -678,11 +770,16 @@ function App() {
         properties={properties}
         shortlistedIds={shortlistedIds}
         onRemoveFromShortlist={handleToggleFavorite}
+        onAskAgent={(prompt) => {
+          setIsCompareOpen(false);
+          handleAskAgent(prompt);
+        }}
         onSelectProperty={(id) => {
           setSelectedId(id);
           setModalPropertyId(id);
+          const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
+          if (match) setSelectedProperty(match);
         }}
-        selectedHubName={activeHub}
       />
 
       {/* Google Authentication Modal */}

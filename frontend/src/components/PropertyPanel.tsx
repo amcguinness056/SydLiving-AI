@@ -45,16 +45,17 @@ export function PropertyPanel({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40 pointer-events-none" />
         
-        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+        <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
           <button 
             onClick={() => onToggleFavorite && onToggleFavorite(property.id)}
             className={cn(
-              "p-2 rounded-full backdrop-blur-md transition-all hover:scale-105 active:scale-95",
+              "p-2 rounded-full backdrop-blur-md transition-all hover:scale-105 active:scale-95 shadow-md border border-white/20",
               isFavorite 
-                ? "bg-rose-500 text-white shadow-md shadow-rose-500/30" 
-                : "bg-black/30 hover:bg-black/50 text-white"
+                ? "bg-rose-500 text-white shadow-rose-500/30 border-rose-400/40" 
+                : "bg-black/40 hover:bg-black/60 text-white"
             )}
             title={isFavorite ? "Remove from shortlist" : "Add to shortlist"}
+            aria-label={isFavorite ? "Remove from shortlist" : "Add to shortlist"}
           >
             <Heart className={cn("w-5 h-5", isFavorite && "fill-white")} />
           </button>
@@ -62,16 +63,24 @@ export function PropertyPanel({
           {onToggleMaximize && (
             <button 
               onClick={onToggleMaximize}
-              className="p-2 bg-black/30 hover:bg-black/50 backdrop-blur-md text-white rounded-full transition-all hover:scale-105 active:scale-95"
-              title={isMaximized ? "Restore view" : "Enlarge details"}
+              className={cn(
+                "flex items-center gap-1.5 p-2 sm:px-3 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full transition-all hover:scale-105 active:scale-95 shadow-md border border-white/20",
+                isMaximized && "bg-blue-600/90 hover:bg-blue-600 border-blue-400/50"
+              )}
+              title={isMaximized ? "Restore split view (Esc)" : "Enlarge details"}
+              aria-label={isMaximized ? "Restore split view" : "Enlarge details"}
             >
-              {isMaximized ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              {isMaximized ? <Minimize className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />}
+              <span className="text-xs font-bold hidden sm:inline">
+                {isMaximized ? "Minimize" : "Enlarge"}
+              </span>
             </button>
           )}
           <button 
             onClick={onClose}
-            className="p-2 bg-black/30 hover:bg-black/50 backdrop-blur-md text-white rounded-full transition-all hover:scale-105 active:scale-95"
+            className="p-2 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full transition-all hover:scale-105 active:scale-95 shadow-md border border-white/20"
             title="Close details"
+            aria-label="Close details"
           >
             <X className="w-5 h-5" />
           </button>

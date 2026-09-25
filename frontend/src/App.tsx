@@ -511,12 +511,24 @@ function App() {
     }, 100);
   }, [properties, savedProperties]);
 
-  const getMaximizedClasses = (panelName: MaximizedState) => {
-    if (maximizedPanel === panelName) {
-      return "fixed inset-4 z-[100] rounded-[2rem] shadow-2xl border border-white/40 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-300";
-    }
-    return "w-full h-full relative";
-  };
+  // Handle Escape key to restore maximized panels or close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (maximizedPanel) {
+          setMaximizedPanel(null);
+        } else if (isCompareOpen) {
+          setIsCompareOpen(false);
+        } else if (modalPropertyId) {
+          setModalPropertyId(null);
+          setSelectedProperty(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [maximizedPanel, isCompareOpen, modalPropertyId]);
+
 
   const handleMobileMapSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -835,169 +847,217 @@ function App() {
           >
           
           {/* Left Panel: Property List */}
-          <Panel defaultSize="25" minSize="20" maxSize="40" className="bg-slate-50/80 dark:bg-slate-950 flex flex-col h-full min-w-0">
-            <div className={cn(getMaximizedClasses('list'), "flex flex-col bg-slate-50/80 dark:bg-slate-950 h-full")}>
-              <header className="flex flex-col px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                      Sydney Rental Listings
-                    </h2>
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      {loading ? 'Finding listings...' : `${displayedProperties.length} properties available`}
-                    </p>
+          {maximizedPanel !== 'map' && (
+            <Panel defaultSize={maximizedPanel === 'list' ? 100 : 25} minSize={20} maxSize={maximizedPanel === 'list' ? 100 : 40} className="bg-slate-50/80 dark:bg-slate-950 flex flex-col h-full min-w-0">
+              <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950 h-full w-full">
+                <header className="flex flex-col px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs z-10 shrink-0 gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                        Sydney Rental Listings
+                      </h2>
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        {loading ? 'Finding listings...' : `${displayedProperties.length} properties available`}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => toggleMaximize('list')}
+                      className={cn(
+                        "flex items-center gap-1.5 p-1.5 px-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white/80 dark:hover:bg-slate-800 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all",
+                        maximizedPanel === 'list' && "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
+                      )}
+                      title={maximizedPanel === 'list' ? "Restore view (Esc)" : "Enlarge list"}
+                    >
+                      {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                      {maximizedPanel === 'list' && <span className="text-xs font-bold hidden sm:inline">Minimize</span>}
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => toggleMaximize('list')}
-                    className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/80 dark:hover:bg-slate-800 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all"
-                    title={maximizedPanel === 'list' ? "Restore view" : "Enlarge list"}
-                  >
-                    {maximizedPanel === 'list' ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                  </button>
-                </div>
 
-                {/* Filter Tabs */}
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setShowSavedOnly(false)}
-                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
-                  >
-                    All Properties
-                  </button>
-                  <button 
-                    onClick={() => setShowSavedOnly(true)}
-                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
-                  >
-                    <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
-                  </button>
-                </div>
-              </header>
-
-              {/* Keyword & Type Search */}
-              <SearchFilterBar 
-                keyword={keywordFilter} 
-                propertyType={typeFilter} 
-                onSearch={handleSearchFilter} 
-                onAskKai={handleAskAgent} 
-              />
-
-              {activeFilters && (
-                <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
-                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Filter Active</span>
-                  </span>
-                  <button 
-                    onClick={() => {
-                      setKeywordFilter('');
-                      setTypeFilter('');
-                      setSpatialFilter(null);
-                      loadProperties();
-                    }}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
-                  >
-                    Reset
-                  </button>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3.5 custom-scrollbar relative z-0">
-                {loading ? (
-                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
-                    Loading Sydney properties...
+                  {/* Filter Tabs */}
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowSavedOnly(false)}
+                      className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                    >
+                      All Properties
+                    </button>
+                    <button 
+                      onClick={() => setShowSavedOnly(true)}
+                      className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                    >
+                      <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
+                    </button>
                   </div>
-                ) : displayedProperties.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-800 text-xs">
-                    {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : "No properties match your current search filters. Try clearing your search or filters!"}
-                  </div>
-                ) : (
-                  displayedProperties.map((p, idx) => (
-                    <PropertyCard 
-                      key={p.id}
-                      property={p} 
-                      index={idx}
-                      isActive={selectedId === p.id}
-                      isFavorite={shortlistedIds.includes(p.id)}
-                      isSaved={savedPropertiesList.some(sp => sp.id === p.id)}
-                      onToggleFavorite={handleToggleFavorite}
-                      onToggleSave={handleToggleSave}
+                </header>
+
+                {/* Keyword & Type Search */}
+                <SearchFilterBar 
+                  keyword={keywordFilter} 
+                  propertyType={typeFilter} 
+                  onSearch={handleSearchFilter} 
+                  onAskKai={handleAskAgent} 
+                />
+
+                {activeFilters && (
+                  <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
+                    <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Filter Active</span>
+                    </span>
+                    <button 
                       onClick={() => {
-                        setSelectedId(p.id);
-                        setModalPropertyId(p.id);
-                        setSelectedProperty(p);
-                        if (maximizedPanel === 'list') setMaximizedPanel(null);
+                        setKeywordFilter('');
+                        setTypeFilter('');
+                        setSpatialFilter(null);
+                        loadProperties();
                       }}
-                    />
-                  ))
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 )}
-              </div>
-            </div>
-          </Panel>
 
-          <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
-          
-          {/* Center Panel: Map Canvas */}
-          <Panel className="bg-slate-200 dark:bg-slate-950 min-w-0">
-            <div className={cn(getMaximizedClasses('map'), "bg-slate-200 dark:bg-slate-950 min-w-0")}>
-              <Map 
-                properties={displayedProperties} 
-                selectedPropertyId={selectedId} 
-                onSelectProperty={handleMapSelect}
-                isMaximized={maximizedPanel === 'map'}
-                onToggleMaximize={() => toggleMaximize('map')}
-                isDarkMode={isDarkMode}
-                onDrawCreated={(layer: any, type: string) => {
-                  let spatial: any = null;
-                  if (type === 'circle') {
-                    const latlng = layer.getLatLng();
-                    const radius = layer.getRadius();
-                    spatial = { circle: `${latlng.lat},${latlng.lng},${radius}` };
-                  } else if (type === 'polygon' || type === 'rectangle') {
-                    const latlngs = layer.getLatLngs()[0];
-                    const points = latlngs.map((ll: any) => `${ll.lat},${ll.lng}`).join(';');
-                    spatial = { polygon: points };
-                  }
-                  setSpatialFilter(spatial);
-                }}
-                onDrawDeleted={() => {
-                  setSpatialFilter(null);
-                }}
-              />
-            </div>
-          </Panel>
-
-          {/* Right Panel: Property Details */}
-          {modalPropertyId && activeModalProperty && (
-            <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
-          )}
-          {modalPropertyId && activeModalProperty && (
-            <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
-              <div className={cn(getMaximizedClasses('details'), "bg-white dark:bg-slate-900")}>
-                <ErrorBoundary>
-                  <PropertyPanel 
-                    property={activeModalProperty} 
-                    onClose={() => {
-                      setModalPropertyId(null);
-                      setSelectedProperty(null);
-                    }} 
-                    isMaximized={maximizedPanel === 'details'}
-                    onToggleMaximize={() => toggleMaximize('details')}
-                    isFavorite={shortlistedIds.includes(activeModalProperty.id)}
-                    onToggleFavorite={handleToggleFavorite}
-                    onAskAgent={handleAskAgent}
-                  />
-                </ErrorBoundary>
+                <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3.5 custom-scrollbar relative z-0">
+                  {loading ? (
+                    <div className="p-8 text-center text-slate-400 dark:text-slate-500 animate-pulse text-xs">
+                      Loading Sydney properties...
+                    </div>
+                  ) : displayedProperties.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-800 text-xs">
+                      {showSavedOnly ? "No saved properties yet. Click the heart icon on a property to save it!" : "No properties match your current search filters. Try clearing your search or filters!"}
+                    </div>
+                  ) : (
+                    displayedProperties.map((p, idx) => (
+                      <PropertyCard 
+                        key={p.id}
+                        property={p} 
+                        index={idx}
+                        isActive={selectedId === p.id}
+                        isFavorite={shortlistedIds.includes(p.id)}
+                        isSaved={savedPropertiesList.some(sp => sp.id === p.id)}
+                        onToggleFavorite={handleToggleFavorite}
+                        onToggleSave={handleToggleSave}
+                        onClick={() => {
+                          setSelectedId(p.id);
+                          setModalPropertyId(p.id);
+                          setSelectedProperty(p);
+                          if (maximizedPanel === 'list') setMaximizedPanel(null);
+                        }}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
             </Panel>
+          )}
+
+          {maximizedPanel !== 'list' && (
+            <>
+              {maximizedPanel !== 'map' && (
+                <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+              )}
+              
+              {/* Center Panel: Map Canvas */}
+              <Panel defaultSize={maximizedPanel === 'map' ? 100 : undefined} className="bg-slate-200 dark:bg-slate-950 min-w-0">
+                <div className="w-full h-full relative bg-slate-200 dark:bg-slate-950 min-w-0">
+                  <Map 
+                    properties={displayedProperties} 
+                    selectedPropertyId={selectedId} 
+                    onSelectProperty={handleMapSelect}
+                    isMaximized={maximizedPanel === 'map'}
+                    onToggleMaximize={() => toggleMaximize('map')}
+                    isDarkMode={isDarkMode}
+                    onDrawCreated={(layer: any, type: string) => {
+                      let spatial: any = null;
+                      if (type === 'circle') {
+                        const latlng = layer.getLatLng();
+                        const radius = layer.getRadius();
+                        spatial = { circle: `${latlng.lat},${latlng.lng},${radius}` };
+                      } else if (type === 'polygon' || type === 'rectangle') {
+                        const latlngs = layer.getLatLngs()[0];
+                        const points = latlngs.map((ll: any) => `${ll.lat},${ll.lng}`).join(';');
+                        spatial = { polygon: points };
+                      }
+                      setSpatialFilter(spatial);
+                    }}
+                    onDrawDeleted={() => {
+                      setSpatialFilter(null);
+                    }}
+                  />
+                </div>
+              </Panel>
+            </>
+          )}
+
+          {/* Right Panel: Property Details */}
+          {maximizedPanel !== 'list' && maximizedPanel !== 'map' && modalPropertyId && activeModalProperty && (
+            <>
+              <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+              <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
+                <div className="w-full h-full relative bg-white dark:bg-slate-900">
+                  <ErrorBoundary>
+                    <PropertyPanel 
+                      property={activeModalProperty} 
+                      onClose={() => {
+                        setModalPropertyId(null);
+                        setSelectedProperty(null);
+                      }} 
+                      isMaximized={false}
+                      onToggleMaximize={() => toggleMaximize('details')}
+                      isFavorite={shortlistedIds.includes(activeModalProperty.id)}
+                      onToggleFavorite={handleToggleFavorite}
+                      onAskAgent={handleAskAgent}
+                    />
+                  </ErrorBoundary>
+                </div>
+              </Panel>
+            </>
           )}
 
         </PanelGroup>
       </div>
       )}
 
+      {/* Maximized Property Details Lightbox Modal (Desktop & Tablet) */}
+      {!isMobile && maximizedPanel === 'details' && activeModalProperty && (
+        <div 
+          className="fixed inset-0 z-[140] flex items-center justify-center p-3 sm:p-6 md:p-8 animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Property details enlarged view"
+        >
+          {/* Backdrop (click to restore split view) */}
+          <div 
+            onClick={() => setMaximizedPanel(null)}
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-md cursor-pointer" 
+            title="Click to restore split view (Esc)"
+          />
+
+          {/* Modal Container */}
+          <div className="relative w-full max-w-5xl h-full max-h-[92vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 z-10 animate-in zoom-in-95 duration-200">
+            <ErrorBoundary>
+              <PropertyPanel 
+                property={activeModalProperty} 
+                onClose={() => {
+                  setMaximizedPanel(null);
+                  setModalPropertyId(null);
+                  setSelectedProperty(null);
+                }} 
+                isMaximized={true}
+                onToggleMaximize={() => setMaximizedPanel(null)}
+                isFavorite={shortlistedIds.includes(activeModalProperty.id)}
+                onToggleFavorite={handleToggleFavorite}
+                onAskAgent={handleAskAgent}
+              />
+            </ErrorBoundary>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Full-Screen Property Details Drawer */}
       {isMobile && modalPropertyId && activeModalProperty && (
-        <div className="fixed inset-0 z-[150] bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
+        <div className="fixed inset-0 z-[150] bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
           <ErrorBoundary>
             <PropertyPanel 
               property={activeModalProperty} 

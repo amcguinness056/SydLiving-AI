@@ -256,6 +256,7 @@ def update_user_profile(
 
 @app.post("/api/sync/listings", response_model=ListingSyncResponse)
 def trigger_listing_sync(
+    only_real: bool = Query(True, description="Whether to purge synthetic listings and keep only real listings"),
     admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
@@ -264,7 +265,7 @@ def trigger_listing_sync(
     if secret and admin_key != secret:
         raise HTTPException(status_code=403, detail="Forbidden: Invalid admin sync key")
     
-    result = sync_active_listings(db=db)
+    result = sync_active_listings(db=db, only_real=only_real)
     return ListingSyncResponse(**result)
 
 @app.get("/api/properties", response_model=PropertySearchResponse)

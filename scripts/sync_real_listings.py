@@ -16,7 +16,7 @@ from sync_listings import sync_active_listings
 
 def main():
     print("Initiating active Sydney rental listings synchronization...")
-    res = sync_active_listings()
+    res = sync_active_listings(only_real=True)
     print(f"Status: {res['message']}")
     print(f"Source: {res['source']}")
     print(f"Total synced: {res['synced_count']}")

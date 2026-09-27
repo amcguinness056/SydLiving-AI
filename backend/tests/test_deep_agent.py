@@ -3,6 +3,7 @@ from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 import json
 import sqlite3
+import uuid
 
 from main import app
 from database import DB_PATH
@@ -115,7 +116,7 @@ def test_chat_deep_session_persistence():
 
 def test_chat_deep_stream_endpoint_mocked():
     """Verify that POST /api/chat/deep/stream yields SSE events properly."""
-    async def mock_generator(message, history):
+    async def mock_generator(message, history, user_profile=None):
         yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
         yield "event: step\ndata: {\"id\": \"step-1\", \"type\": \"subagent\", \"name\": \"commute_specialist\", \"label\": \"Commute\", \"status\": \"running\"}\n\n"
         yield "event: chunk\ndata: {\"text\": \"Found 3 \"}\n\n"
@@ -141,12 +142,13 @@ def test_chat_deep_stream_endpoint_mocked():
 
 def test_chat_deep_stream_persistence():
     """Verify that POST /api/chat/deep/stream persists session and messages when user_id is provided."""
-    async def mock_generator(message, history):
+    async def mock_generator(message, history, user_profile=None):
         yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
         yield "event: chunk\ndata: {\"text\": \"Streamed reply content\"}\n\n"
         yield "event: done\ndata: {\"reply\": \"Streamed reply content\", \"actions\": [], \"latency_seconds\": 1.2, \"steps\": []}\n\n"
 
-    login_res = client.post("/api/auth/login?username=stream_persist_user")
+    unique_name = f"stream_user_{uuid.uuid4().hex[:8]}"
+    login_res = client.post(f"/api/auth/login?username={unique_name}")
     assert login_res.status_code == 200
     user_id = login_res.json()["id"]
 
@@ -164,7 +166,7 @@ def test_chat_deep_stream_persistence():
         # Check DB
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
-        cursor.execute("SELECT id, title FROM chat_sessions WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT id, title FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
         session = cursor.fetchone()
         assert session is not None
         session_id = session[0]

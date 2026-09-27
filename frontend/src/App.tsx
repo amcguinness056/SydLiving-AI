@@ -4,11 +4,12 @@ import { PropertyCard } from './components/PropertyCard';
 import { PropertyPanel } from './components/PropertyPanel';
 import { CompareModal } from './components/CompareModal';
 import { AuthModal } from './components/AuthModal';
-import { api, type Property, type AgentAction, type User, type DeepAgentStep } from './api/client';
+import { UserProfileModal } from './components/UserProfileModal';
+import { api, type Property, type AgentAction, type User, type UserProfileUpdate, type DeepAgentStep } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { KaiLauncher } from './components/KaiLauncher';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X } from 'lucide-react';
+import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 
@@ -57,15 +58,29 @@ function UserAvatar({ user, className = "w-6 h-6" }: { user: { username?: string
 interface SearchFilterBarProps {
   keyword: string;
   propertyType: string;
+  petFriendly: boolean;
+  needsParking: boolean;
+  hasAirCon: boolean;
   onSearch: (keyword: string, propertyType: string) => void;
+  onTogglePetFriendly: () => void;
+  onToggleNeedsParking: () => void;
+  onToggleHasAirCon: () => void;
   onAskKai: (prompt: string) => void;
+  onOpenProfile?: () => void;
 }
 
 const SearchFilterBar = React.memo(function SearchFilterBar({
   keyword,
   propertyType,
+  petFriendly,
+  needsParking,
+  hasAirCon,
   onSearch,
-  onAskKai
+  onTogglePetFriendly,
+  onToggleNeedsParking,
+  onToggleHasAirCon,
+  onAskKai,
+  onOpenProfile
 }: SearchFilterBarProps) {
   const [localKeyword, setLocalKeyword] = useState(keyword);
   const [localType, setLocalType] = useState(propertyType);
@@ -116,6 +131,66 @@ const SearchFilterBar = React.memo(function SearchFilterBar({
         </button>
       </div>
 
+      {/* Feature Toggles & Profile Shortcut */}
+      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+        <button
+          type="button"
+          onClick={onTogglePetFriendly}
+          className={cn(
+            "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer",
+            petFriendly
+              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+              : "bg-white/70 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400"
+          )}
+          title="Filter for pet-friendly Sydney rentals"
+        >
+          <span>🐾</span>
+          <span>Pets</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleNeedsParking}
+          className={cn(
+            "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer",
+            needsParking
+              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+              : "bg-white/70 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400"
+          )}
+          title="Filter for properties with garage or dedicated parking"
+        >
+          <span>🚗</span>
+          <span>Parking</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleHasAirCon}
+          className={cn(
+            "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer",
+            hasAirCon
+              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+              : "bg-white/70 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400"
+          )}
+          title="Filter for properties with air conditioning / climate control"
+        >
+          <span>❄️</span>
+          <span>Air Con</span>
+        </button>
+
+        {onOpenProfile && (
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="ml-auto px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 flex items-center gap-1 cursor-pointer transition-colors"
+            title="Configure Commute & Vibe Profile"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            <span>Profile</span>
+          </button>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={() => onAskKai("Show 2-bedroom rentals near Sydney Metro stations with high walkability")}
@@ -160,6 +235,7 @@ function App() {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Shortlist State
   const [shortlistedIds, setShortlistedIds] = useState<string[]>(() => {
@@ -179,6 +255,9 @@ function App() {
   // Search & Filter State
   const [keywordFilter, setKeywordFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [petFriendlyFilter, setPetFriendlyFilter] = useState(false);
+  const [parkingFilter, setParkingFilter] = useState(false);
+  const [airConFilter, setAirConFilter] = useState(false);
   const [spatialFilter, setSpatialFilter] = useState<{ circle?: string, polygon?: string } | null>(null);
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
@@ -212,7 +291,7 @@ function App() {
     localStorage.setItem('sydliving_shortlist', JSON.stringify(shortlistedIds));
   }, [shortlistedIds]);
 
-  // Auth restore
+  // Auth restore & fetch profile
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
     const username = localStorage.getItem('username');
@@ -220,6 +299,13 @@ function App() {
     const avatarUrl = localStorage.getItem('user_avatar') || undefined;
     if (userId && username) {
       setUser({ id: userId, username, email, avatar_url: avatarUrl });
+      api.getProfile(userId).then(profile => {
+        if (profile) {
+          setUser(prev => prev ? { ...prev, ...profile } : profile);
+        }
+      }).catch(err => {
+        console.error("Failed to load user profile", err);
+      });
     }
   }, []);
 
@@ -243,13 +329,17 @@ function App() {
     const combinedFilters = {
       keyword: keywordFilter || undefined,
       property_type: typeFilter || undefined,
+      pet_friendly: petFriendlyFilter ? true : undefined,
+      needs_parking: parkingFilter ? true : undefined,
+      has_air_con: airConFilter ? true : undefined,
       circle: spatialFilter?.circle,
       polygon: spatialFilter?.polygon,
       ...(filters || {})
     };
     setActiveFilters(
       combinedFilters.suburb || combinedFilters.max_rent || combinedFilters.min_bedrooms || 
-      combinedFilters.keyword || combinedFilters.property_type || combinedFilters.circle || combinedFilters.polygon 
+      combinedFilters.keyword || combinedFilters.property_type || combinedFilters.circle || combinedFilters.polygon ||
+      combinedFilters.pet_friendly || combinedFilters.needs_parking || combinedFilters.has_air_con
         ? combinedFilters 
         : null
     );
@@ -261,7 +351,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [keywordFilter, typeFilter, spatialFilter]);
+  }, [keywordFilter, typeFilter, petFriendlyFilter, parkingFilter, airConFilter, spatialFilter]);
 
   // Reload properties on initial mount or when spatial filters change
   useEffect(() => {
@@ -288,6 +378,64 @@ function App() {
       polygon: spatialFilter?.polygon
     });
   }, [spatialFilter, loadProperties]);
+
+  const handleTogglePetFriendly = useCallback(() => {
+    setPetFriendlyFilter(prev => {
+      const next = !prev;
+      loadProperties({ pet_friendly: next ? true : undefined });
+      return next;
+    });
+  }, [loadProperties]);
+
+  const handleToggleParking = useCallback(() => {
+    setParkingFilter(prev => {
+      const next = !prev;
+      loadProperties({ needs_parking: next ? true : undefined });
+      return next;
+    });
+  }, [loadProperties]);
+
+  const handleToggleAirCon = useCallback(() => {
+    setAirConFilter(prev => {
+      const next = !prev;
+      loadProperties({ has_air_con: next ? true : undefined });
+      return next;
+    });
+  }, [loadProperties]);
+
+  const handleResetFilters = useCallback(() => {
+    setKeywordFilter('');
+    setTypeFilter('');
+    setPetFriendlyFilter(false);
+    setParkingFilter(false);
+    setAirConFilter(false);
+    setSpatialFilter(null);
+    loadProperties({
+      keyword: undefined,
+      property_type: undefined,
+      pet_friendly: undefined,
+      needs_parking: undefined,
+      has_air_con: undefined,
+      circle: undefined,
+      polygon: undefined,
+      suburb: undefined,
+      max_rent: undefined,
+      min_bedrooms: undefined
+    });
+  }, [loadProperties]);
+
+  const handleApplyProfileToFilters = useCallback((profile: UserProfileUpdate) => {
+    if (profile.has_pets !== undefined) setPetFriendlyFilter(!!profile.has_pets);
+    if (profile.needs_parking !== undefined) setParkingFilter(!!profile.needs_parking);
+    loadProperties({
+      max_rent: profile.max_weekly_rent,
+      min_bedrooms: profile.min_bedrooms,
+      destination_hub: profile.workplace_hub,
+      max_commute_mins: profile.max_commute_mins,
+      pet_friendly: profile.has_pets ? true : undefined,
+      needs_parking: profile.needs_parking ? true : undefined
+    });
+  }, [loadProperties]);
 
   const handleToggleFavorite = useCallback(async (id: string) => {
     const isCurrentlySaved = shortlistedIds.includes(id);
@@ -624,12 +772,21 @@ function App() {
 
         {/* Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          {/* User Auth */}
+          {/* User Auth & Profile */}
           {user ? (
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl px-2 sm:px-2.5 py-1 shadow-xs shrink-0">
-              <UserAvatar user={user} className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[80px] sm:max-w-[110px] truncate">{user.username}</span>
-              <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors ml-0.5" title="Logout">
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl p-1 pr-1.5 sm:pr-2 shadow-xs shrink-0">
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg px-1.5 py-0.5 transition-colors cursor-pointer"
+                title="Edit Commute & Living Profile"
+              >
+                <UserAvatar user={user} className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[80px] sm:max-w-[110px] truncate">{user.username}</span>
+                <span className="hidden md:inline-block px-1.5 py-0.2 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-200/50 dark:border-blue-900/40">
+                  Profile
+                </span>
+              </button>
+              <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors ml-0.5 cursor-pointer" title="Logout">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -716,8 +873,21 @@ function App() {
               <SearchFilterBar 
                 keyword={keywordFilter} 
                 propertyType={typeFilter} 
+                petFriendly={petFriendlyFilter}
+                needsParking={parkingFilter}
+                hasAirCon={airConFilter}
                 onSearch={handleSearchFilter} 
-                onAskKai={handleAskAgent} 
+                onTogglePetFriendly={handleTogglePetFriendly}
+                onToggleNeedsParking={handleToggleParking}
+                onToggleHasAirCon={handleToggleAirCon}
+                onAskKai={handleAskAgent}
+                onOpenProfile={() => {
+                  if (user) {
+                    setIsProfileModalOpen(true);
+                  } else {
+                    setIsAuthModalOpen(true);
+                  }
+                }}
               />
 
               {activeFilters && (
@@ -727,13 +897,8 @@ function App() {
                     <span>Filter Active</span>
                   </span>
                   <button 
-                    onClick={() => {
-                      setKeywordFilter('');
-                      setTypeFilter('');
-                      setSpatialFilter(null);
-                      loadProperties();
-                    }}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
+                    onClick={handleResetFilters}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
                   >
                     Reset
                   </button>
@@ -922,8 +1087,21 @@ function App() {
               <SearchFilterBar 
                 keyword={keywordFilter} 
                 propertyType={typeFilter} 
+                petFriendly={petFriendlyFilter}
+                needsParking={parkingFilter}
+                hasAirCon={airConFilter}
                 onSearch={handleSearchFilter} 
+                onTogglePetFriendly={handleTogglePetFriendly}
+                onToggleNeedsParking={handleToggleParking}
+                onToggleHasAirCon={handleToggleAirCon}
                 onAskKai={handleAskAgent} 
+                onOpenProfile={() => {
+                  if (user) {
+                    setIsProfileModalOpen(true);
+                  } else {
+                    setIsAuthModalOpen(true);
+                  }
+                }}
               />
 
               {activeFilters && (
@@ -933,13 +1111,8 @@ function App() {
                     <span>Filter Active</span>
                   </span>
                   <button 
-                    onClick={() => {
-                      setKeywordFilter('');
-                      setTypeFilter('');
-                      setSpatialFilter(null);
-                      loadProperties();
-                    }}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs"
+                    onClick={handleResetFilters}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
                   >
                     Reset
                   </button>
@@ -1153,6 +1326,20 @@ function App() {
           if (match) setSelectedProperty(match);
         }}
       />
+
+      {/* User Commute & Living Profile Modal */}
+      {user && (
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          user={user}
+          onUpdateUser={(updatedUser) => {
+            setUser(updatedUser);
+            localStorage.setItem('username', updatedUser.username);
+          }}
+          onApplyToFilters={handleApplyProfileToFilters}
+        />
+      )}
 
       {/* Google Authentication Modal */}
       <AuthModal

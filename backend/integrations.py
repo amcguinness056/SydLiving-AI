@@ -3,20 +3,30 @@ import sqlite3
 import requests
 from database import DB_PATH
 
-def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> list:
+def fetch_domain_properties(
+    suburb: str, 
+    max_rent: float, 
+    min_bedrooms: int,
+    pet_friendly: bool = False,
+    needs_parking: bool = False,
+    has_air_con: bool = False
+) -> list:
     api_key = os.environ.get("DOMAIN_API_KEY")
     if api_key and api_key.lower() not in ("", "none", "dummy"):
         try:
             headers = {"X-API-Key": api_key}
+            payload = {
+                "listingType": "Rent",
+                "locations": [{"name": suburb, "state": "NSW"}],
+                "minBedrooms": min_bedrooms,
+                "price": {"max": max_rent} if max_rent < 99999.0 else {}
+            }
+            if needs_parking:
+                payload["minCarspaces"] = 1
             response = requests.post(
                 "https://api.domain.com.au/v1/listings/residential/_search",
                 headers=headers,
-                json={
-                    "listingType": "Rent",
-                    "locations": [{"name": suburb, "state": "NSW"}],
-                    "minBedrooms": min_bedrooms,
-                    "price": {"max": max_rent} if max_rent < 99999.0 else {}
-                },
+                json=payload,
                 timeout=5
             )
             if response.status_code == 200:
@@ -35,7 +45,13 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
                         "distance_to_beach_km": 0.0,
                         "available_date": "2026-01-01",
                         "description": item.get("listing", {}).get("summaryDescription", ""),
-                        "photo_url": item.get("listing", {}).get("media", [{}])[0].get("url", "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80")
+                        "photo_url": item.get("listing", {}).get("media", [{}])[0].get("url", "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"),
+                        "parking_spaces": item.get("listing", {}).get("propertyDetails", {}).get("carspaces", 0),
+                        "pet_friendly": 1 if pet_friendly else 0,
+                        "has_air_con": 1 if has_air_con else 0,
+                        "inspection_time": "Sat 10:00 AM - 10:20 AM",
+                        "is_real_listing": 1,
+                        "external_url": f"https://www.domain.com.au/{item.get('listing', {}).get('id', '')}"
                     })
                 if results:
                     return results
@@ -57,6 +73,12 @@ def fetch_domain_properties(suburb: str, max_rent: float, min_bedrooms: int) -> 
         if min_bedrooms > 0:
             query += " AND bedrooms >= ?"
             params.append(min_bedrooms)
+        if pet_friendly:
+            query += " AND pet_friendly = 1"
+        if needs_parking:
+            query += " AND parking_spaces >= 1"
+        if has_air_con:
+            query += " AND has_air_con = 1"
             
         cursor = db.cursor()
         cursor.execute(query, params)

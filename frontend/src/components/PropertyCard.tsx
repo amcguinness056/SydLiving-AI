@@ -1,5 +1,5 @@
 import React from "react";
-import { BedDouble, Bath, MapPin, Waves, Heart, Train } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves, Heart, Train, Clock, Car, ExternalLink } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -37,6 +37,13 @@ export const PropertyCard = React.memo(function PropertyCard({
     }
   };
 
+  const handleExternalClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (property.external_url) {
+      window.open(property.external_url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div
       id={`property-card-${property.id}`}
@@ -52,7 +59,7 @@ export const PropertyCard = React.memo(function PropertyCard({
         className
       )}
     >
-      {/* Photo */}
+      {/* Photo with Overlay Badges */}
       <div className="w-full h-36 rounded-xl mb-3 overflow-hidden relative shadow-inner shrink-0 bg-slate-100 dark:bg-slate-800">
         <img 
           src={property.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"} 
@@ -65,15 +72,43 @@ export const PropertyCard = React.memo(function PropertyCard({
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60 pointer-events-none" />
+
+        {/* Top Floating Badges: Inspection Time & Active Badge */}
+        <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+          {property.inspection_time ? (
+            <span className="px-2 py-0.5 rounded-full bg-slate-900/85 backdrop-blur-md text-emerald-300 text-[10px] font-bold flex items-center gap-1 border border-white/20 shadow-xs">
+              <Clock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+              <span className="truncate max-w-[170px]">{property.inspection_time}</span>
+            </span>
+          ) : (
+            <span />
+          )}
+
+          {property.is_real_listing && (
+            <span className="px-1.5 py-0.5 rounded-md bg-emerald-600/90 backdrop-blur-xs text-white text-[9px] font-black uppercase tracking-wider shadow-xs">
+              Live
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Top row: Title, Heart & Rent Badge */}
+      {/* Top row: Title, External Link, Heart & Rent Badge */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
         <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-[15px] group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
           {property.title}
         </h3>
         
         <div className="flex items-center gap-1.5 shrink-0">
+          {property.external_url && (
+            <button
+              onClick={handleExternalClick}
+              className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title="View on Domain"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             onClick={handleHeartClick}
             className={cn(
@@ -107,20 +142,36 @@ export const PropertyCard = React.memo(function PropertyCard({
         </div>
       )}
 
-      {/* Metrics Row */}
+      {/* Metrics Row: Beds, Baths, Parking, Tags, Beach */}
       <div className="flex items-center justify-between text-slate-700 dark:text-slate-200 text-xs font-semibold mt-auto pt-2 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <div className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
-            <BedDouble className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            <BedDouble className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
             <span>{property.bedrooms} Bed</span>
           </div>
           <div className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
-            <Bath className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            <Bath className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
             <span>{property.bathrooms} Bath</span>
           </div>
+          {property.parking_spaces !== undefined && property.parking_spaces > 0 && (
+            <div className="flex items-center gap-1 text-slate-700 dark:text-slate-200" title={`${property.parking_spaces} Parking space(s)`}>
+              <Car className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+              <span>{property.parking_spaces}</span>
+            </div>
+          )}
+          {property.pet_friendly && (
+            <span className="text-[10px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40" title="Pet Friendly">
+              🐾 Pets
+            </span>
+          )}
+          {property.has_air_con && (
+            <span className="text-[10px] px-1 py-0.2 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900/40" title="Air Conditioning">
+              ❄️ AC
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800/80 px-2 py-0.5 rounded-md font-bold text-[11px]">
+        <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800/80 px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0">
           <Waves className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
           <span>{property.distance_to_beach_km.toFixed(1)} km</span>
         </div>

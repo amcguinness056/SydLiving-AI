@@ -157,3 +157,68 @@ def test_saved_properties_sync_and_toggle():
     final_ids = [p["id"] for p in final_res.json()]
     assert pid1 not in final_ids
     assert pid2 in final_ids
+
+def test_user_profile_crud():
+    """Verify getting and updating a user's relocation and lifestyle profile."""
+    # 1. Login user
+    login_res = client.post("/api/auth/login?username=profile_tester")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+
+    # 2. Get profile
+    profile_res = client.get(f"/api/user/profile?user_id={user_id}")
+    assert profile_res.status_code == 200
+    prof = profile_res.json()
+    assert prof["username"] == "profile_tester"
+    assert "workplace_hub" in prof
+
+    # 3. Update profile
+    update_res = client.put(f"/api/user/profile?user_id={user_id}", json={
+        "workplace_hub": "Barangaroo",
+        "max_commute_mins": 35,
+        "max_weekly_rent": 920.0,
+        "min_bedrooms": 2,
+        "has_pets": True,
+        "needs_parking": True,
+        "lifestyle_vibes": ["Beach Lover", "Great Coffee & Cafes"],
+        "preferred_transit_modes": ["metro", "ferry"]
+    })
+    assert update_res.status_code == 200
+    updated = update_res.json()
+    assert updated["workplace_hub"] == "Barangaroo"
+    assert updated["max_commute_mins"] == 35
+    assert updated["max_weekly_rent"] == 920.0
+    assert updated["min_bedrooms"] == 2
+    assert updated["has_pets"] is True
+    assert updated["needs_parking"] is True
+    assert "Beach Lover" in updated["lifestyle_vibes"]
+    assert "metro" in updated["preferred_transit_modes"]
+
+def test_property_feature_filters():
+    """Verify filtering properties by pet-friendly, parking, and air-conditioning."""
+    res_pets = client.get("/api/properties?pet_friendly=true")
+    assert res_pets.status_code == 200
+    props = res_pets.json()["results"]
+    assert len(props) > 0
+    assert all(p["pet_friendly"] is True for p in props)
+
+    res_parking = client.get("/api/properties?needs_parking=true")
+    assert res_parking.status_code == 200
+    props_park = res_parking.json()["results"]
+    assert len(props_park) > 0
+    assert all(p["parking_spaces"] >= 1 for p in props_park)
+
+    res_aircon = client.get("/api/properties?has_air_con=true")
+    assert res_aircon.status_code == 200
+    props_ac = res_aircon.json()["results"]
+    assert len(props_ac) > 0
+    assert all(p["has_air_con"] is True for p in props_ac)
+
+def test_listing_sync_endpoint():
+    """Verify that POST /api/sync/listings syncs active listings."""
+    res = client.post("/api/sync/listings")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["synced_count"] > 0
+    assert "Successfully" in data["message"]
+

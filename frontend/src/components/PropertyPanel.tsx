@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck, Heart, DollarSign, Repeat, Compass, Sparkles, Send } from "lucide-react";
+import { X, BedDouble, Bath, MapPin, Waves, CalendarDays, Maximize, Minimize, Train, ShieldCheck, Heart, DollarSign, Repeat, Compass, Sparkles, Send, Clock, Car, ExternalLink } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -109,20 +109,75 @@ export function PropertyPanel({
           </p>
         </div>
 
-        {/* 3-Pill Metrics Grid */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
-            <BedDouble className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        {/* Upcoming Open Home Inspection Banner */}
+        {property.inspection_time && (
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+                  Upcoming Inspection
+                </span>
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  {property.inspection_time}
+                </span>
+              </div>
+            </div>
+            {property.external_url && (
+              <a
+                href={property.external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <span>Domain</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="bg-white/80 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
+            <BedDouble className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.bedrooms} Beds</span>
           </div>
-          <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
-            <Bath className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="bg-white/80 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
+            <Bath className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.bathrooms} Baths</span>
           </div>
-          <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
-            <Waves className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-            <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.distance_to_beach_km.toFixed(1)} km</span>
+          <div className="bg-white/80 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
+            <Car className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+              {property.parking_spaces ? `${property.parking_spaces} Parking` : "Street Parking"}
+            </span>
           </div>
+          <div className="bg-white/80 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex flex-col items-center justify-center gap-1 shadow-sm">
+            <Waves className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">{property.distance_to_beach_km.toFixed(1)} km Beach</span>
+          </div>
+        </div>
+
+        {/* Feature Badges (Pet-friendly, Air-con, Availability) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {property.pet_friendly && (
+            <span className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60 text-xs font-bold flex items-center gap-1">
+              🐾 Pet-Friendly Approved
+            </span>
+          )}
+          {property.has_air_con && (
+            <span className="px-2.5 py-1 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-200 border border-sky-200 dark:border-sky-900/60 text-xs font-bold flex items-center gap-1">
+              ❄️ Air Conditioned
+            </span>
+          )}
+          {property.available_date && (
+            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-medium flex items-center gap-1">
+              <CalendarDays className="w-3.5 h-3.5 text-slate-400" /> Avail: {property.available_date}
+            </span>
+          )}
         </div>
 
         {/* Enriched Commute Intelligence Card */}

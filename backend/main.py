@@ -10,7 +10,7 @@ load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from datetime import datetime
-from fastapi import FastAPI, Depends, Query, HTTPException, Header
+from fastapi import FastAPI, Depends, Query, HTTPException, Header, Body
 from starlette.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
@@ -22,10 +22,11 @@ from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
     ChatRequest, ChatResponse, AgentAction, HubsResponse, DestinationHub,
-    IsochroneResponse, IsochroneSuburb, User, ChatSession, 
-    ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
+    IsochroneResponse, IsochroneSuburb, User, UserProfileUpdate, ListingSyncResponse,
+    ChatSession, ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
 )
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from sync_listings import sync_active_listings
 from starlette.middleware.gzip import GZipMiddleware
 import agent
 import deep_agent
@@ -126,18 +127,51 @@ class GoogleAuthPayload(BaseModel):
     email: Optional[str] = None
     avatar_url: Optional[str] = None
 
+def format_user_dict(d: dict) -> dict:
+    """Format and deserialize database user row for User response model."""
+    res = dict(d)
+    if isinstance(res.get("lifestyle_vibes"), str):
+        try:
+            res["lifestyle_vibes"] = json.loads(res["lifestyle_vibes"])
+        except Exception:
+            res["lifestyle_vibes"] = []
+    elif res.get("lifestyle_vibes") is None:
+        res["lifestyle_vibes"] = []
+        
+    if isinstance(res.get("preferred_transit_modes"), str):
+        try:
+            res["preferred_transit_modes"] = json.loads(res["preferred_transit_modes"])
+        except Exception:
+            res["preferred_transit_modes"] = []
+    elif res.get("preferred_transit_modes") is None:
+        res["preferred_transit_modes"] = []
+        
+    res["has_pets"] = bool(res.get("has_pets", 0))
+    res["needs_parking"] = bool(res.get("needs_parking", 0))
+    if not res.get("workplace_hub"):
+        res["workplace_hub"] = "Martin Place"
+    if res.get("max_commute_mins") is None:
+        res["max_commute_mins"] = 45
+    if res.get("max_weekly_rent") is None:
+        res["max_weekly_rent"] = 1000.0
+    if res.get("min_bedrooms") is None:
+        res["min_bedrooms"] = 1
+    return res
+
 @app.post("/api/auth/login")
 def login(username: str, db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     if row:
-        return User(**dict(row))
+        return User(**format_user_dict(row))
     
     new_id = str(uuid.uuid4())
     cursor.execute("INSERT INTO users (id, username) VALUES (?, ?)", (new_id, username))
     db.commit()
-    return User(id=new_id, username=username)
+    cursor.execute("SELECT * FROM users WHERE id = ?", (new_id,))
+    new_row = cursor.fetchone()
+    return User(**format_user_dict(new_row))
 
 @app.post("/api/auth/google")
 def google_auth(payload: GoogleAuthPayload, db: sqlite3.Connection = Depends(get_db_connection)):
@@ -148,18 +182,90 @@ def google_auth(payload: GoogleAuthPayload, db: sqlite3.Connection = Depends(get
         if row:
             cursor.execute("UPDATE users SET username = ?, avatar_url = ? WHERE id = ?", (payload.name, payload.avatar_url, row["id"]))
             db.commit()
-            return User(id=row["id"], username=payload.name, email=payload.email, avatar_url=payload.avatar_url, auth_provider="google")
+            cursor.execute("SELECT * FROM users WHERE id = ?", (row["id"],))
+            updated_row = cursor.fetchone()
+            return User(**format_user_dict(updated_row))
     
     cursor.execute("SELECT * FROM users WHERE username = ?", (payload.name,))
     row = cursor.fetchone()
     if row:
-        return User(**dict(row))
+        return User(**format_user_dict(row))
     
     new_id = str(uuid.uuid4())
     cursor.execute("INSERT INTO users (id, username, email, avatar_url, auth_provider) VALUES (?, ?, ?, ?, 'google')", 
                    (new_id, payload.name, payload.email, payload.avatar_url))
     db.commit()
-    return User(id=new_id, username=payload.name, email=payload.email, avatar_url=payload.avatar_url, auth_provider="google")
+    cursor.execute("SELECT * FROM users WHERE id = ?", (new_id,))
+    new_row = cursor.fetchone()
+    return User(**format_user_dict(new_row))
+
+@app.get("/api/user/profile", response_model=User)
+def get_user_profile(user_id: str = Query(..., description="ID of the user"), db: sqlite3.Connection = Depends(get_db_connection)):
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    return User(**format_user_dict(row))
+
+@app.put("/api/user/profile", response_model=User)
+def update_user_profile(
+    user_id: str = Query(..., description="ID of the user"),
+    profile: UserProfileUpdate = Body(...),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    updates = []
+    params = []
+    if profile.workplace_hub is not None:
+        updates.append("workplace_hub = ?")
+        params.append(profile.workplace_hub)
+    if profile.max_commute_mins is not None:
+        updates.append("max_commute_mins = ?")
+        params.append(profile.max_commute_mins)
+    if profile.max_weekly_rent is not None:
+        updates.append("max_weekly_rent = ?")
+        params.append(profile.max_weekly_rent)
+    if profile.min_bedrooms is not None:
+        updates.append("min_bedrooms = ?")
+        params.append(profile.min_bedrooms)
+    if profile.has_pets is not None:
+        updates.append("has_pets = ?")
+        params.append(1 if profile.has_pets else 0)
+    if profile.needs_parking is not None:
+        updates.append("needs_parking = ?")
+        params.append(1 if profile.needs_parking else 0)
+    if profile.lifestyle_vibes is not None:
+        updates.append("lifestyle_vibes = ?")
+        params.append(json.dumps(profile.lifestyle_vibes))
+    if profile.preferred_transit_modes is not None:
+        updates.append("preferred_transit_modes = ?")
+        params.append(json.dumps(profile.preferred_transit_modes))
+
+    if updates:
+        params.append(user_id)
+        cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+        db.commit()
+
+    return get_user_profile(user_id=user_id, db=db)
+
+@app.post("/api/sync/listings", response_model=ListingSyncResponse)
+def trigger_listing_sync(
+    admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    """Admin or Cloud Scheduler endpoint to trigger active Sydney listing synchronization."""
+    secret = os.environ.get("ADMIN_SECRET_KEY")
+    if secret and admin_key != secret:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin sync key")
+    
+    result = sync_active_listings(db=db)
+    return ListingSyncResponse(**result)
 
 @app.get("/api/properties", response_model=PropertySearchResponse)
 def search_properties(
@@ -170,6 +276,9 @@ def search_properties(
     max_commute_mins: Optional[int] = Query(None, description="Maximum commute time in minutes"),
     keyword: Optional[str] = Query(None, description="Keyword search in title"),
     property_type: Optional[str] = Query(None, description="Property type filter"),
+    pet_friendly: Optional[bool] = Query(None, description="Filter for pet-friendly properties"),
+    needs_parking: Optional[bool] = Query(None, description="Filter for properties with parking spaces"),
+    has_air_con: Optional[bool] = Query(None, description="Filter for properties with air conditioning"),
     circle: Optional[str] = Query(None, description="Circle filter: lat,lng,radius_m"),
     polygon: Optional[str] = Query(None, description="Polygon filter: lat,lng;lat,lng..."),
     db: sqlite3.Connection = Depends(get_db_connection)
@@ -214,6 +323,12 @@ def search_properties(
     if property_type:
         query += " AND p.title LIKE ?"
         params.append(f"%{property_type}%")
+    if pet_friendly is True:
+        query += " AND p.pet_friendly = 1"
+    if needs_parking is True:
+        query += " AND p.parking_spaces >= 1"
+    if has_air_con is True:
+        query += " AND p.has_air_con = 1"
 
     if destination_hub:
         query += " ORDER BY cm.duration_minutes ASC, p.weekly_rent ASC"
@@ -467,7 +582,13 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
         cursor = db.cursor()
         now = datetime.now().isoformat()
         
+        user_profile = None
         if request.user_id:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+            u_row = cursor.fetchone()
+            if u_row:
+                user_profile = format_user_dict(u_row)
+
             if not session_id:
                 session_id = str(uuid.uuid4())
                 title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
@@ -485,7 +606,7 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
-        result = await deep_agent.process_deep_chat(request.message, request.history)
+        result = await deep_agent.process_deep_chat(request.message, request.history, user_profile=user_profile)
         
         if session_id:
             msg_id = str(uuid.uuid4())
@@ -516,12 +637,19 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
     async def event_generator():
         session_id = request.session_id
         now = datetime.now().isoformat()
+        user_profile = None
         
         # 1. If user is logged in, create or update session and save user message
         if request.user_id:
             try:
                 with sqlite3.connect(database.DB_PATH) as conn:
+                    conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
+                    cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+                    u_row = cursor.fetchone()
+                    if u_row:
+                        user_profile = format_user_dict(u_row)
+
                     if not session_id:
                         session_id = str(uuid.uuid4())
                         title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
@@ -547,9 +675,10 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
 
         # 2. Stream events from deep_agent
         accumulated_text = ""
+        saved_model_message = False
 
         try:
-            async for sse_chunk in deep_agent.stream_deep_chat(request.message, request.history):
+            async for sse_chunk in deep_agent.stream_deep_chat(request.message, request.history, user_profile=user_profile):
                 # If we encounter the "done" event, make sure set_session action is in its actions array
                 if session_id and "event: done" in sse_chunk:
                     try:
@@ -564,6 +693,23 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
                             if done_data.get("reply"):
                                 accumulated_text = done_data["reply"]
                             sse_chunk = f"event: done\ndata: {json.dumps(done_data)}\n\n"
+
+                            # Persist model reply immediately upon done
+                            if request.user_id and accumulated_text:
+                                try:
+                                    with sqlite3.connect(database.DB_PATH) as conn:
+                                        c = conn.cursor()
+                                        now_resp = datetime.now().isoformat()
+                                        msg_id = str(uuid.uuid4())
+                                        c.execute(
+                                            "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                                            (msg_id, session_id, "model", accumulated_text, now_resp)
+                                        )
+                                        c.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now_resp, session_id))
+                                        conn.commit()
+                                        saved_model_message = True
+                                except Exception as save_err:
+                                    print(f"[DeepStream] Error saving model reply on done: {save_err}")
                     except Exception as parse_e:
                         print(f"[DeepStream] Error augmenting done event: {parse_e}")
 
@@ -579,8 +725,8 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
 
                 yield sse_chunk
         finally:
-            # 3. On completion (or interruption), save model reply to DB if user is logged in
-            if request.user_id and session_id and accumulated_text:
+            # 3. On completion (or interruption), save model reply to DB if not already saved
+            if request.user_id and session_id and accumulated_text and not saved_model_message:
                 try:
                     with sqlite3.connect(database.DB_PATH) as conn:
                         cursor = conn.cursor()

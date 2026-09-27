@@ -25,6 +25,12 @@ class PropertyBase(BaseModel):
     available_date: str
     description: str = ""
     photo_url: str = ""
+    parking_spaces: int = 0
+    pet_friendly: bool = False
+    has_air_con: bool = False
+    inspection_time: str = ""
+    is_real_listing: bool = True
+    external_url: str = ""
     # Enriched commute attributes when destination hub filter is active
     commute_duration_minutes: Optional[int] = None
     transit_mode: Optional[str] = None
@@ -81,6 +87,29 @@ class User(BaseModel):
     email: Optional[str] = None
     avatar_url: Optional[str] = None
     auth_provider: Optional[str] = "google"
+    workplace_hub: Optional[str] = "Martin Place"
+    max_commute_mins: Optional[int] = 45
+    max_weekly_rent: Optional[float] = 1000.0
+    min_bedrooms: Optional[int] = 1
+    has_pets: Optional[bool] = False
+    needs_parking: Optional[bool] = False
+    lifestyle_vibes: Optional[List[str]] = []
+    preferred_transit_modes: Optional[List[str]] = []
+
+class UserProfileUpdate(BaseModel):
+    workplace_hub: Optional[str] = None
+    max_commute_mins: Optional[int] = None
+    max_weekly_rent: Optional[float] = None
+    min_bedrooms: Optional[int] = None
+    has_pets: Optional[bool] = None
+    needs_parking: Optional[bool] = None
+    lifestyle_vibes: Optional[List[str]] = None
+    preferred_transit_modes: Optional[List[str]] = None
+
+class ListingSyncResponse(BaseModel):
+    synced_count: int
+    message: str
+    source: str
 
 class ChatSession(BaseModel):
     id: str

@@ -31,20 +31,33 @@ def _record_action(action_type: str, data: dict):
         if action_item not in collector:
             collector.append(action_item)
 
-def deep_query_properties_tool(suburb: str = "", max_rent: float = 99999.0, min_bedrooms: int = 0) -> str:
+def deep_query_properties_tool(
+    suburb: str = "", 
+    max_rent: float = 99999.0, 
+    min_bedrooms: int = 0,
+    pet_friendly: bool = False,
+    needs_parking: bool = False,
+    has_air_con: bool = False
+) -> str:
     """Queries real-world Domain API and local database for rental properties matching criteria.
     Args:
         suburb: A specific suburb to filter by, or empty string "" if none.
         max_rent: Maximum weekly rent in AUD, or 99999.0 if no maximum.
         min_bedrooms: Minimum number of bedrooms, or 0 if no minimum.
+        pet_friendly: Whether the rental must be pet-friendly.
+        needs_parking: Whether parking space (1+) is required.
+        has_air_con: Whether air conditioning is required.
     """
     _record_action("update_properties", {
         "suburb": suburb,
         "max_rent": max_rent,
-        "min_bedrooms": min_bedrooms
+        "min_bedrooms": min_bedrooms,
+        "pet_friendly": pet_friendly,
+        "needs_parking": needs_parking,
+        "has_air_con": has_air_con
     })
     try:
-        results = fetch_domain_properties(suburb, max_rent, min_bedrooms)
+        results = fetch_domain_properties(suburb, max_rent, min_bedrooms, pet_friendly, needs_parking, has_air_con)
         return json.dumps({"properties": results, "count": len(results)})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -163,7 +176,7 @@ lifestyle_subagent = {
     "tools": [deep_get_places_tool]
 }
 
-def create_deep_sydliving_agent(model_name: Optional[str] = None):
+def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: Optional[Dict[str, Any]] = None):
     """Instantiates a Deep Agent compiled graph with subagents and planning capabilities."""
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not gemini_key:
@@ -216,6 +229,34 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None):
         "Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs."
     )
 
+    if user_profile:
+        profile_lines = ["\nUSER RELOCATION & LIFESTYLE PROFILE (SAVED PREFERENCES):"]
+        if user_profile.get("username"):
+            profile_lines.append(f"- User Name: {user_profile['username']}")
+        if user_profile.get("workplace_hub"):
+            profile_lines.append(f"- Workplace / Commute Destination: {user_profile['workplace_hub']}")
+        if user_profile.get("max_commute_mins"):
+            profile_lines.append(f"- Maximum Commute Tolerance: {user_profile['max_commute_mins']} minutes")
+        if user_profile.get("max_weekly_rent"):
+            profile_lines.append(f"- Weekly Rent Target: ≤ ${user_profile['max_weekly_rent']}/wk ({user_profile.get('min_bedrooms', 1)}+ bedrooms)")
+        if user_profile.get("has_pets"):
+            profile_lines.append("- Pets: HAS PETS (requires pet-friendly rentals, mention dog parks / pet commute rules)")
+        if user_profile.get("needs_parking"):
+            profile_lines.append("- Vehicle: NEEDS PARKING (needs dedicated car space)")
+        vibes = user_profile.get("lifestyle_vibes")
+        if vibes and isinstance(vibes, list) and len(vibes) > 0:
+            profile_lines.append(f"- Priority Lifestyle Vibes: {', '.join(vibes)}")
+        modes = user_profile.get("preferred_transit_modes")
+        if modes and isinstance(modes, list) and len(modes) > 0:
+            profile_lines.append(f"- Preferred Transit Modes: {', '.join(modes)}")
+
+        profile_lines.append(
+            "\nIMPORTANT KAI PERSONALIZATION INSTRUCTION:\n"
+            "Proactively and transparently factor in the user's profile above (e.g. 'Considering your 35-minute commute to Barangaroo and your dog...'). "
+            "Tailor your property recommendations, commute breakdowns, and lifestyle commentary to their exact needs, while remaining flexible if the user asks to explore outside their profile in this conversation."
+        )
+        system_prompt += "\n" + "\n".join(profile_lines)
+
     return create_deep_agent(
         model=model,
         tools=top_level_tools,
@@ -223,7 +264,7 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None):
         system_prompt=system_prompt
     )
 
-async def process_deep_chat(message: str, history: list) -> dict:
+async def process_deep_chat(message: str, history: list, user_profile: Optional[Dict[str, Any]] = None) -> dict:
     """Processes a user message using LangChain Deep Agents with execution tracking and action collection."""
     start_time = time.time()
     try:
@@ -267,7 +308,7 @@ async def process_deep_chat(message: str, history: list) -> dict:
         try:
             for m_idx, current_model in enumerate(models_to_try):
                 try:
-                    agent = create_deep_sydliving_agent(model_name=current_model)
+                    agent = create_deep_sydliving_agent(model_name=current_model, user_profile=user_profile)
                     res = agent.invoke({"messages": langchain_messages})
                     break
                 except Exception as e:
@@ -357,7 +398,7 @@ async def process_deep_chat(message: str, history: list) -> dict:
             "agent_type": "deep_agent"
         }
 
-async def stream_deep_chat(message: str, history: list):
+async def stream_deep_chat(message: str, history: list, user_profile: Optional[Dict[str, Any]] = None):
     """Streams real-time thinking steps, subagent delegations, tool calls, and text chunks via SSE."""
     start_time = time.time()
     steps_log = []
@@ -403,7 +444,7 @@ async def stream_deep_chat(message: str, history: list):
 
         for m_idx, current_model in enumerate(models_to_try):
             try:
-                agent = create_deep_sydliving_agent(model_name=current_model)
+                agent = create_deep_sydliving_agent(model_name=current_model, user_profile=user_profile)
 
                 async for ev in agent.astream_events({"messages": langchain_messages}, version="v2"):
                     ev_type = ev.get("event")

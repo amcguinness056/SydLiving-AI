@@ -54,6 +54,13 @@ variable "domain_api_key" {
   default     = ""
 }
 
+variable "apify_api_token" {
+  description = "Apify API Token for live Domain rental scraper."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "db_path" {
   description = "Path to the SQLite database file inside the container."
   type        = string

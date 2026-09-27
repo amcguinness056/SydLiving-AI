@@ -77,6 +77,16 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
 
+      env {
+        name = "APIFY_API_TOKEN"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.apify_token.secret_id
+            version = "latest"
+          }
+        }
+      }
+
       volume_mounts {
         name       = "gcs-data"
         mount_path = "/data"

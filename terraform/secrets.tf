@@ -50,3 +50,20 @@ resource "google_secret_manager_secret_version" "domain_key_version" {
   secret      = google_secret_manager_secret.domain_key.id
   secret_data = var.domain_api_key != "" ? var.domain_api_key : "none"
 }
+
+# Apify API Token Secret
+resource "google_secret_manager_secret" "apify_token" {
+  project   = var.project_id
+  secret_id = "${var.app_name}-apify-api-token"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
+resource "google_secret_manager_secret_version" "apify_token_version" {
+  secret      = google_secret_manager_secret.apify_token.id
+  secret_data = var.apify_api_token != "" ? var.apify_api_token : "none"
+}

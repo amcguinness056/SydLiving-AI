@@ -55,11 +55,11 @@ Compare shortlisted properties side-by-side to make informed relocation decision
 
 ---
 
-### 3. Clean Spatial Property Discovery (252+ Verified Rentals)
-Explore a rich dataset of **252 verified rental listings** across **36 Sydney suburbs** spanning the Eastern Suburbs, Inner West, Lower North Shore, Northern Beaches, and Western Sydney.
+### 3. Clean Spatial Property Discovery (285+ Live Sydney Rentals)
+Explore a rich dataset of **285 live rental listings** across Sydney's most sought-after regions, including the Eastern Suburbs (Bondi, Coogee, Randwick, Maroubra, Bronte, Double Bay, Paddington), Inner West (Newtown, Surry Hills), Lower North Shore (Chatswood), and Northern Beaches (Manly).
 
-- **Curated Photography:** 53 verified high-resolution architectural and interior photography assets paired with property archetypes.
-- **Decluttered Map Canvas:** Fast, responsive Leaflet map with subtle dark/light price pins and smooth hover states.
+- **Curated Photography & Multi-Photo Galleries:** Rich multi-photo carousels with smooth lightbox viewer and floor plan previews.
+- **Decluttered Map Canvas:** Fast, responsive Google Maps canvas with subtle Bondi Blue price markers, dark mode styling, and cluster grouping.
 - **Spatial Drawing Filters:** Draw custom circles or polygons directly on the map to bound property searches.
 - **Natural Language Search Helper:** An organic `"Or ask Kai"` prompt helper embedded beneath search filters.
 
@@ -67,13 +67,13 @@ Explore a rich dataset of **252 verified rental listings** across **36 Sydney su
 
 ## 🏗️ Architecture
 
-SydLiving AI is architected as a local-first, full-stack platform:
+SydLiving AI is architected as a local-first, production-grade cloud platform:
 
 - **Backend:** FastAPI (Python 3.11+), Pydantic v2
 - **Agent Framework:** LangChain Deep Agents with hierarchical multi-agent supervisor and subagents
 - **AI Model:** Google Gemini (`gemini-3.8-flash`) via `langchain-google-genai` and Google GenAI SDK
-- **Database:** SQLite (`sydliving.db` containing 252 properties and 216 commute matrix routes)
-- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Lucide Icons, React-Leaflet
+- **Database:** SQLite (`sydliving.db` containing 285 properties and 216 commute matrix routes)
+- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Lucide Icons, Google Maps JavaScript API
 
 ```mermaid
 graph TD
@@ -156,44 +156,91 @@ The frontend application will be live at `http://localhost:5173`.
 
 ---
 
-## Cloud Deployment (Google Cloud Platform & Terraform)
+## ☁️ Google Cloud Platform (GCP) Hosting Architecture
 
-SydLiving AI includes automated Infrastructure as Code (IaC) configurations for deploying to **Google Cloud Platform (GCP)** using **Terraform**, **Cloud Run**, **Google Secret Manager**, and **Artifact Registry**.
+SydLiving AI is fully hosted and operated on **Google Cloud Platform (GCP)** within the **`australia-southeast1` (Sydney)** region to minimize latency for Australian users, real estate APIs, and Transport for NSW services.
 
 ### 🌐 Live Production Endpoints
 - **Primary Custom Domain:** [https://sydliving.com](https://sydliving.com) (and [https://www.sydliving.com](https://www.sydliving.com))
-- **Edge CDN Mirror:** [https://sydliving-ai.web.app](https://sydliving-ai.web.app)
-- **Cloud Run Backend:** [https://sydliving-backend-rnlsfkvaba-ts.a.run.app](https://sydliving-backend-rnlsfkvaba-ts.a.run.app)
+- **Firebase Global CDN Mirror:** [https://sydliving-ai.web.app](https://sydliving-ai.web.app)
+- **Cloud Run Backend Service:** `https://sydliving-backend-rnlsfkvaba-ts.a.run.app`
+- **GCP Project:** `sydliving-ai` | **Default Region:** `australia-southeast1` (Sydney)
 
-For the detailed step-by-step deployment guide, see [docs/gcp_deployment_guide.md](docs/gcp_deployment_guide.md).
+---
 
-### Quickstart GCP Deployment
+### 🏛️ Cloud Architecture Diagram
 
-1. **Configure Terraform:**
-   ```bash
-   cd terraform
-   cp terraform.tfvars.example terraform.tfvars
-   # Fill in project_id, gemini_api_key, etc.
-   terraform init
-   terraform apply
-   ```
+```mermaid
+graph TD
+    User([User / Browser]) <-->|HTTPS / HTTP3| CDN[Firebase Hosting Edge CDN<br/>sydliving.com]
+    
+    subgraph GCP ["Google Cloud Platform (australia-southeast1)"]
+        subgraph EdgeRouting ["Edge Traffic Routing (firebase.json)"]
+            CDN -->|Static Assets & SPA Routes /**| Frontend[Cloud Run: sydliving-frontend<br/>React 19 + Nginx]
+            CDN -->|API Requests /api/**| Backend[Cloud Run: sydliving-backend<br/>FastAPI + Python 3.11]
+        end
+        
+        subgraph StoragePersistence ["Data Persistence & Storage"]
+            Backend <-->|Volume Mount /data| GCSBucket[(Google Cloud Storage Bucket<br/>sydliving.db Persistence)]
+        end
+        
+        subgraph SecuritySecrets ["Zero-Trust Secrets Management"]
+            GSM[(Google Secret Manager)] -.->|Runtime Env Injection| Backend
+            GSM --- GemKey[sydliving-gemini-api-key]
+            GSM --- MapKey[sydliving-google-maps-api-key]
+            GSM --- DomKey[sydliving-domain-api-key]
+            GSM --- ApfKey[sydliving-apify-api-token]
+        end
+        
+        subgraph CI_CD ["Automated CI/CD Pipeline"]
+            GHA[GitHub Actions Runner] -->|Keyless OIDC Auth| WIF[Workload Identity Federation]
+            WIF --> ServiceAccount[sydliving-runner Service Account]
+            ServiceAccount --> ArtifactRegistry[Artifact Registry<br/>Docker Images]
+            ArtifactRegistry -.->|Rolling Deploy| Backend
+            ArtifactRegistry -.->|Rolling Deploy| Frontend
+        end
+    end
+    
+    subgraph ExternalServices ["External Intelligence Services"]
+        Backend <-->|AI Living Concierge| Gemini[Google Gemini 3.8 Flash]
+        Backend <-->|Distance Matrix & Isochrones| GoogleMaps[Google Maps Platform]
+        Backend <-->|Live Rental Listings| ApifyDomain[Apify / Domain.com.au]
+    end
+```
 
-2. **Build and Deploy Containers:**
-   ```bash
-   ./scripts/build_and_deploy.sh YOUR_GCP_PROJECT_ID australia-southeast1
-   ```
+---
 
-### Cloud Environment Variables
-- `SQLITE_DB_PATH`: Path to SQLite database (defaults to `sydliving.db` locally, or `/data/sydliving.db` on Cloud Run).
-- `ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins for FastAPI.
-- `GEMINI_API_KEY`: API key for Google Gemini model inference (managed via Secret Manager in production).
-- `GOOGLE_MAPS_API_KEY`: API key for Google Distance Matrix and Places APIs.
-- `DOMAIN_API_KEY`: API key for Domain Australia real estate listings.
-- `VITE_API_URL`: Frontend base API endpoint (defaults to `/api` or custom backend URL).
+### 🧩 Core GCP Services & Implementation
 
-### Automated CI/CD via GitHub Actions
-SydLiving AI supports keyless automated deployments on push to `main` using **GitHub Actions** and **Workload Identity Federation (WIF)**.
-See the comprehensive guide: [docs/github_actions_gcp_guide.md](docs/github_actions_gcp_guide.md).
+| GCP Service | Role in SydLiving AI | Technical Details |
+|---|---|---|
+| **Firebase Hosting** | Global Edge CDN & SSL Termination | Provides HTTP/3, global edge caching, and custom domain SSL for `sydliving.com`. Rewrites `/api/**` directly to Cloud Run backend, completely eliminating cross-origin (CORS) overhead. |
+| **Cloud Run v2** | Serverless Container Compute | Runs `sydliving-backend` and `sydliving-frontend` with scale-to-zero autoscaling (0 to 10 instances) for minimal idle cost and rapid sub-second scale out under load. |
+| **Google Cloud Storage (GCS)** | Persistent Database Storage | Backs Cloud Run second-generation volume mount at `/data/sydliving.db`, ensuring SQLite property data, commute caches, and user shortlists survive container revisions and restarts. |
+| **Google Secret Manager** | Secure Runtime Secrets | Encrypts and injects API credentials (`GEMINI_API_KEY`, `GOOGLE_MAPS_API_KEY`, `DOMAIN_API_KEY`, `APIFY_API_TOKEN`) directly into the container runtime. Zero secrets are committed to git or baked into Docker layers. |
+| **Google Artifact Registry** | Container Registry | Secure Docker repository (`australia-southeast1-docker.pkg.dev/sydliving-ai/sydliving-repo`) storing immutable, commit-SHA-tagged container images. |
+| **Workload Identity Federation** | Keyless CI/CD Authentication | Allows GitHub Actions to securely assume GCP IAM service account roles via short-lived OIDC tokens without storing static service account JSON private keys. |
+| **Terraform (IaC)** | Declarative Infrastructure | Fully codified infrastructure under `terraform/` enabling reproducible provisioning of all GCP resources. |
+
+---
+
+### 🚀 Automated Deployment Pipeline
+
+Deployments to production are completely automated via GitHub Actions (`.github/workflows/deploy.yml`):
+
+1. **Trigger:** Push or PR merge to the `main` branch.
+2. **Keyless Authentication:** GitHub Actions exchanges an OpenID Connect (OIDC) JWT with Google Workload Identity Federation to assume the `sydliving-runner` Service Account.
+3. **Build & Push:**
+   - Multi-stage Docker builds for backend (`python:3.11-slim`) and frontend (`node:22-alpine` + `nginx:alpine-slim`).
+   - Pushes commit-SHA-tagged and `:latest` images to Artifact Registry.
+4. **Cloud Run Rolling Update:**
+   - Deploys container updates to `sydliving-backend` and `sydliving-frontend` with zero downtime.
+5. **Firebase Hosting CDN Refresh:**
+   - Syncs static frontend bundle and edge rewrites to Firebase Hosting CDN.
+
+For detailed step-by-step manual setup or infrastructure recreation, see:
+- [docs/gcp_deployment_guide.md](docs/gcp_deployment_guide.md) — Comprehensive Terraform IaC and manual deploy guide.
+- [docs/github_actions_gcp_guide.md](docs/github_actions_gcp_guide.md) — Workload Identity Federation and GitHub Actions setup.
 
 ---
 

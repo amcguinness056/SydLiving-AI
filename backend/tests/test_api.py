@@ -181,7 +181,8 @@ def test_user_profile_crud():
         "has_pets": True,
         "needs_parking": True,
         "lifestyle_vibes": ["Beach Lover", "Great Coffee & Cafes"],
-        "preferred_transit_modes": ["metro", "ferry"]
+        "preferred_transit_modes": ["metro", "ferry"],
+        "kai_verbosity": "concise"
     })
     assert update_res.status_code == 200
     updated = update_res.json()
@@ -193,6 +194,7 @@ def test_user_profile_crud():
     assert updated["needs_parking"] is True
     assert "Beach Lover" in updated["lifestyle_vibes"]
     assert "metro" in updated["preferred_transit_modes"]
+    assert updated["kai_verbosity"] == "concise"
 
 def test_property_feature_filters():
     """Verify filtering properties by pet-friendly, parking, and air-conditioning."""

@@ -84,6 +84,8 @@ def ensure_schema_migrations(conn: sqlite3.Connection):
                 conn.execute("ALTER TABLE users ADD COLUMN lifestyle_vibes TEXT DEFAULT '[]';")
             if "preferred_transit_modes" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN preferred_transit_modes TEXT DEFAULT '[]';")
+            if "kai_verbosity" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN kai_verbosity TEXT DEFAULT 'concise';")
     except Exception:
         pass
 

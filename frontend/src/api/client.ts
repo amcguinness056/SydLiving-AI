@@ -97,6 +97,7 @@ export interface User {
   needs_parking?: boolean;
   lifestyle_vibes?: string[];
   preferred_transit_modes?: string[];
+  kai_verbosity?: 'concise' | 'balanced' | 'detailed';
 }
 
 export interface UserProfileUpdate {
@@ -108,6 +109,7 @@ export interface UserProfileUpdate {
   needs_parking?: boolean;
   lifestyle_vibes?: string[];
   preferred_transit_modes?: string[];
+  kai_verbosity?: 'concise' | 'balanced' | 'detailed';
 }
 
 export interface ChatSession {

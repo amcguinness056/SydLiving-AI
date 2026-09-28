@@ -156,6 +156,8 @@ def format_user_dict(d: dict) -> dict:
         res["max_weekly_rent"] = 1000.0
     if res.get("min_bedrooms") is None:
         res["min_bedrooms"] = 1
+    if not res.get("kai_verbosity"):
+        res["kai_verbosity"] = "concise"
     return res
 
 @app.post("/api/auth/login")
@@ -246,6 +248,9 @@ def update_user_profile(
     if profile.preferred_transit_modes is not None:
         updates.append("preferred_transit_modes = ?")
         params.append(json.dumps(profile.preferred_transit_modes))
+    if profile.kai_verbosity is not None:
+        updates.append("kai_verbosity = ?")
+        params.append(profile.kai_verbosity)
 
     if updates:
         params.append(user_id)
@@ -560,7 +565,13 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
         cursor = db.cursor()
         now = datetime.now().isoformat()
         
+        user_profile = None
         if request.user_id:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+            u_row = cursor.fetchone()
+            if u_row:
+                user_profile = format_user_dict(u_row)
+
             if not session_id:
                 session_id = str(uuid.uuid4())
                 title = request.message[:30] + "..." if len(request.message) > 30 else request.message
@@ -578,7 +589,7 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
-        result = await agent.process_chat(request.message, request.history)
+        result = await agent.process_chat(request.message, request.history, user_profile=user_profile)
         
         if session_id:
             msg_id = str(uuid.uuid4())

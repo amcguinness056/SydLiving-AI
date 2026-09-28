@@ -1,7 +1,8 @@
 import React from "react";
-import { BedDouble, Bath, MapPin, Waves, Heart, Train, Clock, Car, ExternalLink, Camera } from "lucide-react";
-import { type Property } from "../api/client";
+import { BedDouble, Bath, MapPin, Waves, Heart, Train, Clock, Car, ExternalLink, Camera, Sparkles } from "lucide-react";
+import { type Property, type User } from "../api/client";
 import { cn } from "../lib/utils";
+import { computeKaiMatch } from "../lib/kaiMatch";
 
 interface PropertyCardProps {
   property: Property;
@@ -13,6 +14,7 @@ interface PropertyCardProps {
   onToggleFavorite?: (id: string) => void;
   onToggleSave?: (id: string, isSaved: boolean) => void;
   index?: number;
+  user?: User | null;
 }
 
 export const PropertyCard = React.memo(function PropertyCard({ 
@@ -24,9 +26,11 @@ export const PropertyCard = React.memo(function PropertyCard({
   isSaved,
   onToggleFavorite, 
   onToggleSave,
-  index = 0 
+  index = 0,
+  user
 }: PropertyCardProps) {
   const isHeartActive = isFavorite !== undefined ? isFavorite : isSaved;
+  const kaiMatch = React.useMemo(() => computeKaiMatch(property, user), [property, user]);
 
   const handleHeartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,16 +77,22 @@ export const PropertyCard = React.memo(function PropertyCard({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60 pointer-events-none" />
 
-        {/* Top Floating Badges: Inspection Time & Active Badge */}
+        {/* Top Floating Badges: Kai's Pick, Inspection Time & Image Count */}
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-          {property.inspection_time ? (
-            <span className="px-2 py-0.5 rounded-full bg-slate-900/85 backdrop-blur-md text-emerald-300 text-[10px] font-bold flex items-center gap-1 border border-white/20 shadow-xs">
-              <Clock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-              <span className="truncate max-w-[170px]">{property.inspection_time}</span>
-            </span>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-1.5 pointer-events-none">
+            {kaiMatch.isKaiPick && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-extrabold flex items-center gap-1 border border-blue-400/40 shadow-xs">
+                <Sparkles className="w-2.5 h-2.5 text-blue-200" />
+                <span>Kai's Pick</span>
+              </span>
+            )}
+            {property.inspection_time ? (
+              <span className="px-2 py-0.5 rounded-full bg-slate-900/85 backdrop-blur-md text-emerald-300 text-[10px] font-bold flex items-center gap-1 border border-white/20 shadow-xs">
+                <Clock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                <span className="truncate max-w-[140px]">{property.inspection_time}</span>
+              </span>
+            ) : null}
+          </div>
 
           {property.image_urls && property.image_urls.length > 1 ? (
             <span className="px-1.5 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-semibold flex items-center gap-1 border border-white/10 shadow-xs">
@@ -139,11 +149,26 @@ export const PropertyCard = React.memo(function PropertyCard({
 
       {/* Local Transit Badge if available */}
       {property.route_summary && (
-        <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 text-[11px] font-medium">
+        <div className="mb-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 text-[11px] font-medium">
           <Train className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
           <span className="truncate">{property.route_summary}</span>
         </div>
       )}
+
+      {/* Kai Living Match Insight */}
+      <div className="mb-2.5 px-2.5 py-1.5 rounded-xl bg-blue-50/60 dark:bg-slate-800/60 border border-blue-100/70 dark:border-slate-800 flex items-center justify-between gap-1.5 text-[11px]">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="px-1.5 py-0.2 rounded-md bg-blue-600 text-white font-extrabold text-[10px]">
+            {kaiMatch.score}%
+          </span>
+          <span className="font-bold text-slate-900 dark:text-slate-100 text-[11px]">
+            Kai Match
+          </span>
+        </div>
+        <span className="text-slate-600 dark:text-slate-300 text-[10.5px] truncate text-right font-medium">
+          {kaiMatch.reasons[0] || kaiMatch.verdict}
+        </span>
+      </div>
 
       {/* Metrics Row: Beds, Baths, Parking, Tags, Beach */}
       <div className="flex items-center justify-between text-slate-700 dark:text-slate-200 text-xs font-semibold mt-auto pt-2 border-t border-slate-200 dark:border-slate-800">

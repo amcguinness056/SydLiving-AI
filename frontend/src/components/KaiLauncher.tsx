@@ -11,11 +11,13 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
   const [showGreeting, setShowGreeting] = useState(false);
 
   useEffect(() => {
-    // Show greeting after 1.5s if not previously dismissed this session and chat is closed
-    const dismissed = sessionStorage.getItem('sydliving_kai_greeting_dismissed');
-    if (!dismissed && !isChatOpen) {
+    // Show greeting after 1.5s if not previously shown/dismissed across visits and chat is closed
+    const alreadyShown = localStorage.getItem('sydliving_kai_greeting_shown') || localStorage.getItem('sydliving_kai_greeting_dismissed');
+    if (!alreadyShown && !isChatOpen) {
       const timer = setTimeout(() => {
         setShowGreeting(true);
+        // Persist that the user has seen the greeting bubble once
+        localStorage.setItem('sydliving_kai_greeting_shown', 'true');
       }, 1500);
       return () => clearTimeout(timer);
     } else {
@@ -26,13 +28,15 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowGreeting(false);
-    sessionStorage.setItem('sydliving_kai_greeting_dismissed', 'true');
+    localStorage.setItem('sydliving_kai_greeting_shown', 'true');
+    localStorage.setItem('sydliving_kai_greeting_dismissed', 'true');
   };
 
   const handleChipClick = (e: React.MouseEvent, prompt: string) => {
     e.stopPropagation();
     setShowGreeting(false);
-    sessionStorage.setItem('sydliving_kai_greeting_dismissed', 'true');
+    localStorage.setItem('sydliving_kai_greeting_shown', 'true');
+    localStorage.setItem('sydliving_kai_greeting_dismissed', 'true');
     onAskKai(prompt);
   };
 

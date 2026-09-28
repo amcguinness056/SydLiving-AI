@@ -23,8 +23,8 @@ echo "🚀 Launching Playwright CLI session..."
 playwright-cli open "http://127.0.0.1:5173"
 playwright-cli resize 1440 900
 
-# Ensure dark mode is active
-playwright-cli eval "() => { localStorage.setItem('sydliving_theme', 'dark'); document.documentElement.classList.add('dark'); }"
+# Ensure dark mode is active and greeting bubble is fresh for screenshots
+playwright-cli eval "() => { localStorage.setItem('sydliving_theme', 'dark'); localStorage.removeItem('sydliving_kai_greeting_shown'); localStorage.removeItem('sydliving_kai_greeting_dismissed'); document.documentElement.classList.add('dark'); }"
 playwright-cli reload
 
 echo "📸 1/3 Capturing dark_mode_commute_map.png (Overview & Kai Concierge Capsule)..."
@@ -40,6 +40,7 @@ playwright-cli eval "() => new Promise(r => setTimeout(r, 1000))"
 playwright-cli screenshot --filename="$SCREENSHOTS_DIR/shortlist_compare_modal.png"
 
 echo "📸 3/3 Capturing kai_ai_concierge_chat.png (Live Multi-Agent Chat & Property Links)..."
+playwright-cli eval "() => { localStorage.removeItem('sydliving_kai_greeting_shown'); localStorage.removeItem('sydliving_kai_greeting_dismissed'); }"
 playwright-cli reload
 playwright-cli eval "() => new Promise(r => setTimeout(r, 2000))"
 playwright-cli click "button:has-text('Fast commute to Barangaroo')"

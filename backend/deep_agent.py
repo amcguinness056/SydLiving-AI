@@ -229,6 +229,43 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: 
         "Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs."
     )
 
+    verbosity = "concise"
+    if user_profile and user_profile.get("kai_verbosity"):
+        v = str(user_profile["kai_verbosity"]).lower().strip()
+        if v in ("concise", "balanced", "detailed"):
+            verbosity = v
+
+    if verbosity == "concise":
+        verbosity_instruction = (
+            "\n\nSTRICT LENGTH & CONCISENESS RULES (ACTIVE STYLE: CONCISE / PUNCHY - DEFAULT):\n"
+            "- BE SHARP, PUNCHY, AND SCANNABLE. The user wants fast, high-impact advice—NOT an essay, wall of text, or massive table.\n"
+            "- Hard limit: Keep your entire synthesized response under 150 words.\n"
+            "- NO long preamble, warmups, or repeated introductions. Get straight to the answer in your very first sentence.\n"
+            "- NO massive multi-row markdown comparison tables unless the user explicitly asks for a table. Use 2 to 3 bullet points with key numbers instead.\n"
+            "- Reply Structure:\n"
+            "  1. Direct Answer (1 sentence): Instant answer to their question (e.g. 'At $1,380/wk, this sits at an $180/wk premium over the Coogee 2BR median—you are paying for frontline ocean vistas and turnkey beach living.').\n"
+            "  2. 2-3 Scannable Bullets: Key numbers, rent benchmarks, or transit facts.\n"
+            "  3. 💡 Kai's Insider Tip: 1 punchy Sydney insider observation.\n"
+            "  4. 🎯 My Verdict: 1 decisive closing sentence."
+        )
+    elif verbosity == "balanced":
+        verbosity_instruction = (
+            "\n\nRESPONSE LENGTH & STRUCTURE RULES (ACTIVE STYLE: BALANCED):\n"
+            "- Keep the response focused, structured, and around 200-260 words.\n"
+            "- Direct answer upfront, followed by concise sections with bullet points or a brief comparison.\n"
+            "- Avoid rambling or duplicate narrative.\n"
+            "- Include 1 '💡 Kai's Insider Tip' and 1 '🎯 My Verdict'."
+        )
+    else:
+        verbosity_instruction = (
+            "\n\nRESPONSE LENGTH & STRUCTURE RULES (ACTIVE STYLE: DETAILED):\n"
+            "- Provide a comprehensive, in-depth evaluation (~350-450 words) with full market benchmark ranges, transit line comparisons, and neighborhood vibe nuances.\n"
+            "- Markdown tables are welcome when comparing multiple listings or pricing tiers.\n"
+            "- Include '💡 Kai's Insider Tip' and '🎯 My Verdict'."
+        )
+
+    system_prompt += verbosity_instruction
+
     if user_profile:
         profile_lines = ["\nUSER RELOCATION & LIFESTYLE PROFILE (SAVED PREFERENCES):"]
         if user_profile.get("username"):

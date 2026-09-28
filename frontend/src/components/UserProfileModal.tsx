@@ -52,6 +52,7 @@ export function UserProfileModal({
   const [needsParking, setNeedsParking] = useState(!!user.needs_parking);
   const [lifestyleVibes, setLifestyleVibes] = useState<string[]>(user.lifestyle_vibes || []);
   const [preferredTransit, setPreferredTransit] = useState<string[]>(user.preferred_transit_modes || []);
+  const [kaiVerbosity, setKaiVerbosity] = useState<'concise' | 'balanced' | 'detailed'>(user.kai_verbosity || 'concise');
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -86,7 +87,8 @@ export function UserProfileModal({
         has_pets: hasPets,
         needs_parking: needsParking,
         lifestyle_vibes: lifestyleVibes,
-        preferred_transit_modes: preferredTransit
+        preferred_transit_modes: preferredTransit,
+        kai_verbosity: kaiVerbosity
       };
 
       const updated = await api.updateProfile(user.id, updatePayload);
@@ -354,7 +356,7 @@ export function UserProfileModal({
                     onClick={() => toggleTransit(opt.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >
@@ -362,6 +364,80 @@ export function UserProfileModal({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Kai AI Concierge Response Style */}
+          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Kai Response Verbosity
+              </h3>
+              <span className="text-[10px] text-blue-700 dark:text-blue-300 font-semibold bg-blue-50 dark:bg-blue-950/70 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-900/50">
+                Personalized
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setKaiVerbosity('concise')}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                  kaiVerbosity === 'concise'
+                    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/50 shadow-xs'
+                    : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1">
+                    ⚡ Concise
+                  </span>
+                  {kaiVerbosity === 'concise' && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">
+                  Short, punchy verdicts under 150 words. Direct facts, no fluff.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKaiVerbosity('balanced')}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                  kaiVerbosity === 'balanced'
+                    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/50 shadow-xs'
+                    : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1">
+                    ⚖️ Balanced
+                  </span>
+                  {kaiVerbosity === 'balanced' && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">
+                  Focused highlights, commute breakdown, and top trade-offs.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKaiVerbosity('detailed')}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                  kaiVerbosity === 'detailed'
+                    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/50 shadow-xs'
+                    : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1">
+                    📖 Detailed
+                  </span>
+                  {kaiVerbosity === 'detailed' && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">
+                  In-depth market benchmarks, rental tiers, and full transit analysis.
+                </p>
+              </button>
             </div>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
+import { computeKaiMatch } from './lib/kaiMatch';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -39,7 +40,7 @@ function UserAvatar({ user, className = "w-6 h-6" }: { user: { username?: string
   
   if (imgError || !user.avatar_url) {
     return (
-      <div className={cn("rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-indigo-500 text-white font-black flex items-center justify-center text-[11px] shrink-0 shadow-xs border border-white/40 dark:border-slate-600 select-none", className)}>
+      <div className={cn("rounded-full bg-gradient-to-tr from-blue-700 via-blue-600 to-sky-500 text-white font-black flex items-center justify-center text-[11px] shrink-0 shadow-xs border border-white/40 dark:border-slate-600 select-none", className)}>
         {initial}
       </div>
     );
@@ -61,10 +62,12 @@ interface SearchFilterBarProps {
   petFriendly: boolean;
   needsParking: boolean;
   hasAirCon: boolean;
+  kaiPicksOnly: boolean;
   onSearch: (keyword: string, propertyType: string) => void;
   onTogglePetFriendly: () => void;
   onToggleNeedsParking: () => void;
   onToggleHasAirCon: () => void;
+  onToggleKaiPicks: () => void;
   onAskKai: (prompt: string) => void;
   onOpenProfile?: () => void;
 }
@@ -75,10 +78,12 @@ const SearchFilterBar = React.memo(function SearchFilterBar({
   petFriendly,
   needsParking,
   hasAirCon,
+  kaiPicksOnly,
   onSearch,
   onTogglePetFriendly,
   onToggleNeedsParking,
   onToggleHasAirCon,
+  onToggleKaiPicks,
   onAskKai,
   onOpenProfile
 }: SearchFilterBarProps) {
@@ -102,14 +107,14 @@ const SearchFilterBar = React.memo(function SearchFilterBar({
       <input 
         type="text"
         placeholder="Search listings & descriptions..."
-        className="w-full px-3 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+        className="w-full px-3 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
         value={localKeyword}
         onChange={e => setLocalKeyword(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && handleApply()}
       />
       <div className="flex gap-2">
         <select 
-          className="flex-1 px-2.5 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-700 dark:text-slate-200"
+          className="flex-1 px-2.5 py-1.5 bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-700 dark:text-slate-200"
           value={localType}
           onChange={e => {
             setLocalType(e.target.value);
@@ -133,6 +138,20 @@ const SearchFilterBar = React.memo(function SearchFilterBar({
 
       {/* Feature Toggles & Profile Shortcut */}
       <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+        <button
+          type="button"
+          onClick={onToggleKaiPicks}
+          className={cn(
+            "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer",
+            kaiPicksOnly
+              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+              : "bg-white/70 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400"
+          )}
+          title="Show Kai's top-matched Sydney homes (commute & lifestyle score)"
+        >
+          <Sparkles className={cn("w-3 h-3", kaiPicksOnly ? "text-white" : "text-blue-500")} />
+          <span>Kai's Picks</span>
+        </button>
         <button
           type="button"
           onClick={onTogglePetFriendly}
@@ -258,6 +277,7 @@ function App() {
   const [petFriendlyFilter, setPetFriendlyFilter] = useState(false);
   const [parkingFilter, setParkingFilter] = useState(false);
   const [airConFilter, setAirConFilter] = useState(false);
+  const [kaiPicksOnly, setKaiPicksOnly] = useState(false);
   const [spatialFilter, setSpatialFilter] = useState<{ circle?: string, polygon?: string } | null>(null);
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
@@ -740,17 +760,27 @@ function App() {
   }, [properties, savedPropertiesList]);
 
   const displayedProperties = useMemo<Property[]>(() => {
-    if (!showSavedOnly) return properties;
-    const shortIds = new Set(shortlistedIds);
-    const propertyMap: Record<string, Property> = {};
-    for (const p of savedPropertiesList) {
-      if (shortIds.has(p.id)) propertyMap[p.id] = p;
+    let list: Property[] = [];
+    if (!showSavedOnly) {
+      list = properties;
+    } else {
+      const shortIds = new Set(shortlistedIds);
+      const propertyMap: Record<string, Property> = {};
+      for (const p of savedPropertiesList) {
+        if (shortIds.has(p.id)) propertyMap[p.id] = p;
+      }
+      for (const p of properties) {
+        if (shortIds.has(p.id)) propertyMap[p.id] = p;
+      }
+      list = Object.values(propertyMap);
     }
-    for (const p of properties) {
-      if (shortIds.has(p.id)) propertyMap[p.id] = p;
+
+    if (kaiPicksOnly) {
+      list = list.filter(p => computeKaiMatch(p, user).isKaiPick);
     }
-    return Object.values(propertyMap);
-  }, [properties, showSavedOnly, savedPropertiesList, shortlistedIds]);
+
+    return list;
+  }, [properties, showSavedOnly, savedPropertiesList, shortlistedIds, kaiPicksOnly, user]);
 
   const activeModalProperty = useMemo<Property | null>(() => {
     if (modalPropertyId) {
@@ -765,14 +795,14 @@ function App() {
       {/* Top Header Bar */}
       <header className="h-13 sm:h-14 px-3 sm:px-5 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-2xl shadow-sm flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs shrink-0">
             <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div className="min-w-0 flex items-center">
             <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight shrink-0">
               SydLiving AI
             </span>
-            <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-100 dark:border-indigo-900/40 truncate">
+            <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate">
               Sydney Commute & Housing Intelligence
             </span>
           </div>
@@ -834,7 +864,7 @@ function App() {
             className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-all hover:scale-105 active:scale-95 shadow-xs shrink-0"
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode (Sydney Harbor by Night)"}
           >
-            {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />}
+            {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />}
           </button>
         </div>
       </header>
@@ -859,7 +889,7 @@ function App() {
                     onClick={() => setShowSavedOnly(false)}
                     className={cn(
                       "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors",
-                      !showSavedOnly ? "bg-indigo-600 text-white shadow-xs" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                      !showSavedOnly ? "bg-blue-600 text-white shadow-xs" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                     )}
                   >
                     All
@@ -868,7 +898,7 @@ function App() {
                     onClick={() => setShowSavedOnly(true)}
                     className={cn(
                       "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1",
-                      showSavedOnly ? "bg-indigo-600 text-white shadow-xs" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                      showSavedOnly ? "bg-blue-600 text-white shadow-xs" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                     )}
                   >
                     <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
@@ -884,10 +914,12 @@ function App() {
                 petFriendly={petFriendlyFilter}
                 needsParking={parkingFilter}
                 hasAirCon={airConFilter}
+                kaiPicksOnly={kaiPicksOnly}
                 onSearch={handleSearchFilter} 
                 onTogglePetFriendly={handleTogglePetFriendly}
                 onToggleNeedsParking={handleToggleParking}
                 onToggleHasAirCon={handleToggleAirCon}
+                onToggleKaiPicks={() => setKaiPicksOnly(v => !v)}
                 onAskKai={handleAskAgent}
                 onOpenProfile={() => {
                   if (user) {
@@ -899,14 +931,14 @@ function App() {
               />
 
               {activeFilters && (
-                <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
-                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <div className="px-4 py-2 bg-blue-50/90 dark:bg-blue-950/40 border-b border-blue-100/80 dark:border-blue-900/50 flex items-center justify-between shrink-0">
+                  <span className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span>Filter Active</span>
                   </span>
                   <button 
                     onClick={handleResetFilters}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
+                    className="text-[11px] font-bold text-blue-600 dark:text-blue-300 hover:text-blue-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
                   >
                     Reset
                   </button>
@@ -928,6 +960,7 @@ function App() {
                     <PropertyCard 
                       key={p.id}
                       property={p} 
+                      user={user}
                       index={idx}
                       isActive={selectedId === p.id}
                       isFavorite={shortlistedIds.includes(p.id)}
@@ -1027,7 +1060,7 @@ function App() {
                 className={cn(
                   "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer",
                   mobileTab === 'list' 
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/25 scale-100" 
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-100" 
                     : "text-white/80 hover:text-white"
                 )}
               >
@@ -1041,7 +1074,7 @@ function App() {
                 className={cn(
                   "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer",
                   mobileTab === 'map' 
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/25 scale-100" 
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-100" 
                     : "text-white/80 hover:text-white"
                 )}
               >
@@ -1078,13 +1111,13 @@ function App() {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setShowSavedOnly(false)}
-                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors", !showSavedOnly ? "bg-blue-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
                   >
                     All Properties
                   </button>
                   <button 
                     onClick={() => setShowSavedOnly(true)}
-                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-indigo-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
+                    className={cn("flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1", showSavedOnly ? "bg-blue-600 text-white shadow-sm" : "bg-white/50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700")}
                   >
                     <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Saved ({savedPropertiesList.length || shortlistedIds.length})
                   </button>
@@ -1098,10 +1131,12 @@ function App() {
                 petFriendly={petFriendlyFilter}
                 needsParking={parkingFilter}
                 hasAirCon={airConFilter}
+                kaiPicksOnly={kaiPicksOnly}
                 onSearch={handleSearchFilter} 
                 onTogglePetFriendly={handleTogglePetFriendly}
                 onToggleNeedsParking={handleToggleParking}
                 onToggleHasAirCon={handleToggleAirCon}
+                onToggleKaiPicks={() => setKaiPicksOnly(v => !v)}
                 onAskKai={handleAskAgent} 
                 onOpenProfile={() => {
                   if (user) {
@@ -1113,14 +1148,14 @@ function App() {
               />
 
               {activeFilters && (
-                <div className="px-4 py-2 bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/50 flex items-center justify-between shrink-0">
-                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <div className="px-4 py-2 bg-blue-50/90 dark:bg-blue-950/40 border-b border-blue-100/80 dark:border-blue-900/50 flex items-center justify-between shrink-0">
+                  <span className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span>Filter Active</span>
                   </span>
                   <button 
                     onClick={handleResetFilters}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
+                    className="text-[11px] font-bold text-blue-600 dark:text-blue-300 hover:text-blue-700 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
                   >
                     Reset
                   </button>
@@ -1141,6 +1176,7 @@ function App() {
                     <PropertyCard 
                       key={p.id}
                       property={p} 
+                      user={user}
                       index={idx}
                       isActive={selectedId === p.id}
                       isFavorite={shortlistedIds.includes(p.id)}
@@ -1160,7 +1196,7 @@ function App() {
             </div>
           </Panel>
 
-          <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+          <PanelResizeHandle className="w-1.5 bg-slate-300/40 dark:bg-slate-700/40 hover:bg-blue-500/30 transition-colors cursor-col-resize active:bg-blue-500/50 relative z-50" />
           
           {/* Center Panel: Map Canvas */}
           <Panel className="bg-slate-200 dark:bg-slate-950 min-w-0">
@@ -1194,7 +1230,7 @@ function App() {
 
           {/* Right Panel: Property Details */}
           {modalPropertyId && activeModalProperty && (
-            <PanelResizeHandle className="w-1.5 bg-indigo-900/5 dark:bg-indigo-400/10 hover:bg-indigo-500/30 transition-colors cursor-col-resize active:bg-indigo-500/50 relative z-50" />
+            <PanelResizeHandle className="w-1.5 bg-slate-300/40 dark:bg-slate-700/40 hover:bg-blue-500/30 transition-colors cursor-col-resize active:bg-blue-500/50 relative z-50" />
           )}
           {modalPropertyId && activeModalProperty && (
             <Panel defaultSize="24" minSize="20" maxSize="38" className="bg-white dark:bg-slate-900">
@@ -1202,6 +1238,8 @@ function App() {
                 <ErrorBoundary>
                   <PropertyPanel 
                     property={activeModalProperty} 
+                    user={user}
+                    selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
                     onClose={() => {
                       setModalPropertyId(null);
                       setSelectedProperty(null);
@@ -1241,6 +1279,8 @@ function App() {
             <ErrorBoundary>
               <PropertyPanel 
                 property={activeModalProperty} 
+                user={user}
+                selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
                 onClose={() => {
                   setMaximizedPanel(null);
                   setModalPropertyId(null);
@@ -1263,6 +1303,8 @@ function App() {
           <ErrorBoundary>
             <PropertyPanel 
               property={activeModalProperty} 
+              user={user}
+              selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
               onClose={() => {
                 setModalPropertyId(null);
                 setSelectedProperty(null);

@@ -103,6 +103,7 @@ class User(BaseModel):
     needs_parking: Optional[bool] = False
     lifestyle_vibes: Optional[List[str]] = []
     preferred_transit_modes: Optional[List[str]] = []
+    kai_verbosity: Optional[str] = "concise"
 
 class UserProfileUpdate(BaseModel):
     workplace_hub: Optional[str] = None
@@ -113,6 +114,7 @@ class UserProfileUpdate(BaseModel):
     needs_parking: Optional[bool] = None
     lifestyle_vibes: Optional[List[str]] = None
     preferred_transit_modes: Optional[List[str]] = None
+    kai_verbosity: Optional[str] = None
 
 class ListingSyncResponse(BaseModel):
     synced_count: int

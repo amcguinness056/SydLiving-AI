@@ -45,6 +45,14 @@ export interface Property {
   inspection_time?: string;
   is_real_listing?: boolean;
   external_url?: string;
+  image_urls?: string[];
+  features_list?: string[];
+  agency_name?: string;
+  agency_logo?: string;
+  agent_name?: string;
+  agent_photo?: string;
+  agent_phone?: string;
+  property_type?: string;
   commute_duration_minutes?: number | null;
   transit_mode?: string | null;
   transfers?: number | null;

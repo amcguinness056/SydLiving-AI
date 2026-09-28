@@ -48,6 +48,22 @@ def ensure_schema_migrations(conn: sqlite3.Connection):
                 conn.execute("ALTER TABLE properties ADD COLUMN is_real_listing INTEGER DEFAULT 1;")
             if "external_url" not in prop_cols:
                 conn.execute("ALTER TABLE properties ADD COLUMN external_url TEXT DEFAULT '';")
+            if "image_urls" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN image_urls TEXT DEFAULT '[]';")
+            if "features_list" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN features_list TEXT DEFAULT '[]';")
+            if "agency_name" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN agency_name TEXT DEFAULT '';")
+            if "agency_logo" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN agency_logo TEXT DEFAULT '';")
+            if "agent_name" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN agent_name TEXT DEFAULT '';")
+            if "agent_photo" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN agent_photo TEXT DEFAULT '';")
+            if "agent_phone" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN agent_phone TEXT DEFAULT '';")
+            if "property_type" not in prop_cols:
+                conn.execute("ALTER TABLE properties ADD COLUMN property_type TEXT DEFAULT 'Apartment';")
 
         # Users migrations
         user_cols = {row[1] for row in conn.execute("PRAGMA table_info(users);").fetchall()}

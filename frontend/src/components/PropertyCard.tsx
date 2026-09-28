@@ -1,5 +1,5 @@
 import React from "react";
-import { BedDouble, Bath, MapPin, Waves, Heart, Train, Clock, Car, ExternalLink } from "lucide-react";
+import { BedDouble, Bath, MapPin, Waves, Heart, Train, Clock, Car, ExternalLink, Camera } from "lucide-react";
 import { type Property } from "../api/client";
 import { cn } from "../lib/utils";
 
@@ -84,10 +84,13 @@ export const PropertyCard = React.memo(function PropertyCard({
             <span />
           )}
 
-          {property.is_real_listing && (
-            <span className="px-1.5 py-0.5 rounded-md bg-emerald-600/90 backdrop-blur-xs text-white text-[9px] font-black uppercase tracking-wider shadow-xs">
-              Live
+          {property.image_urls && property.image_urls.length > 1 ? (
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-semibold flex items-center gap-1 border border-white/10 shadow-xs">
+              <Camera className="w-2.5 h-2.5 text-slate-300" />
+              <span>{property.image_urls.length}</span>
             </span>
+          ) : (
+            <span />
           )}
         </div>
       </div>

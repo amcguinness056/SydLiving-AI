@@ -31,6 +31,14 @@ class PropertyBase(BaseModel):
     inspection_time: str = ""
     is_real_listing: bool = True
     external_url: str = ""
+    image_urls: List[str] = []
+    features_list: List[str] = []
+    agency_name: Optional[str] = ""
+    agency_logo: Optional[str] = ""
+    agent_name: Optional[str] = ""
+    agent_photo: Optional[str] = ""
+    agent_phone: Optional[str] = ""
+    property_type: Optional[str] = "Apartment"
     # Enriched commute attributes when destination hub filter is active
     commute_duration_minutes: Optional[int] = None
     transit_mode: Optional[str] = None

@@ -268,6 +268,29 @@ def trigger_listing_sync(
     result = sync_active_listings(db=db, only_real=only_real)
     return ListingSyncResponse(**result)
 
+def format_property_dict(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    if isinstance(d.get("image_urls"), str):
+        try:
+            d["image_urls"] = json.loads(d["image_urls"])
+        except Exception:
+            d["image_urls"] = [d["photo_url"]] if d.get("photo_url") else []
+    elif not d.get("image_urls"):
+        d["image_urls"] = [d["photo_url"]] if d.get("photo_url") else []
+
+    if isinstance(d.get("features_list"), str):
+        try:
+            d["features_list"] = json.loads(d["features_list"])
+        except Exception:
+            d["features_list"] = []
+    elif not d.get("features_list"):
+        d["features_list"] = []
+
+    d["pet_friendly"] = bool(d.get("pet_friendly", 0))
+    d["has_air_con"] = bool(d.get("has_air_con", 0))
+    d["is_real_listing"] = bool(d.get("is_real_listing", 1))
+    return d
+
 @app.get("/api/properties", response_model=PropertySearchResponse)
 def search_properties(
     suburbs: Optional[List[str]] = Query(None, description="List of suburbs to filter by"),
@@ -339,7 +362,7 @@ def search_properties(
     cursor = db.cursor()
     cursor.execute(query, params)
     rows = cursor.fetchall()
-    results = [Property(**dict(row)) for row in rows]
+    results = [Property(**format_property_dict(row)) for row in rows]
     
     if circle:
         try:
@@ -404,7 +427,7 @@ def sync_saved_properties(
         WHERE sp.user_id = ?
     ''', (user_id,))
     rows = cursor.fetchall()
-    return [Property(**dict(row)) for row in rows]
+    return [Property(**format_property_dict(row)) for row in rows]
 
 @app.get("/api/properties/saved")
 def get_saved_properties(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
@@ -417,7 +440,7 @@ def get_saved_properties(user_id: str = Depends(get_current_user), db: sqlite3.C
         WHERE sp.user_id = ?
     ''', (user_id,))
     rows = cursor.fetchall()
-    return [Property(**dict(row)) for row in rows]
+    return [Property(**format_property_dict(row)) for row in rows]
 
 @app.post("/api/properties/saved/{property_id}")
 def save_property(property_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
@@ -469,7 +492,7 @@ def get_property_by_id(
     if not row:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    return dict(row)
+    return Property(**format_property_dict(row))
 
 @app.get("/api/commute", response_model=CommuteResponse)
 def get_commute(

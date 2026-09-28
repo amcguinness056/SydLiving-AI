@@ -13,12 +13,13 @@ env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
-from database import DB_PATH, get_db_connection
+from database import DB_PATH, get_db_connection, init_db_performance
 
 # Known Apify datasets containing real Sydney live rentals
 CACHED_APIFY_DATASETS = [
-    "bMcp3y4nZsHt5raIc",  # 25 live rentals
-    "Ww8hZ8OXqs7TmKGPg"   # 5 live rentals
+    "olExbDvE3wsf5n7BF",  # Eastern Suburbs rentals (Coogee, Randwick, Maroubra, Bondi Junction, Paddington, Double Bay, Bronte, etc.)
+    "bMcp3y4nZsHt5raIc",  # Surry Hills, Bondi Beach, Manly, Newtown, Chatswood, Parramatta
+    "Ww8hZ8OXqs7TmKGPg"   # Additional Sydney rentals
 ]
 
 def generate_upcoming_inspections() -> List[str]:
@@ -91,17 +92,33 @@ def ingest_apify_items(items: list, cursor: sqlite3.Cursor) -> int:
         
         beach_dist = suburb_beach_dist.get(suburb, 4.8)
         
-        # High-resolution real photo from Domain
+        # High-resolution real photos from Domain
         media = item.get("media", {})
-        photo_url = media.get("main_image_url") or (media.get("image_urls", [None])[0] if media.get("image_urls") else "")
+        image_urls = media.get("image_urls") or []
+        photo_url = media.get("main_image_url") or (image_urls[0] if image_urls else "")
         if not photo_url:
             photo_url = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&auto=format&fit=crop&q=80"
+        if photo_url and photo_url not in image_urls:
+            image_urls.insert(0, photo_url)
+        image_urls_json = json.dumps(image_urls)
             
-        # Features detection
+        # Features and amenities detection
         structured_features = prop.get("structured_features", [])
-        feature_names = [f.get("name", "").lower() for f in structured_features]
-        has_air_con = 1 if any("air conditioning" in f or "cooling" in f or "climate" in f for f in feature_names) else 0
-        pet_friendly = 1 if any("pet" in f for f in feature_names) else 0
+        features_list = [f.get("name") for f in structured_features if f.get("name")]
+        features_list_json = json.dumps(features_list)
+        feature_names_lower = [f.lower() for f in features_list]
+        has_air_con = 1 if any("air conditioning" in f or "cooling" in f or "climate" in f for f in feature_names_lower) else 0
+        pet_friendly = 1 if any("pet" in f for f in feature_names_lower) else 0
+
+        # Agency and agent details
+        contact_details = item.get("contact_details", {}) or {}
+        agency = contact_details.get("agency", {}) or {}
+        agency_name = agency.get("name") or ""
+        agency_logo = agency.get("logo_url") or ""
+        agents = contact_details.get("agents", []) or []
+        agent_name = contact_details.get("agent_names") or (agents[0].get("name") if agents else "")
+        agent_photo = agents[0].get("photo") if agents and agents[0].get("photo") else ""
+        agent_phone = agency.get("phone") or ""
         
         prop_type = prop.get("primary_property_type") or prop.get("property_type") or "Apartment"
         headline = item.get("listing", {}).get("headline")
@@ -110,7 +127,7 @@ def ingest_apify_items(items: list, cursor: sqlite3.Cursor) -> int:
             headline = f"Modern {bedrooms}BR {prop_type}" if bedrooms > 0 else f"Studio {prop_type}"
         title = f"{headline} - {street_short}"
         
-        description = f"Live Domain rental listing on {street_short} in {suburb}. {bedrooms} bed, {bathrooms} bath {prop_type.lower()}."
+        description = f"Well-appointed {bedrooms} bed, {bathrooms} bath {prop_type.lower()} positioned on {street_short} in {suburb}."
         inspection_time = inspection_slots[(idx + hash(suburb)) % len(inspection_slots)]
         external_url = f"https://www.domain.com.au/{listing_id}"
         available_date = datetime.now().strftime("%Y-%m-%d")
@@ -119,9 +136,10 @@ def ingest_apify_items(items: list, cursor: sqlite3.Cursor) -> int:
             INSERT INTO properties (
                 id, title, suburb, bedrooms, bathrooms, weekly_rent, address, latitude, longitude,
                 distance_to_beach_km, available_date, description, photo_url,
-                parking_spaces, pet_friendly, has_air_con, inspection_time, is_real_listing, external_url
+                parking_spaces, pet_friendly, has_air_con, inspection_time, is_real_listing, external_url,
+                image_urls, features_list, agency_name, agency_logo, agent_name, agent_photo, agent_phone, property_type
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title=excluded.title,
                 suburb=excluded.suburb,
@@ -137,11 +155,20 @@ def ingest_apify_items(items: list, cursor: sqlite3.Cursor) -> int:
                 has_air_con=excluded.has_air_con,
                 inspection_time=excluded.inspection_time,
                 is_real_listing=1,
-                external_url=excluded.external_url
+                external_url=excluded.external_url,
+                image_urls=excluded.image_urls,
+                features_list=excluded.features_list,
+                agency_name=excluded.agency_name,
+                agency_logo=excluded.agency_logo,
+                agent_name=excluded.agent_name,
+                agent_photo=excluded.agent_photo,
+                agent_phone=excluded.agent_phone,
+                property_type=excluded.property_type
         """, (
             listing_id, title, suburb, bedrooms, bathrooms, weekly_rent, full_address, lat, lon,
             beach_dist, available_date, description, photo_url, parking_spaces, pet_friendly,
-            has_air_con, inspection_time, 1, external_url
+            has_air_con, inspection_time, 1, external_url,
+            image_urls_json, features_list_json, agency_name, agency_logo, agent_name, agent_photo, agent_phone, prop_type
         ))
         count += 1
         
@@ -159,6 +186,7 @@ def sync_active_listings(db: sqlite3.Connection = None, only_real: bool = True) 
         db.row_factory = sqlite3.Row
         close_db_when_done = True
 
+    init_db_performance(db)
     cursor = db.cursor()
     apify_token = os.environ.get("APIFY_API_TOKEN")
     domain_key = os.environ.get("DOMAIN_API_KEY")

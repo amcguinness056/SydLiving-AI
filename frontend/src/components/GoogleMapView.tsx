@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   APIProvider,
   Map as GMap,
@@ -6,11 +6,15 @@ import {
   InfoWindow,
   useMap
 } from '@vis.gl/react-google-maps';
-import { type Property } from '../api/client';
-import { Maximize, Minimize, Train, Trash2, Key, ExternalLink } from 'lucide-react';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
+import { type Property, type User } from '../api/client';
+import { Maximize, Minimize, Train, Trash2, Key, ExternalLink, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { computeKaiMatch } from '../lib/kaiMatch';
 
-interface GoogleMapViewProps {
+export type MarkerMode = 'price' | 'score' | 'dots';
+
+export interface GoogleMapViewProps {
   properties: Property[];
   selectedPropertyId?: string | null;
   onSelectProperty?: (id: string) => void;
@@ -22,6 +26,7 @@ interface GoogleMapViewProps {
   workplace?: { lat: number; lng: number } | null;
   isSettingWorkplace?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
+  user?: User | null;
 }
 
 // Controls camera transitions for selected properties and bound adjustments
@@ -159,6 +164,269 @@ function CircleSpatialFilter({
   return null;
 }
 
+// Custom Marker DOM element factory
+function createMarkerContent(
+  property: Property,
+  markerMode: MarkerMode,
+  isActive: boolean,
+  matchScore: number,
+  isDarkMode: boolean
+): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'sydliving-marker-wrapper cursor-pointer select-none';
+
+  if (isActive) {
+    el.innerHTML = `
+      <div style="
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        background: #f43f5e;
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 12px;
+        box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.6);
+        outline: 3px solid rgba(254, 205, 211, 0.95);
+        transform: scale(1.12);
+        z-index: 9999;
+      ">
+        <span>$${property.weekly_rent}</span>
+        <span style="font-size: 10px; opacity: 0.9; background: rgba(0,0,0,0.25); padding: 1px 4px; border-radius: 9999px;">${matchScore}%</span>
+      </div>
+    `;
+    return el;
+  }
+
+  if (markerMode === 'dots') {
+    let dotColor = '#64748b';
+    let ringColor = 'rgba(148, 163, 184, 0.4)';
+    if (matchScore >= 90) {
+      dotColor = '#10b981';
+      ringColor = 'rgba(16, 185, 129, 0.45)';
+    } else if (matchScore >= 75) {
+      dotColor = '#3b82f6';
+      ringColor = 'rgba(59, 130, 246, 0.45)';
+    }
+
+    el.innerHTML = `
+      <div style="
+        width: 14px;
+        height: 14px;
+        border-radius: 9999px;
+        background: ${dotColor};
+        box-shadow: 0 0 0 3px ${ringColor}, 0 2px 4px rgba(0,0,0,0.3);
+        transition: transform 0.15s ease;
+      "></div>
+    `;
+    return el;
+  }
+
+  if (markerMode === 'score') {
+    let bg = '#334155';
+    let ring = 'rgba(148, 163, 184, 0.3)';
+    if (matchScore >= 90) {
+      bg = '#059669';
+      ring = 'rgba(16, 185, 129, 0.45)';
+    } else if (matchScore >= 75) {
+      bg = '#2563eb';
+      ring = 'rgba(59, 130, 246, 0.45)';
+    }
+
+    el.innerHTML = `
+      <div style="
+        padding: 3px 8px;
+        border-radius: 9999px;
+        background: ${bg};
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 11px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        outline: 2px solid ${ring};
+        transition: transform 0.15s ease;
+      ">
+        <span>${matchScore}%</span>
+      </div>
+    `;
+    return el;
+  }
+
+  // Price mode (default): compact pill with halo ring indicating Kai Match score
+  let ringStyle = 'outline: 1.5px solid rgba(100, 116, 139, 0.4);';
+  if (matchScore >= 90) {
+    ringStyle = 'outline: 2.5px solid #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);';
+  } else if (matchScore >= 75) {
+    ringStyle = 'outline: 2px solid #3b82f6; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);';
+  }
+
+  const bg = isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.92)';
+
+  el.innerHTML = `
+    <div style="
+      padding: 3px 9px;
+      border-radius: 9999px;
+      background: ${bg};
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: -0.01em;
+      ${ringStyle}
+      backdrop-filter: blur(4px);
+      transition: transform 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    ">
+      <span>$${property.weekly_rent}</span>
+    </div>
+  `;
+  return el;
+}
+
+// Cluster renderer for clean grouping of Sydney property pins
+class SydneyClusterRenderer {
+  render(cluster: any, _stats: any, _map: google.maps.Map): google.maps.marker.AdvancedMarkerElement {
+    const count = cluster.count;
+    const countLabel = count > 99 ? '99+' : `${count}`;
+    const el = document.createElement('div');
+    el.className = 'sydliving-cluster-badge cursor-pointer transform transition-transform duration-200 hover:scale-110 active:scale-95';
+
+    const size = count > 50 ? 46 : count > 15 ? 40 : 34;
+    const fontSize = count > 50 ? 13 : 11;
+
+    el.innerHTML = `
+      <div style="
+        width: ${size}px;
+        height: ${size}px;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: white;
+        font-weight: 800;
+        font-size: ${fontSize}px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 16px -2px rgba(37, 99, 235, 0.45);
+        outline: 3px solid rgba(255, 255, 255, 0.85);
+        user-select: none;
+      ">
+        ${countLabel}
+      </div>
+    `;
+
+    return new google.maps.marker.AdvancedMarkerElement({
+      position: cluster.position,
+      content: el,
+      zIndex: 1000 + count,
+      title: `${count} properties in this area. Click to zoom.`
+    });
+  }
+}
+
+// Clustered Property Markers Component
+function ClusteredPropertyMarkers({
+  properties,
+  selectedPropertyId,
+  onSelectProperty,
+  setHoveredProperty,
+  markerMode,
+  isDarkMode,
+  user
+}: {
+  properties: Property[];
+  selectedPropertyId?: string | null;
+  onSelectProperty?: (id: string) => void;
+  setHoveredProperty: (property: Property | null) => void;
+  markerMode: MarkerMode;
+  isDarkMode: boolean;
+  user?: User | null;
+}) {
+  const map = useMap();
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+
+  useEffect(() => {
+    if (!map) return;
+
+    const clusterer = new MarkerClusterer({
+      map,
+      renderer: new SydneyClusterRenderer(),
+      onClusterClick: (_event, cluster, targetMap) => {
+        if (cluster.bounds) {
+          targetMap.fitBounds(cluster.bounds, { top: 70, right: 70, bottom: 70, left: 70 });
+        }
+      }
+    });
+
+    clustererRef.current = clusterer;
+
+    return () => {
+      clusterer.clearMarkers();
+      clusterer.setMap(null);
+      clustererRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const clusterer = clustererRef.current;
+    if (!clusterer || !map) return;
+
+    clusterer.clearMarkers();
+
+    const markers: google.maps.marker.AdvancedMarkerElement[] = properties.map(property => {
+      const isActive = selectedPropertyId === property.id;
+      const match = computeKaiMatch(property, user);
+      const content = createMarkerContent(property, markerMode, isActive, match.score, isDarkMode);
+
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: property.latitude, lng: property.longitude },
+        title: property.title,
+        content,
+        zIndex: isActive ? 9999 : 100
+      });
+
+      let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+
+      marker.addListener('gmp-click', () => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        setHoveredProperty(null);
+        onSelectProperty?.(property.id);
+      });
+
+      content.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        setHoveredProperty(null);
+        onSelectProperty?.(property.id);
+      });
+
+      content.addEventListener('mouseenter', () => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+          setHoveredProperty(property);
+        }, 60);
+      });
+
+      content.addEventListener('mouseleave', () => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        setHoveredProperty(null);
+      });
+
+      return marker;
+    });
+
+    clusterer.addMarkers(markers);
+
+    return () => {
+      if (clustererRef.current) {
+        clustererRef.current.clearMarkers();
+      }
+    };
+  }, [map, properties, markerMode, selectedPropertyId, user, isDarkMode, onSelectProperty, setHoveredProperty]);
+
+  return null;
+}
+
 export function GoogleMapView({
   properties,
   selectedPropertyId,
@@ -169,19 +437,16 @@ export function GoogleMapView({
   onDrawCreated,
   onDrawDeleted,
   workplace,
-  onMapClick
+  onMapClick,
+  user
 }: GoogleMapViewProps) {
   const apiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '';
   const [showTransit, setShowTransit] = useState(false);
+  const [markerMode, setMarkerMode] = useState<MarkerMode>('price');
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
   const [hasSpatialFilter, setHasSpatialFilter] = useState(false);
   const [isPlacingCircle, setIsPlacingCircle] = useState(false);
   const activeCircleRef = useRef<google.maps.Circle | null>(null);
-
-  const selectedProperty = useMemo(
-    () => properties.find(p => p.id === selectedPropertyId) || null,
-    [properties, selectedPropertyId]
-  );
 
   const handleClearDrawing = useCallback(() => {
     if (activeCircleRef.current) {
@@ -197,7 +462,6 @@ export function GoogleMapView({
   if (!apiKey) {
     return (
       <div className="relative w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-8 overflow-hidden">
-        {/* Subtle Sydney grid background */}
         <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px]" />
 
         <div className="relative z-10 max-w-lg w-full bg-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md text-center">
@@ -262,6 +526,7 @@ export function GoogleMapView({
           zoomControl={true}
           className="w-full h-full"
           onClick={(e) => {
+            setHoveredProperty(null);
             if (e.detail.latLng && onMapClick) {
               onMapClick(e.detail.latLng.lat, e.detail.latLng.lng);
             }
@@ -299,72 +564,72 @@ export function GoogleMapView({
             </AdvancedMarker>
           )}
 
-          {/* Property Markers */}
-          {properties.map(property => {
-            const isActive = selectedPropertyId === property.id;
-            return (
-              <AdvancedMarker
-                key={property.id}
-                position={{ lat: property.latitude, lng: property.longitude }}
-                title={property.title}
-                onClick={() => {
-                  onSelectProperty?.(property.id);
-                  setHoveredProperty(property);
-                }}
-              >
-                <div
-                  className={cn(
-                    "relative flex items-center justify-center px-3 py-1.5 rounded-full font-bold text-xs shadow-md transition-all duration-200 cursor-pointer select-none",
-                    isActive
-                      ? "bg-rose-500 text-white scale-110 z-50 ring-4 ring-rose-300 dark:ring-rose-900 shadow-rose-500/40 animate-marker-pulse"
-                      : isDarkMode
-                        ? "bg-slate-900 text-white hover:bg-blue-600 hover:text-white hover:scale-105 border border-slate-700/90"
-                        : "bg-slate-900 text-white hover:bg-blue-600 hover:text-white hover:scale-105 border border-slate-800"
-                  )}
-                >
-                  <span>${property.weekly_rent}</span>
-                  <div
-                    className={cn(
-                      "absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45",
-                      isActive ? "bg-rose-500" : "bg-slate-900"
-                    )}
-                  />
-                </div>
-              </AdvancedMarker>
-            );
-          })}
+          {/* Clustered Property Markers with Dynamic Styles */}
+          <ClusteredPropertyMarkers
+            properties={properties}
+            selectedPropertyId={selectedPropertyId}
+            onSelectProperty={onSelectProperty}
+            setHoveredProperty={setHoveredProperty}
+            markerMode={markerMode}
+            isDarkMode={isDarkMode}
+            user={user}
+          />
 
-          {/* InfoWindow for selected or hovered property */}
-          {(selectedProperty || hoveredProperty) && (
+          {/* Sleek Micro-Card Tooltip on Marker Hover (Suppressed when full detail drawer is open) */}
+          {hoveredProperty && !selectedPropertyId && (
             <InfoWindow
               position={{
-                lat: (selectedProperty || hoveredProperty)!.latitude,
-                lng: (selectedProperty || hoveredProperty)!.longitude
+                lat: hoveredProperty.latitude,
+                lng: hoveredProperty.longitude
               }}
               onCloseClick={() => setHoveredProperty(null)}
-              pixelOffset={[0, -32]}
+              pixelOffset={[0, -22]}
+              disableAutoPan={true}
+              headerDisabled={true}
             >
               {(() => {
-                const p = (selectedProperty || hoveredProperty)!;
+                const p = hoveredProperty;
+                const match = computeKaiMatch(p, user);
                 return (
-                  <div className="p-1 max-w-[240px] font-sans text-slate-900 dark:text-white">
-                    <img
-                      src={p.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"}
-                      alt={p.title}
-                      className="w-full h-24 object-cover rounded-xl mb-2.5 shadow-sm"
-                      loading="lazy"
-                    />
-                    <div className="font-extrabold text-xs leading-snug line-clamp-1 text-slate-900 dark:text-white">{p.title}</div>
-                    <div className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 font-medium">
-                      {p.suburb} • {p.distance_to_beach_km.toFixed(1)} km to beach
+                  <div className="p-1 max-w-[230px] font-sans text-slate-900 dark:text-white select-none pointer-events-none">
+                    <div className="relative rounded-xl overflow-hidden mb-2 shadow-xs">
+                      <img
+                        src={p.photo_url || "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80"}
+                        alt={p.title}
+                        className="w-full h-24 object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute top-1.5 right-1.5 bg-slate-950/85 text-white px-2 py-0.5 rounded-full font-black text-[11px] shadow-sm backdrop-blur-xs">
+                        ${p.weekly_rent}<span className="text-[9px] font-normal text-slate-300">/wk</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <span className="text-blue-600 dark:text-blue-400 font-extrabold text-xs">
-                        ${p.weekly_rent}/wk
+
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={cn(
+                        "text-[10px] font-extrabold px-1.5 py-0.5 rounded-full flex items-center gap-1",
+                        match.score >= 90
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                          : match.score >= 75
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                            : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      )}>
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>{match.score}% Kai Match</span>
                       </span>
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold">
-                        {p.bedrooms} Bed • {p.bathrooms} Bath
+                    </div>
+
+                    <div className="font-bold text-xs leading-snug line-clamp-1 text-slate-900 dark:text-white mb-0.5">
+                      {p.title}
+                    </div>
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                      {p.suburb} • {p.bedrooms} Bed • {p.bathrooms} Bath
+                    </div>
+
+                    <div className="mt-1.5 pt-1 border-t border-slate-200 dark:border-slate-800 text-[10px] text-blue-600 dark:text-blue-400 font-semibold flex items-center justify-between">
+                      <span>
+                        {p.commute_duration_minutes ? `${p.commute_duration_minutes}m to hub` : `${p.distance_to_beach_km.toFixed(1)}km to beach`}
                       </span>
+                      <span className="text-slate-400 dark:text-slate-500">Click to view →</span>
                     </div>
                   </div>
                 );
@@ -374,13 +639,58 @@ export function GoogleMapView({
         </GMap>
       </APIProvider>
 
-      {/* Floating Action Buttons */}
+      {/* Floating Marker Display Mode Switcher (Top Left) */}
+      <div className="absolute top-4 left-4 z-20 flex items-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-1 shadow-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setMarkerMode('price')}
+          className={cn(
+            "px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer text-xs",
+            markerMode === 'price'
+              ? "bg-blue-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+          )}
+          title="Display weekly rent ($/wk) on pins"
+        >
+          <span>$ Price</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMarkerMode('score')}
+          className={cn(
+            "px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer text-xs",
+            markerMode === 'score'
+              ? "bg-blue-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+          )}
+          title="Display Kai Commute & Lifestyle Match score (%)"
+        >
+          <Sparkles className="w-3 h-3 text-amber-400" />
+          <span>% Match</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMarkerMode('dots')}
+          className={cn(
+            "px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer text-xs",
+            markerMode === 'dots'
+              ? "bg-blue-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+          )}
+          title="Display minimal dots to reduce visual clutter"
+        >
+          <span className="text-base leading-none">•</span>
+          <span>Dots</span>
+        </button>
+      </div>
+
+      {/* Floating Action Buttons (Top Right) */}
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
         {/* Toggle Transit */}
         <button
           onClick={() => setShowTransit(!showTransit)}
           className={cn(
-            "p-2.5 rounded-xl border shadow-md transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold",
+            "p-2.5 rounded-xl border shadow-md transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer",
             showTransit
               ? "bg-blue-600 text-white border-blue-500 shadow-blue-500/30"
               : "bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200"
@@ -395,7 +705,7 @@ export function GoogleMapView({
         <button
           onClick={() => setIsPlacingCircle(!isPlacingCircle)}
           className={cn(
-            "p-2.5 rounded-xl border shadow-md transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold",
+            "p-2.5 rounded-xl border shadow-md transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer",
             isPlacingCircle
               ? "bg-rose-600 text-white border-rose-500 shadow-rose-500/30 animate-pulse"
               : "bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200"
@@ -410,7 +720,7 @@ export function GoogleMapView({
         {hasSpatialFilter && (
           <button
             onClick={handleClearDrawing}
-            className="p-2.5 rounded-xl bg-rose-600 text-white border border-rose-500 shadow-md hover:bg-rose-700 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+            className="p-2.5 rounded-xl bg-rose-600 text-white border border-rose-500 shadow-md hover:bg-rose-700 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             title="Clear spatial filter shape"
           >
             <Trash2 className="w-4 h-4" />
@@ -422,7 +732,7 @@ export function GoogleMapView({
         {onToggleMaximize && (
           <button
             onClick={onToggleMaximize}
-            className="p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 shadow-md hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 shadow-md hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             title={isMaximized ? "Restore view" : "Enlarge map"}
           >
             {isMaximized ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}

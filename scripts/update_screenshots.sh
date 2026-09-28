@@ -32,7 +32,17 @@ playwright-cli eval "() => new Promise(r => setTimeout(r, 3500))"
 playwright-cli screenshot --filename="$SCREENSHOTS_DIR/dark_mode_commute_map.png"
 
 echo "📸 2/3 Capturing shortlist_compare_modal.png (Shortlist Comparison & Ask Kai)..."
-playwright-cli eval "() => { localStorage.setItem('sydliving_shortlist', JSON.stringify(['e2c7332b-6a3f-4bad-a97f-7a714ddbedeb', 'eeec36d4-c490-44c6-8d60-f9ecb39a57c5', '2b5af441-19e1-4b1a-94ee-079e2e93d4e9'])); }"
+playwright-cli eval "async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/properties');
+    const data = await res.json();
+    const list = data.results || data;
+    const ids = list.slice(0, 3).map(p => p.id);
+    localStorage.setItem('sydliving_shortlist', JSON.stringify(ids));
+  } catch (e) {
+    localStorage.setItem('sydliving_shortlist', JSON.stringify(['18328999', '18335001', '18314911']));
+  }
+}"
 playwright-cli reload
 playwright-cli eval "() => new Promise(r => setTimeout(r, 2000))"
 playwright-cli click "button:has-text('Shortlist')"

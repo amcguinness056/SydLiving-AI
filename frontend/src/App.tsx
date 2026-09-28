@@ -9,10 +9,12 @@ import { api, type Property, type AgentAction, type User, type UserProfileUpdate
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { KaiLauncher } from './components/KaiLauncher';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal } from 'lucide-react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal, Compass, ArrowLeft } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { computeKaiMatch } from './lib/kaiMatch';
+import { KaiConciergeHub } from './components/KaiConciergeHub';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -224,12 +226,26 @@ const SearchFilterBar = React.memo(function SearchFilterBar({
 
 function App() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [mobileTab, setMobileTab] = useState<'list' | 'map'>('list');
   const [properties, setProperties] = useState<Property[]>([]);
   const [savedProperties, setSavedProperties] = useState<Property[]>([]);
-  const [showSavedOnly, setShowSavedOnly] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [modalPropertyId, setModalPropertyId] = useState<string | null>(null);
+  const [showSavedOnly, setShowSavedOnly] = useState(() => location.pathname === '/shortlist');
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (location.pathname.startsWith('/property/')) {
+      return location.pathname.replace('/property/', '').split('/')[0].split('?')[0] || null;
+    }
+    return null;
+  });
+  const [modalPropertyId, setModalPropertyId] = useState<string | null>(() => {
+    if (location.pathname.startsWith('/property/')) {
+      return location.pathname.replace('/property/', '').split('/')[0].split('?')[0] || null;
+    }
+    return null;
+  });
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -271,15 +287,61 @@ function App() {
   }, [shortlistedIds]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-  // Search & Filter State
-  const [keywordFilter, setKeywordFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [petFriendlyFilter, setPetFriendlyFilter] = useState(false);
-  const [parkingFilter, setParkingFilter] = useState(false);
-  const [airConFilter, setAirConFilter] = useState(false);
-  const [kaiPicksOnly, setKaiPicksOnly] = useState(false);
+  // Search & Filter State (synced with URL searchParams)
+  const [keywordFilter, setKeywordFilter] = useState(() => searchParams.get('q') || '');
+  const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type') || '');
+  const [petFriendlyFilter, setPetFriendlyFilter] = useState(() => searchParams.get('pets') === '1' || searchParams.get('pets') === 'true');
+  const [parkingFilter, setParkingFilter] = useState(() => searchParams.get('parking') === '1' || searchParams.get('parking') === 'true');
+  const [airConFilter, setAirConFilter] = useState(() => searchParams.get('aircon') === '1' || searchParams.get('aircon') === 'true');
+  const [kaiPicksOnly, setKaiPicksOnly] = useState(() => searchParams.get('kai') === '1' || searchParams.get('kai') === 'true');
   const [spatialFilter, setSpatialFilter] = useState<{ circle?: string, polygon?: string } | null>(null);
   const [activeFilters, setActiveFilters] = useState<any>(null);
+
+  // Helper to sync filter changes with URL search params
+  const updateFilterQuery = useCallback((updates: Record<string, string | boolean | null>) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, val]) => {
+        if (val === null || val === false || val === '') {
+          next.delete(key);
+        } else if (val === true) {
+          next.set(key, '1');
+        } else {
+          next.set(key, String(val));
+        }
+      });
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Synchronize route pathname changes to component state
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/property/')) {
+      const id = path.replace('/property/', '').split('/')[0].split('?')[0];
+      if (id) {
+        setModalPropertyId(id);
+        setSelectedId(id);
+      }
+    } else if (path === '/shortlist') {
+      setShowSavedOnly(true);
+      setModalPropertyId(null);
+    } else if (path === '/chat') {
+      setIsChatOpen(true);
+      setModalPropertyId(null);
+    } else if (path === '/profile') {
+      setIsProfileModalOpen(true);
+      setModalPropertyId(null);
+    } else if (path === '/concierge') {
+      setModalPropertyId(null);
+    } else if (path === '/') {
+      setModalPropertyId(null);
+    }
+
+    if (path !== '/profile') {
+      setIsProfileModalOpen(false);
+    }
+  }, [location.pathname]);
 
   // UI State
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedState>(null);
@@ -391,37 +453,41 @@ function App() {
   const handleSearchFilter = useCallback((newKeyword: string, newType: string) => {
     setKeywordFilter(newKeyword);
     setTypeFilter(newType);
+    updateFilterQuery({ q: newKeyword, type: newType });
     loadProperties({
       keyword: newKeyword || undefined,
       property_type: newType || undefined,
       circle: spatialFilter?.circle,
       polygon: spatialFilter?.polygon
     });
-  }, [spatialFilter, loadProperties]);
+  }, [spatialFilter, loadProperties, updateFilterQuery]);
 
   const handleTogglePetFriendly = useCallback(() => {
     setPetFriendlyFilter(prev => {
       const next = !prev;
+      updateFilterQuery({ pets: next });
       loadProperties({ pet_friendly: next ? true : undefined });
       return next;
     });
-  }, [loadProperties]);
+  }, [loadProperties, updateFilterQuery]);
 
   const handleToggleParking = useCallback(() => {
     setParkingFilter(prev => {
       const next = !prev;
+      updateFilterQuery({ parking: next });
       loadProperties({ needs_parking: next ? true : undefined });
       return next;
     });
-  }, [loadProperties]);
+  }, [loadProperties, updateFilterQuery]);
 
   const handleToggleAirCon = useCallback(() => {
     setAirConFilter(prev => {
       const next = !prev;
+      updateFilterQuery({ aircon: next });
       loadProperties({ has_air_con: next ? true : undefined });
       return next;
     });
-  }, [loadProperties]);
+  }, [loadProperties, updateFilterQuery]);
 
   const handleResetFilters = useCallback(() => {
     setKeywordFilter('');
@@ -429,7 +495,9 @@ function App() {
     setPetFriendlyFilter(false);
     setParkingFilter(false);
     setAirConFilter(false);
+    setKaiPicksOnly(false);
     setSpatialFilter(null);
+    setSearchParams(new URLSearchParams(), { replace: true });
     loadProperties({
       keyword: undefined,
       property_type: undefined,
@@ -442,7 +510,7 @@ function App() {
       max_rent: undefined,
       min_bedrooms: undefined
     });
-  }, [loadProperties]);
+  }, [loadProperties, setSearchParams]);
 
   const handleApplyProfileToFilters = useCallback((profile: UserProfileUpdate) => {
     if (profile.has_pets !== undefined) setPetFriendlyFilter(!!profile.has_pets);
@@ -491,6 +559,17 @@ function App() {
   }, [shortlistedIds, user, properties]);
 
   const handleToggleSave = handleToggleFavorite;
+
+  const handleOpenProfile = useCallback(() => {
+    navigate({ pathname: '/profile', search: location.search });
+  }, [navigate, location.search]);
+
+  const handleCloseProfile = useCallback(() => {
+    setIsProfileModalOpen(false);
+    if (location.pathname === '/profile') {
+      navigate({ pathname: '/', search: location.search });
+    }
+  }, [location.pathname, location.search, navigate]);
 
   const handleLogin = () => {
     setIsAuthModalOpen(true);
@@ -689,7 +768,15 @@ function App() {
     const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
     if (match) setSelectedProperty(match);
     setMaximizedPanel(prev => prev === 'chat' ? null : prev);
-  }, [properties, savedProperties]);
+    navigate({ pathname: `/property/${id}`, search: location.search });
+  }, [properties, savedProperties, navigate, location.search]);
+
+  const handleClosePropertyDetail = useCallback(() => {
+    setModalPropertyId(null);
+    setSelectedProperty(null);
+    setSelectedId(null);
+    navigate({ pathname: showSavedOnly ? '/shortlist' : '/', search: location.search });
+  }, [navigate, showSavedOnly, location.search]);
 
   const handleChatSelectProperty = useCallback(async (id: string) => {
     setSelectedId(id);
@@ -722,21 +809,15 @@ function App() {
         } else if (isCompareOpen) {
           setIsCompareOpen(false);
         } else if (modalPropertyId) {
-          setModalPropertyId(null);
-          setSelectedProperty(null);
+          handleClosePropertyDetail();
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [maximizedPanel, isCompareOpen, modalPropertyId]);
+  }, [maximizedPanel, isCompareOpen, modalPropertyId, handleClosePropertyDetail]);
 
 
-  const handleMobileMapSelect = useCallback((id: string) => {
-    setSelectedId(id);
-    const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
-    if (match) setSelectedProperty(match);
-  }, [properties, savedProperties]);
 
   const getChatClasses = () => {
     if (isMobile) {
@@ -794,19 +875,89 @@ function App() {
       
       {/* Top Header Bar */}
       <header className="h-13 sm:h-14 px-3 sm:px-5 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-2xl shadow-sm flex items-center justify-between shrink-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs shrink-0">
+        <div 
+          onClick={() => {
+            setShowSavedOnly(false);
+            setModalPropertyId(null);
+            navigate({ pathname: '/', search: location.search });
+          }}
+          className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group"
+          title="Return to Sydney explore map"
+        >
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 group-hover:bg-blue-500 flex items-center justify-center text-white shadow-xs shrink-0 transition-colors">
             <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div className="min-w-0 flex items-center">
             <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight shrink-0">
               SydLiving AI
             </span>
-            <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate">
+            <span className="hidden xl:inline-block ml-2 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate">
               Sydney Commute & Housing Intelligence
             </span>
           </div>
         </div>
+
+        {/* Primary Desktop Site Navigation */}
+        <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setShowSavedOnly(false);
+              setModalPropertyId(null);
+              navigate({ pathname: '/', search: location.search });
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              location.pathname === '/' && !showSavedOnly
+                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Explore</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (shortlistedIds.length > 0) {
+                setIsCompareOpen(true);
+              }
+              setShowSavedOnly(true);
+              navigate({ pathname: '/shortlist', search: location.search });
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              location.pathname === '/shortlist' || showSavedOnly
+                ? "bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Heart className={cn("w-3.5 h-3.5", shortlistedIds.length > 0 ? "text-rose-500 fill-rose-500" : "text-slate-400")} />
+            <span>Shortlist</span>
+            {shortlistedIds.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-black">
+                {shortlistedIds.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              navigate({ pathname: '/concierge', search: location.search });
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              location.pathname === '/concierge'
+                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+            <span>Kai Concierge</span>
+          </button>
+        </nav>
 
         {/* Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -814,7 +965,7 @@ function App() {
           {user ? (
             <div className="flex items-center gap-1 sm:gap-1.5 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl p-1 pr-1.5 sm:pr-2 shadow-xs shrink-0">
               <button
-                onClick={() => setIsProfileModalOpen(true)}
+                onClick={handleOpenProfile}
                 className="flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg px-1.5 py-0.5 transition-colors cursor-pointer"
                 title="Edit Commute & Living Profile"
               >
@@ -831,7 +982,7 @@ function App() {
           ) : (
             <button 
               onClick={handleLogin} 
-              className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap"
+              className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -843,25 +994,11 @@ function App() {
             </button>
           )}
 
-          {/* Shortlist Comparison Button */}
-          <button
-            onClick={() => setIsCompareOpen(true)}
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap"
-            title="Shortlist & Compare"
-          >
-            <Heart className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0", shortlistedIds.length > 0 ? "text-rose-500 fill-rose-500" : "text-slate-400")} />
-            <span className="hidden sm:inline">Shortlist</span>
-            {shortlistedIds.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-black shrink-0">
-                {shortlistedIds.length}
-              </span>
-            )}
-          </button>
 
           {/* Dark Mode Toggle */}
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-all hover:scale-105 active:scale-95 shadow-xs shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-all hover:scale-105 active:scale-95 shadow-xs shrink-0 cursor-pointer"
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode (Sydney Harbor by Night)"}
           >
             {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />}
@@ -869,8 +1006,134 @@ function App() {
         </div>
       </header>
 
-      {/* Main Container: Mobile Tabbed View vs Desktop Resizable Split Panels */}
-      {isMobile ? (
+      {/* Breadcrumb Navigation Bar (when property details is active) */}
+      {modalPropertyId && activeModalProperty && (
+        <div className="h-10 px-4 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-2xl flex items-center justify-between text-xs shrink-0 shadow-xs animate-in fade-in duration-150 z-20">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
+            <button
+              onClick={handleClosePropertyDetail}
+              className="inline-flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>{showSavedOnly ? 'Back to Shortlist' : 'Back to Explore'}</span>
+            </button>
+            <span className="text-slate-400">/</span>
+            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+              {activeModalProperty.title}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="font-black text-blue-600 dark:text-blue-400 text-xs">
+              ${activeModalProperty.weekly_rent}/wk
+            </span>
+            <button
+              onClick={() => handleToggleFavorite(activeModalProperty.id)}
+              className={cn(
+                "px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold",
+                shortlistedIds.includes(activeModalProperty.id)
+                  ? "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/60 dark:border-rose-900"
+                  : "bg-white/80 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              )}
+            >
+              <Heart className={cn("w-3.5 h-3.5", shortlistedIds.includes(activeModalProperty.id) && "fill-rose-500 text-rose-500")} />
+              <span className="hidden sm:inline">{shortlistedIds.includes(activeModalProperty.id) ? 'Saved' : 'Save'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Container: Concierge Hub vs Mobile Tabbed View vs Desktop Resizable Split Panels */}
+      {location.pathname === '/concierge' ? (
+        <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden rounded-2xl md:rounded-[2rem] bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 shadow-2xl">
+          <div className="flex-1 min-h-0 relative overflow-hidden">
+            <ErrorBoundary>
+              <KaiConciergeHub
+                properties={allPropertiesPool}
+                user={user}
+                shortlistedIds={shortlistedIds}
+                onToggleFavorite={handleToggleFavorite}
+                onSelectProperty={(id) => {
+                  handleMapSelect(id);
+                }}
+                onAskAgent={(prompt) => {
+                  setIsChatOpen(true);
+                  handleAskAgent(prompt);
+                }}
+                onOpenProfile={handleOpenProfile}
+                onBackToMap={() => {
+                  navigate({ pathname: '/', search: location.search });
+                }}
+              />
+            </ErrorBoundary>
+          </div>
+
+          {/* If mobile, keep the bottom dock so the user can easily switch back to List/Map */}
+          {isMobile && (
+            <div className="p-2 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 shrink-0">
+              <div className="flex items-center justify-around gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSavedOnly(false);
+                    setMobileTab('list');
+                    setModalPropertyId(null);
+                    navigate({ pathname: '/', search: location.search });
+                  }}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer text-white/70 hover:text-white"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span className="text-[10px]">List ({displayedProperties.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileTab('map');
+                    navigate({ pathname: '/', search: location.search });
+                  }}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer text-white/70 hover:text-white"
+                >
+                  <MapIcon className="w-3.5 h-3.5" />
+                  <span className="text-[10px]">Map</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (shortlistedIds.length > 0) {
+                      setIsCompareOpen(true);
+                    }
+                    setShowSavedOnly(true);
+                    navigate({ pathname: '/shortlist', search: location.search });
+                  }}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer relative text-white/70 hover:text-white"
+                >
+                  <div className="relative">
+                    <Heart className={cn("w-3.5 h-3.5", shortlistedIds.length > 0 && "text-rose-300 fill-rose-300")} />
+                    {shortlistedIds.length > 0 && (
+                      <span className="absolute -top-1 -right-2 w-3 h-3 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                        {shortlistedIds.length}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px]">Shortlist</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate({ pathname: '/concierge', search: location.search });
+                  }}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer bg-blue-600 text-white shadow-md shadow-blue-500/25"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                  <span className="text-[10px]">Concierge</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : isMobile ? (
         <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 shadow-xl">
           {mobileTab === 'list' ? (
             <div className="flex flex-col h-full bg-slate-50/80 dark:bg-slate-950 min-h-0">
@@ -921,13 +1184,7 @@ function App() {
                 onToggleHasAirCon={handleToggleAirCon}
                 onToggleKaiPicks={() => setKaiPicksOnly(v => !v)}
                 onAskKai={handleAskAgent}
-                onOpenProfile={() => {
-                  if (user) {
-                    setIsProfileModalOpen(true);
-                  } else {
-                    setIsAuthModalOpen(true);
-                  }
-                }}
+                onOpenProfile={handleOpenProfile}
               />
 
               {activeFilters && (
@@ -968,9 +1225,7 @@ function App() {
                       onToggleFavorite={handleToggleFavorite}
                       onToggleSave={handleToggleSave}
                       onClick={() => {
-                        setSelectedId(p.id);
-                        setModalPropertyId(p.id);
-                        setSelectedProperty(p);
+                        handleMapSelect(p.id);
                       }}
                     />
                   ))
@@ -983,8 +1238,9 @@ function App() {
               <Map 
                 properties={displayedProperties} 
                 selectedPropertyId={selectedId} 
-                onSelectProperty={handleMobileMapSelect}
+                onSelectProperty={handleMapSelect}
                 isDarkMode={isDarkMode}
+                user={user}
                 onDrawCreated={(layer: any, type: string) => {
                   let spatial: any = null;
                   if (type === 'circle') {
@@ -1007,7 +1263,7 @@ function App() {
               {selectedProperty && (
                 <div className="absolute bottom-20 left-3 right-3 z-30 animate-in slide-in-from-bottom-4 duration-200">
                   <div 
-                    onClick={() => setModalPropertyId(selectedProperty.id)}
+                    onClick={() => handleMapSelect(selectedProperty.id)}
                     className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xl flex items-center gap-3 cursor-pointer"
                   >
                     <img 
@@ -1052,34 +1308,86 @@ function App() {
             </div>
           )}
 
-          {/* Floating Bottom Switcher Dock [ 📋 Listings | 🗺️ Map ] */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-            <div className="bg-slate-900/90 dark:bg-slate-900/95 text-white backdrop-blur-xl border border-white/20 dark:border-slate-700/80 shadow-2xl rounded-full p-1 flex items-center gap-1">
+          {/* Floating Mobile Bottom Navigation Dock */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto w-[92%] max-w-sm">
+            <div className="bg-slate-900/95 dark:bg-slate-900/95 text-white backdrop-blur-2xl border border-white/20 dark:border-slate-700/80 shadow-2xl rounded-2xl p-1.5 flex items-center justify-between gap-1">
               <button
-                onClick={() => setMobileTab('list')}
+                type="button"
+                onClick={() => {
+                  setShowSavedOnly(false);
+                  setMobileTab('list');
+                  setModalPropertyId(null);
+                  navigate({ pathname: '/', search: location.search });
+                }}
                 className={cn(
-                  "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer",
-                  mobileTab === 'list' 
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-100" 
-                    : "text-white/80 hover:text-white"
+                  "flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer",
+                  location.pathname === '/' && mobileTab === 'list' && !showSavedOnly
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25" 
+                    : "text-white/70 hover:text-white"
                 )}
               >
                 <List className="w-3.5 h-3.5" />
-                <span>Listings</span>
-                <span className="text-[10px] opacity-80 font-mono">({displayedProperties.length})</span>
+                <span className="text-[10px]">List ({displayedProperties.length})</span>
               </button>
 
               <button
-                onClick={() => setMobileTab('map')}
+                type="button"
+                onClick={() => {
+                  setMobileTab('map');
+                  navigate({ pathname: '/', search: location.search });
+                }}
                 className={cn(
-                  "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer",
-                  mobileTab === 'map' 
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-100" 
-                    : "text-white/80 hover:text-white"
+                  "flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer",
+                  location.pathname === '/' && mobileTab === 'map' && !showSavedOnly
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25" 
+                    : "text-white/70 hover:text-white"
                 )}
               >
                 <MapIcon className="w-3.5 h-3.5" />
-                <span>Map</span>
+                <span className="text-[10px]">Map</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (shortlistedIds.length > 0) {
+                    setIsCompareOpen(true);
+                  }
+                  setShowSavedOnly(true);
+                  navigate({ pathname: '/shortlist', search: location.search });
+                }}
+                className={cn(
+                  "flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer relative",
+                  location.pathname === '/shortlist' || showSavedOnly
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-500/25" 
+                    : "text-white/70 hover:text-white"
+                )}
+              >
+                <div className="relative">
+                  <Heart className={cn("w-3.5 h-3.5", shortlistedIds.length > 0 && "text-rose-300 fill-rose-300")} />
+                  {shortlistedIds.length > 0 && (
+                    <span className="absolute -top-1 -right-2 w-3 h-3 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                      {shortlistedIds.length}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px]">Shortlist</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigate({ pathname: '/concierge', search: location.search });
+                }}
+                className={cn(
+                  "flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer",
+                  location.pathname === '/concierge'
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25" 
+                    : "text-white/70 hover:text-white"
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                <span className="text-[10px]">Concierge</span>
               </button>
             </div>
           </div>
@@ -1138,13 +1446,7 @@ function App() {
                 onToggleHasAirCon={handleToggleAirCon}
                 onToggleKaiPicks={() => setKaiPicksOnly(v => !v)}
                 onAskKai={handleAskAgent} 
-                onOpenProfile={() => {
-                  if (user) {
-                    setIsProfileModalOpen(true);
-                  } else {
-                    setIsAuthModalOpen(true);
-                  }
-                }}
+                onOpenProfile={handleOpenProfile}
               />
 
               {activeFilters && (
@@ -1184,9 +1486,7 @@ function App() {
                       onToggleFavorite={handleToggleFavorite}
                       onToggleSave={handleToggleSave}
                       onClick={() => {
-                        setSelectedId(p.id);
-                        setModalPropertyId(p.id);
-                        setSelectedProperty(p);
+                        handleMapSelect(p.id);
                         if (maximizedPanel === 'list') setMaximizedPanel(null);
                       }}
                     />
@@ -1208,6 +1508,7 @@ function App() {
                 isMaximized={maximizedPanel === 'map'}
                 onToggleMaximize={() => toggleMaximize('map')}
                 isDarkMode={isDarkMode}
+                user={user}
                 onDrawCreated={(layer: any, type: string) => {
                   let spatial: any = null;
                   if (type === 'circle') {
@@ -1240,10 +1541,7 @@ function App() {
                     property={activeModalProperty} 
                     user={user}
                     selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
-                    onClose={() => {
-                      setModalPropertyId(null);
-                      setSelectedProperty(null);
-                    }} 
+                    onClose={handleClosePropertyDetail} 
                     isMaximized={false}
                     onToggleMaximize={() => toggleMaximize('details')}
                     isFavorite={shortlistedIds.includes(activeModalProperty.id)}
@@ -1283,8 +1581,7 @@ function App() {
                 selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
                 onClose={() => {
                   setMaximizedPanel(null);
-                  setModalPropertyId(null);
-                  setSelectedProperty(null);
+                  handleClosePropertyDetail();
                 }} 
                 isMaximized={true}
                 onToggleMaximize={() => setMaximizedPanel(null)}
@@ -1305,10 +1602,7 @@ function App() {
               property={activeModalProperty} 
               user={user}
               selectedHubName={activeFilters?.destination_hub || user?.workplace_hub || "Martin Place"}
-              onClose={() => {
-                setModalPropertyId(null);
-                setSelectedProperty(null);
-              }} 
+              onClose={handleClosePropertyDetail} 
               isFavorite={shortlistedIds.includes(activeModalProperty.id)}
               onToggleFavorite={handleToggleFavorite}
               onAskAgent={handleAskAgent}
@@ -1371,18 +1665,16 @@ function App() {
           handleAskAgent(prompt);
         }}
         onSelectProperty={(id) => {
-          setSelectedId(id);
-          setModalPropertyId(id);
-          const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
-          if (match) setSelectedProperty(match);
+          setIsCompareOpen(false);
+          handleMapSelect(id);
         }}
       />
 
       {/* User Commute & Living Profile Modal */}
-      {user && (
+      {user ? (
         <UserProfileModal
           isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
+          onClose={handleCloseProfile}
           user={user}
           onUpdateUser={(updatedUser) => {
             setUser(updatedUser);
@@ -1390,7 +1682,13 @@ function App() {
           }}
           onApplyToFilters={handleApplyProfileToFilters}
         />
-      )}
+      ) : isProfileModalOpen ? (
+        <AuthModal
+          isOpen={isProfileModalOpen}
+          onClose={handleCloseProfile}
+          onSuccess={handleAuthSuccess}
+        />
+      ) : null}
 
       {/* Google Authentication Modal */}
       <AuthModal

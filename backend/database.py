@@ -86,6 +86,13 @@ def ensure_schema_migrations(conn: sqlite3.Connection):
                 conn.execute("ALTER TABLE users ADD COLUMN preferred_transit_modes TEXT DEFAULT '[]';")
             if "kai_verbosity" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN kai_verbosity TEXT DEFAULT 'concise';")
+
+        # Chat session titles migration
+        try:
+            from session_titler import migrate_legacy_session_titles
+            migrate_legacy_session_titles(conn)
+        except Exception:
+            pass
     except Exception:
         pass
 

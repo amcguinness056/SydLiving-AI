@@ -128,6 +128,10 @@ class ChatSession(BaseModel):
     created_at: str
     updated_at: str
 
+class ChatSessionUpdate(BaseModel):
+    title: str
+
+
 class ChatMessage(BaseModel):
     id: str
     session_id: str

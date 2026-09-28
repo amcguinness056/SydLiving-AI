@@ -302,6 +302,18 @@ export const api = {
     await fetch(`${BASE_URL}/chat/sessions/${sessionId}`, { method: 'DELETE', headers: getHeaders() });
   },
 
+  updateChatSession: async (sessionId: string, title: string): Promise<ChatSession> => {
+    const res = await fetch(`${BASE_URL}/chat/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ title })
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update session title');
+    }
+    return await res.json();
+  },
+
   sendChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
     const userId = localStorage.getItem('user_id');
     const res = await fetch(`${BASE_URL}/chat`, {

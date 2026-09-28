@@ -224,3 +224,49 @@ def test_listing_sync_endpoint():
     assert data["synced_count"] > 0
     assert "Successfully" in data["message"]
 
+def test_session_titler_heuristics():
+    """Verify heuristic title cleaning removes preambles, property links, and mid-word cuts."""
+    from session_titler import clean_heuristic_title
+    
+    t1 = clean_heuristic_title("Give me your candid insider evaluation of [Modern 1BR Apartment - 7/150 Wells Street](property:18328999) in Newtown.")
+    assert "Modern 1BR Apartment" in t1
+    assert "candid insider" not in t1.lower()
+    assert "property:18328999" not in t1
+
+    t2 = clean_heuristic_title("How is the coastal and beach lifestyle near [Modern 1BR Apartment - 7/150 Wells Street](property:18328999)?")
+    assert "Modern 1BR Apartment" in t2
+    assert "how is the" not in t2.lower()
+
+    t3 = clean_heuristic_title("[Deep] Show 2-bedroom rentals near Sydney Metro stations with high walkability")
+    assert not t3.startswith("[Deep]")
+    assert "2-bedroom rentals" in t3
+
+def test_chat_session_rename_endpoint():
+    """Verify PATCH /api/chat/sessions/{session_id} updates session title."""
+    import uuid
+    # Create user via login endpoint
+    login_res = client.post("/api/auth/login?username=session_tester")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+    session_id = str(uuid.uuid4())
+    
+    # Create session in db
+    import sqlite3
+    from database import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", (session_id, user_id, "Old Title"))
+    conn.commit()
+    conn.close()
+
+    # Update session title
+    patch_res = client.patch(f"/api/chat/sessions/{session_id}", headers={"user-id": user_id}, json={"title": "Coogee Beach 2BR Value Check"})
+    assert patch_res.status_code == 200
+    data = patch_res.json()
+    assert data["title"] == "Coogee Beach 2BR Value Check"
+
+    # Verify get sessions returns new title
+    get_res = client.get("/api/chat/sessions", headers={"user-id": user_id})
+    assert get_res.status_code == 200
+    sessions = get_res.json()["sessions"]
+    assert any(s["id"] == session_id and s["title"] == "Coogee Beach 2BR Value Check" for s in sessions)
+

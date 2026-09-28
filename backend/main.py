@@ -17,17 +17,19 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 import json
+import asyncio
 import database
 from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
     ChatRequest, ChatResponse, AgentAction, HubsResponse, DestinationHub,
     IsochroneResponse, IsochroneSuburb, User, UserProfileUpdate, ListingSyncResponse,
-    ChatSession, ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
+    ChatSession, ChatSessionUpdate, ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
 )
 from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
 from sync_listings import sync_active_listings
 from starlette.middleware.gzip import GZipMiddleware
+from session_titler import clean_heuristic_title, update_session_title_async
 import agent
 import deep_agent
 
@@ -558,6 +560,29 @@ def delete_chat_session(session_id: str, user_id: str = Depends(get_current_user
     db.commit()
     return {"status": "deleted", "session_id": session_id}
 
+@app.patch("/api/chat/sessions/{session_id}", response_model=ChatSession)
+def update_chat_session(
+    session_id: str,
+    payload: ChatSessionUpdate,
+    user_id: str = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    clean_title = payload.title.strip()
+    if not clean_title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    cursor = db.cursor()
+    cursor.execute("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
+    if not cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Session not found")
+    now = datetime.now().isoformat()
+    cursor.execute("UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?", (clean_title, now, session_id, user_id))
+    db.commit()
+    cursor.execute("SELECT * FROM chat_sessions WHERE id = ?", (session_id,))
+    row = cursor.fetchone()
+    return ChatSession(**dict(row))
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
     try:
@@ -574,11 +599,12 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
 
             if not session_id:
                 session_id = str(uuid.uuid4())
-                title = request.message[:30] + "..." if len(request.message) > 30 else request.message
+                title = clean_heuristic_title(request.message)
                 cursor.execute(
                     "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                     (session_id, request.user_id, title, now, now)
                 )
+                asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
             
             if session_id:
                 msg_id = str(uuid.uuid4())
@@ -626,11 +652,12 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
 
             if not session_id:
                 session_id = str(uuid.uuid4())
-                title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
+                title = clean_heuristic_title(request.message)
                 cursor.execute(
                     "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                     (session_id, request.user_id, title, now, now)
                 )
+                asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
             
             if session_id:
                 msg_id = str(uuid.uuid4())
@@ -687,11 +714,12 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
 
                     if not session_id:
                         session_id = str(uuid.uuid4())
-                        title = f"[Deep] {request.message[:25]}..." if len(request.message) > 25 else f"[Deep] {request.message}"
+                        title = clean_heuristic_title(request.message)
                         cursor.execute(
                             "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                             (session_id, request.user_id, title, now, now)
                         )
+                        asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
                     
                     msg_id = str(uuid.uuid4())
                     cursor.execute(

@@ -18,7 +18,10 @@ import {
   Palmtree,
   Clock,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  Check,
+  MessageSquare
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -84,7 +87,7 @@ function groupStepsByCategory(steps: DeepAgentStep[]): StepCategory[] {
       name: 'Property Scout',
       shortLabel: 'listings',
       icon: Building2,
-      badgeClass: 'text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-950/80 border-indigo-200/80 dark:border-indigo-700/80',
+      badgeClass: 'text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/80 border-blue-200/80 dark:border-blue-700/80',
       steps: []
     },
     lifestyle: {
@@ -146,7 +149,7 @@ const markdownComponents = {
     </tbody>
   ),
   tr: ({ children, ...props }: any) => (
-    <tr className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors" {...props}>
+    <tr className="hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-colors" {...props}>
       {children}
     </tr>
   ),
@@ -198,7 +201,7 @@ const markdownComponents = {
   code: ({ children, className, ...props }: any) => {
     const isInline = !className;
     return isInline ? (
-      <code className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-mono text-[11px]" {...props}>
+      <code className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-mono text-[11px]" {...props}>
         {children}
       </code>
     ) : (
@@ -368,7 +371,7 @@ const ChatMessageItem = React.memo(function ChatMessageItem({
                   className="flex-1 flex items-center gap-2 min-w-0 text-left hover:opacity-85 transition-opacity"
                 >
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <BrainCircuit className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <BrainCircuit className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span className="font-semibold text-[11px] text-slate-800 dark:text-slate-100">
                       Multi-Agent Trace
                     </span>
@@ -422,7 +425,7 @@ const ChatMessageItem = React.memo(function ChatMessageItem({
                         onClick={() => onSetTraceViewMode(msg.id, 'grouped')}
                         className={`px-2 py-0.5 rounded transition-all ${
                           traceViewMode === 'grouped' 
-                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
+                            ? 'bg-blue-600 text-white font-semibold shadow-2xs' 
                             : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                         }`}
                       >
@@ -433,7 +436,7 @@ const ChatMessageItem = React.memo(function ChatMessageItem({
                         onClick={() => onSetTraceViewMode(msg.id, 'timeline')}
                         className={`px-2 py-0.5 rounded transition-all ${
                           traceViewMode === 'timeline' 
-                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs' 
+                            ? 'bg-blue-600 text-white font-semibold shadow-2xs' 
                             : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                         }`}
                       >
@@ -490,7 +493,7 @@ const ChatMessageItem = React.memo(function ChatMessageItem({
                     <div className="space-y-2 pt-1 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                       {msg.steps.map((st, idx) => (
                         <div key={st.id || idx} className="flex items-start gap-2 text-[11px]">
-                          <span className="font-mono text-[9px] font-semibold text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0 mt-0.5">
+                          <span className="font-mono text-[9px] font-semibold text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/80 border border-blue-200/60 dark:border-blue-800/60 shrink-0 mt-0.5">
                             #{idx + 1}
                           </span>
                           <div className="min-w-0 flex-1">
@@ -512,7 +515,7 @@ const ChatMessageItem = React.memo(function ChatMessageItem({
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold px-1">
+            <div className="flex items-center justify-between text-[11px] text-blue-700 dark:text-blue-300 font-semibold px-1">
               <span className="flex items-center gap-1.5">
                 <BrainCircuit className="w-3.5 h-3.5" />
                 <span>LangChain Deep Agent Execution</span>
@@ -551,6 +554,9 @@ export function ChatPanel({
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [expandedStepsMap, setExpandedStepsMap] = useState<Record<string, boolean>>({});
   const [traceViewModeMap, setTraceViewModeMap] = useState<Record<string, 'grouped' | 'timeline'>>({});
   const [elapsedSecs, setElapsedSecs] = useState<number>(0);
@@ -569,10 +575,10 @@ export function ChatPanel({
               e.stopPropagation();
               onSelectProperty?.(propertyId);
             }}
-            className="inline-flex items-center gap-1.5 font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline underline-offset-2 decoration-indigo-300 dark:decoration-indigo-600 hover:decoration-indigo-500 cursor-pointer transition-colors text-left py-0.5"
+            className="inline-flex items-center gap-1.5 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline underline-offset-2 decoration-blue-300 dark:decoration-blue-600 hover:decoration-blue-500 cursor-pointer transition-colors text-left py-0.5"
             title="Highlight property in listings"
           >
-            <Building2 className="w-3.5 h-3.5 shrink-0 inline text-indigo-500 dark:text-indigo-400" />
+            <Building2 className="w-3.5 h-3.5 shrink-0 inline text-blue-500 dark:text-blue-400" />
             <span>{children}</span>
           </button>
         );
@@ -582,7 +588,7 @@ export function ChatPanel({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-0.5 font-medium text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-2"
+          className="inline-flex items-center gap-0.5 font-medium text-blue-600 dark:text-blue-400 hover:underline underline-offset-2"
           {...props}
         >
           <span>{children}</span>
@@ -668,6 +674,35 @@ export function ChatPanel({
     }
   };
 
+  const handleStartRename = (e: React.MouseEvent, session: ChatSession) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditTitle(session.title || '');
+  };
+
+  const handleSaveRename = async (e: React.MouseEvent | React.FormEvent, sessionId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const trimmed = editTitle.trim();
+    if (!trimmed || isSavingTitle) return;
+    setIsSavingTitle(true);
+    try {
+      const updated = await api.updateChatSession(sessionId, trimmed);
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: updated.title } : s));
+      setEditingSessionId(null);
+    } catch (err) {
+      console.error("Failed to rename session", err);
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
+
+  const handleCancelRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(null);
+    setEditTitle('');
+  };
+
   return (
     <div className="w-full h-full bg-white/80 dark:bg-slate-900/95 backdrop-blur-3xl flex flex-col overflow-hidden relative text-slate-800 dark:text-slate-100">
       
@@ -718,7 +753,7 @@ export function ChatPanel({
               onClick={onToggleWide}
               className={`hidden sm:flex p-1.5 rounded-lg transition-colors items-center justify-center ${
                 isWide 
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' 
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' 
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
               title={isWide ? "Standard Width (520px)" : "Expand Table View (720px)"}
@@ -760,7 +795,7 @@ export function ChatPanel({
                 onSelectSession?.(null);
                 setShowHistory(false);
               }}
-              className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/80 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/80 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" /> New Chat
             </button>
@@ -769,35 +804,95 @@ export function ChatPanel({
             {sessions.length === 0 ? (
               <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-6">No previous sessions found.</p>
             ) : (
-              sessions.map(s => (
-                <div
-                  key={s.id}
-                  onClick={() => {
-                    onSelectSession?.(s.id);
-                    setShowHistory(false);
-                  }}
-                  className={`group flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
-                    currentSessionId === s.id 
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200' 
-                      : 'bg-white/80 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <div className="font-semibold truncate">{s.title || 'New Chat'}</div>
-                    <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      {new Date(s.updated_at).toLocaleString()}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteSession(e, s.id)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all shrink-0"
-                    title="Delete session"
+              sessions.map(s => {
+                const isEditing = editingSessionId === s.id;
+                const isCurrent = currentSessionId === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => {
+                      if (isEditing) return;
+                      onSelectSession?.(s.id);
+                      setShowHistory(false);
+                    }}
+                    className={`group flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
+                      isCurrent 
+                        ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-200' 
+                        : 'bg-white/80 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-200'
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1 pr-2">
+                      <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 ${isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                      <div className="min-w-0 flex-1">
+                        {isEditing ? (
+                          <form onSubmit={(e) => handleSaveRename(e, s.id)} className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              autoFocus
+                              disabled={isSavingTitle}
+                              className="w-full px-2 py-1 text-xs rounded border border-blue-400 dark:border-blue-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => handleSaveRename(e, s.id)}
+                              disabled={isSavingTitle}
+                              className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded transition-colors"
+                              title="Save title"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelRename}
+                              disabled={isSavingTitle}
+                              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="font-semibold truncate text-[13px] text-slate-900 dark:text-slate-100" title={s.title || 'New Chat'}>
+                              {s.title || 'New Chat'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                              {new Date(s.updated_at).toLocaleString([], {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {!isEditing && (
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => handleStartRename(e, s)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                          title="Rename session"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteSession(e, s.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                          title="Delete session"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

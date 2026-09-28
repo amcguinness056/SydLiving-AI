@@ -39,6 +39,20 @@ export interface Property {
   available_date: string;
   description: string;
   photo_url: string;
+  parking_spaces?: number;
+  pet_friendly?: boolean;
+  has_air_con?: boolean;
+  inspection_time?: string;
+  is_real_listing?: boolean;
+  external_url?: string;
+  image_urls?: string[];
+  features_list?: string[];
+  agency_name?: string;
+  agency_logo?: string;
+  agent_name?: string;
+  agent_photo?: string;
+  agent_phone?: string;
+  property_type?: string;
   commute_duration_minutes?: number | null;
   transit_mode?: string | null;
   transfers?: number | null;
@@ -75,6 +89,27 @@ export interface User {
   email?: string;
   avatar_url?: string;
   auth_provider?: string;
+  workplace_hub?: string;
+  max_commute_mins?: number;
+  max_weekly_rent?: number;
+  min_bedrooms?: number;
+  has_pets?: boolean;
+  needs_parking?: boolean;
+  lifestyle_vibes?: string[];
+  preferred_transit_modes?: string[];
+  kai_verbosity?: 'concise' | 'balanced' | 'detailed';
+}
+
+export interface UserProfileUpdate {
+  workplace_hub?: string;
+  max_commute_mins?: number;
+  max_weekly_rent?: number;
+  min_bedrooms?: number;
+  has_pets?: boolean;
+  needs_parking?: boolean;
+  lifestyle_vibes?: string[];
+  preferred_transit_modes?: string[];
+  kai_verbosity?: 'concise' | 'balanced' | 'detailed';
 }
 
 export interface ChatSession {
@@ -101,6 +136,9 @@ export interface PropertyFilterParams {
   max_commute_mins?: number;
   keyword?: string;
   property_type?: string;
+  pet_friendly?: boolean;
+  needs_parking?: boolean;
+  has_air_con?: boolean;
   circle?: string;
   polygon?: string;
 }
@@ -153,6 +191,9 @@ export const api = {
       if (filters.max_commute_mins !== undefined && filters.max_commute_mins !== null) params.append('max_commute_mins', filters.max_commute_mins.toString());
       if (filters.keyword) params.append('keyword', filters.keyword);
       if (filters.property_type) params.append('property_type', filters.property_type);
+      if (filters.pet_friendly !== undefined && filters.pet_friendly !== null) params.append('pet_friendly', filters.pet_friendly ? 'true' : 'false');
+      if (filters.needs_parking !== undefined && filters.needs_parking !== null) params.append('needs_parking', filters.needs_parking ? 'true' : 'false');
+      if (filters.has_air_con !== undefined && filters.has_air_con !== null) params.append('has_air_con', filters.has_air_con ? 'true' : 'false');
       if (filters.circle) params.append('circle', filters.circle);
       if (filters.polygon) params.append('polygon', filters.polygon);
       
@@ -164,6 +205,33 @@ export const api = {
     const res = await fetch(url, { headers: getHeaders() });
     const data = await res.json();
     return data.results;
+  },
+
+  getProfile: async (userId: string): Promise<User> => {
+    const res = await fetch(`${BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch user profile');
+    return await res.json();
+  },
+
+  updateProfile: async (userId: string, profile: UserProfileUpdate): Promise<User> => {
+    const res = await fetch(`${BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(profile)
+    });
+    if (!res.ok) throw new Error('Failed to update user profile');
+    return await res.json();
+  },
+
+  syncListings: async (): Promise<{ synced_count: number; message: string; source: string }> => {
+    const res = await fetch(`${BASE_URL}/sync/listings`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to sync listings');
+    return await res.json();
   },
 
   getProperty: async (propertyId: string, destinationHub?: string): Promise<Property> => {
@@ -232,6 +300,18 @@ export const api = {
 
   deleteChatSession: async (sessionId: string): Promise<void> => {
     await fetch(`${BASE_URL}/chat/sessions/${sessionId}`, { method: 'DELETE', headers: getHeaders() });
+  },
+
+  updateChatSession: async (sessionId: string, title: string): Promise<ChatSession> => {
+    const res = await fetch(`${BASE_URL}/chat/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ title })
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update session title');
+    }
+    return await res.json();
   },
 
   sendChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {

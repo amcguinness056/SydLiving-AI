@@ -157,3 +157,116 @@ def test_saved_properties_sync_and_toggle():
     final_ids = [p["id"] for p in final_res.json()]
     assert pid1 not in final_ids
     assert pid2 in final_ids
+
+def test_user_profile_crud():
+    """Verify getting and updating a user's relocation and lifestyle profile."""
+    # 1. Login user
+    login_res = client.post("/api/auth/login?username=profile_tester")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+
+    # 2. Get profile
+    profile_res = client.get(f"/api/user/profile?user_id={user_id}")
+    assert profile_res.status_code == 200
+    prof = profile_res.json()
+    assert prof["username"] == "profile_tester"
+    assert "workplace_hub" in prof
+
+    # 3. Update profile
+    update_res = client.put(f"/api/user/profile?user_id={user_id}", json={
+        "workplace_hub": "Barangaroo",
+        "max_commute_mins": 35,
+        "max_weekly_rent": 920.0,
+        "min_bedrooms": 2,
+        "has_pets": True,
+        "needs_parking": True,
+        "lifestyle_vibes": ["Beach Lover", "Great Coffee & Cafes"],
+        "preferred_transit_modes": ["metro", "ferry"],
+        "kai_verbosity": "concise"
+    })
+    assert update_res.status_code == 200
+    updated = update_res.json()
+    assert updated["workplace_hub"] == "Barangaroo"
+    assert updated["max_commute_mins"] == 35
+    assert updated["max_weekly_rent"] == 920.0
+    assert updated["min_bedrooms"] == 2
+    assert updated["has_pets"] is True
+    assert updated["needs_parking"] is True
+    assert "Beach Lover" in updated["lifestyle_vibes"]
+    assert "metro" in updated["preferred_transit_modes"]
+    assert updated["kai_verbosity"] == "concise"
+
+def test_property_feature_filters():
+    """Verify filtering properties by pet-friendly, parking, and air-conditioning."""
+    res_pets = client.get("/api/properties?pet_friendly=true")
+    assert res_pets.status_code == 200
+    props = res_pets.json()["results"]
+    assert len(props) > 0
+    assert all(p["pet_friendly"] is True for p in props)
+
+    res_parking = client.get("/api/properties?needs_parking=true")
+    assert res_parking.status_code == 200
+    props_park = res_parking.json()["results"]
+    assert len(props_park) > 0
+    assert all(p["parking_spaces"] >= 1 for p in props_park)
+
+    res_aircon = client.get("/api/properties?has_air_con=true")
+    assert res_aircon.status_code == 200
+    props_ac = res_aircon.json()["results"]
+    assert len(props_ac) > 0
+    assert all(p["has_air_con"] is True for p in props_ac)
+
+def test_listing_sync_endpoint():
+    """Verify that POST /api/sync/listings syncs active listings."""
+    res = client.post("/api/sync/listings")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["synced_count"] > 0
+    assert "Successfully" in data["message"]
+
+def test_session_titler_heuristics():
+    """Verify heuristic title cleaning removes preambles, property links, and mid-word cuts."""
+    from session_titler import clean_heuristic_title
+    
+    t1 = clean_heuristic_title("Give me your candid insider evaluation of [Modern 1BR Apartment - 7/150 Wells Street](property:18328999) in Newtown.")
+    assert "Modern 1BR Apartment" in t1
+    assert "candid insider" not in t1.lower()
+    assert "property:18328999" not in t1
+
+    t2 = clean_heuristic_title("How is the coastal and beach lifestyle near [Modern 1BR Apartment - 7/150 Wells Street](property:18328999)?")
+    assert "Modern 1BR Apartment" in t2
+    assert "how is the" not in t2.lower()
+
+    t3 = clean_heuristic_title("[Deep] Show 2-bedroom rentals near Sydney Metro stations with high walkability")
+    assert not t3.startswith("[Deep]")
+    assert "2-bedroom rentals" in t3
+
+def test_chat_session_rename_endpoint():
+    """Verify PATCH /api/chat/sessions/{session_id} updates session title."""
+    import uuid
+    # Create user via login endpoint
+    login_res = client.post("/api/auth/login?username=session_tester")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+    session_id = str(uuid.uuid4())
+    
+    # Create session in db
+    import sqlite3
+    from database import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", (session_id, user_id, "Old Title"))
+    conn.commit()
+    conn.close()
+
+    # Update session title
+    patch_res = client.patch(f"/api/chat/sessions/{session_id}", headers={"user-id": user_id}, json={"title": "Coogee Beach 2BR Value Check"})
+    assert patch_res.status_code == 200
+    data = patch_res.json()
+    assert data["title"] == "Coogee Beach 2BR Value Check"
+
+    # Verify get sessions returns new title
+    get_res = client.get("/api/chat/sessions", headers={"user-id": user_id})
+    assert get_res.status_code == 200
+    sessions = get_res.json()["sessions"]
+    assert any(s["id"] == session_id and s["title"] == "Coogee Beach 2BR Value Check" for s in sessions)
+

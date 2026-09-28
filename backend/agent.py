@@ -100,7 +100,7 @@ def filter_by_commute_reach_tool(destination_hub: str, max_commute_minutes: int,
     finally:
         db.close()
 
-async def process_chat(message: str, history: list) -> dict:
+async def process_chat(message: str, history: list, user_profile: Optional[dict] = None) -> dict:
     """Processes a chat message using Gemini and native tool calling."""
     import traceback
     try:
@@ -121,8 +121,40 @@ async def process_chat(message: str, history: list) -> dict:
         contents.append(
             types.Content(role="user", parts=[types.Part.from_text(text=message)])
         )
+
+        verbosity = "concise"
+        if user_profile and user_profile.get("kai_verbosity"):
+            v = str(user_profile["kai_verbosity"]).lower().strip()
+            if v in ("concise", "balanced", "detailed"):
+                verbosity = v
+
+        if verbosity == "concise":
+            verbosity_instruction = """
+STRICT LENGTH & CONCISENESS RULES (ACTIVE STYLE: CONCISE / PUNCHY - DEFAULT):
+- BE SHARP, PUNCHY, AND SCANNABLE. The user wants quick, high-impact advice—NOT an essay or wall of text.
+- Hard limit: Keep the ENTIRE reply under 150 words.
+- NO long warmups, preambles, or repeated introductory sentences. Get straight to the answer in the first sentence.
+- NO massive multi-row markdown tables unless the user explicitly requested a table. Use 2 to 3 concise bullet points instead.
+- Reply Structure:
+  1. Direct Answer (1 sentence): Instant answer to their question.
+  2. 2-3 Scannable Bullets: Key numbers, rent benchmarks, or transit facts.
+  3. 💡 Kai's Insider Tip: 1 punchy Sydney insider observation.
+  4. 🎯 My Verdict: 1 decisive closing sentence."""
+        elif verbosity == "balanced":
+            verbosity_instruction = """
+RESPONSE LENGTH & STRUCTURE RULES (ACTIVE STYLE: BALANCED):
+- Keep the response focused, structured, and around 200-260 words.
+- Direct answer upfront, followed by concise sections with bullet points or a brief comparison.
+- Avoid rambling or duplicate narrative.
+- Include 1 '💡 Kai's Insider Tip' and 1 '🎯 My Verdict'."""
+        else:
+            verbosity_instruction = """
+RESPONSE LENGTH & STRUCTURE RULES (ACTIVE STYLE: DETAILED):
+- Provide a comprehensive, in-depth evaluation (~350-450 words) with full market benchmark ranges, transit line comparisons, and neighborhood vibe nuances.
+- Markdown tables are welcome when comparing multiple listings or pricing tiers.
+- Include '💡 Kai's Insider Tip' and '🎯 My Verdict'."""
         
-        system_instruction = """You are Kai, Sydney's dedicated AI Living & Relocation Concierge.
+        system_instruction = f"""You are Kai, Sydney's dedicated AI Living & Relocation Concierge.
 You're not a dry corporate chatbot or a generic real estate agent—you are an upbeat, savvy, candid Sydney insider who knows every harbor bay, ridge, train line, and flat-white hotspot across Greater Sydney.
 
 YOUR PERSONALITY & VOICE:
@@ -137,8 +169,31 @@ CRITICAL PROPERTY LINKING RULE:
 Whenever you recommend, list, or compare rental properties, ALWAYS format each property title as a markdown link using its exact 'id' from the tool results:
 [Property Title](property:<id>)
 Example: [Light-Filled 1BR Studio Loft](property:08322db0-85b8-217113b88abd) in Crows Nest ($640/wk).
-Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs."""
+Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs.
+{verbosity_instruction}"""
         
+        if user_profile:
+            profile_lines = ["\nUSER RELOCATION & LIFESTYLE PROFILE (SAVED PREFERENCES):"]
+            if user_profile.get("username"):
+                profile_lines.append(f"- User Name: {user_profile['username']}")
+            if user_profile.get("workplace_hub"):
+                profile_lines.append(f"- Workplace / Commute Destination: {user_profile['workplace_hub']}")
+            if user_profile.get("max_commute_mins"):
+                profile_lines.append(f"- Maximum Commute Tolerance: {user_profile['max_commute_mins']} minutes")
+            if user_profile.get("max_weekly_rent"):
+                profile_lines.append(f"- Weekly Rent Target: ≤ ${user_profile['max_weekly_rent']}/wk ({user_profile.get('min_bedrooms', 1)}+ bedrooms)")
+            if user_profile.get("has_pets"):
+                profile_lines.append("- Pets: HAS PETS (requires pet-friendly rentals)")
+            if user_profile.get("needs_parking"):
+                profile_lines.append("- Vehicle: NEEDS PARKING (needs dedicated car space)")
+            vibes = user_profile.get("lifestyle_vibes")
+            if vibes and isinstance(vibes, list) and len(vibes) > 0:
+                profile_lines.append(f"- Priority Lifestyle Vibes: {', '.join(vibes)}")
+            modes = user_profile.get("preferred_transit_modes")
+            if modes and isinstance(modes, list) and len(modes) > 0:
+                profile_lines.append(f"- Preferred Transit Modes: {', '.join(modes)}")
+            system_instruction += "\n" + "\n".join(profile_lines)
+
         tools = [query_properties_tool, get_commute_tool, get_places_tool, filter_by_commute_reach_tool]
         
         config = types.GenerateContentConfig(

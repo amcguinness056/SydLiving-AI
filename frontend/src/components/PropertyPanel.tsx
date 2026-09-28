@@ -36,8 +36,10 @@ export function PropertyPanel({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const heroImgRef = useRef<HTMLDivElement>(null);
+  const heroBlurRef = useRef<HTMLDivElement>(null);
+  const heroDimRef = useRef<HTMLDivElement>(null);
   const isScrolledRef = useRef(false);
-  const rafIdRef = useRef<number | null>(null);
+  const isTickingRef = useRef(false);
   const fallbackImage = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
 
   // Build the list of available images (deduped)
@@ -54,25 +56,30 @@ export function PropertyPanel({
     return list.length > 0 ? list : [fallbackImage];
   })();
 
-  // Reset image carousel index and scroll position whenever property changes
+  // Reset image carousel index and scroll position whenever property or view mode changes
   useEffect(() => {
     setCurrentImageIndex(0);
     setIsScrolled(false);
     isScrolledRef.current = false;
+    isTickingRef.current = false;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
     if (heroImgRef.current) {
       heroImgRef.current.style.transform = "translate3d(0, 0px, 0) scale(1)";
-      heroImgRef.current.style.filter = "blur(0px) brightness(1)";
     }
-    return () => {
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    };
-  }, [property?.id]);
+    if (heroBlurRef.current) {
+      heroBlurRef.current.style.opacity = "0";
+    }
+    if (heroDimRef.current) {
+      heroDimRef.current.style.opacity = "0";
+    }
+  }, [property?.id, isMaximized]);
 
-  // Buttery 120fps/60fps scroll handler: updates GPU transforms directly via rAF
-  // with zero React component re-renders during continuous scrolling
+  // Buttery 120fps/60fps compositor scroll handler:
+  // 1. Ticking throttle prevents frame starvation from high-frequency input events
+  // 2. Opacity crossfade of pre-rendered blur texture avoids costly GPU Gaussian filter recalculations on large viewports
+  // 3. Dynamic maxRange adapts to side panel (320px) vs enlarged modal (480px)
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const top = scrollRef.current.scrollTop;
@@ -84,22 +91,32 @@ export function PropertyPanel({
       setIsScrolled(shouldBeScrolled);
     }
 
-    // Direct GPU interpolation via requestAnimationFrame
-    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    rafIdRef.current = requestAnimationFrame(() => {
-      if (!heroImgRef.current) return;
-      const clamped = Math.min(top, 350);
-      const progress = clamped / 350; // 0.0 -> 1.0
+    if (!isTickingRef.current) {
+      isTickingRef.current = true;
+      requestAnimationFrame(() => {
+        isTickingRef.current = false;
+        if (!scrollRef.current) return;
+        const currentTop = scrollRef.current.scrollTop;
 
-      const translateY = (clamped * 0.35).toFixed(1);
-      const scale = (1 - progress * 0.08).toFixed(3); // 1.0 -> 0.92
-      const blur = (progress * 14).toFixed(1); // 0px -> 14px
-      const brightness = (1 - progress * 0.55).toFixed(2); // 1.0 -> 0.45
+        const maxRange = isMaximized ? 480 : 320;
+        const clamped = Math.min(Math.max(currentTop, 0), maxRange);
+        const progress = clamped / maxRange; // 0.0 -> 1.0
 
-      heroImgRef.current.style.transform = `translate3d(0, ${translateY}px, 0) scale(${scale})`;
-      heroImgRef.current.style.filter = `blur(${blur}px) brightness(${brightness})`;
-    });
-  }, []);
+        const translateY = (clamped * 0.35).toFixed(1);
+        const scale = (1 - progress * 0.08).toFixed(3); // 1.0 -> 0.92
+
+        if (heroImgRef.current) {
+          heroImgRef.current.style.transform = `translate3d(0, ${translateY}px, 0) scale(${scale})`;
+        }
+        if (heroBlurRef.current) {
+          heroBlurRef.current.style.opacity = progress.toFixed(3);
+        }
+        if (heroDimRef.current) {
+          heroDimRef.current.style.opacity = (progress * 0.55).toFixed(3);
+        }
+      });
+    }
+  }, [isMaximized]);
 
   const handleNextImage = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -130,7 +147,7 @@ export function PropertyPanel({
   const bondAmount = Math.round(property.weekly_rent * 4);
 
   return (
-    <div className="h-full w-full flex flex-col bg-white dark:bg-slate-900 relative overflow-hidden animate-in slide-in-from-right-8 duration-300 border-l border-white/60 dark:border-slate-800">
+    <div className={cn("h-full w-full flex flex-col bg-white dark:bg-slate-900 relative overflow-hidden", isMaximized ? "" : "animate-in slide-in-from-right-8 duration-300 border-l border-white/60 dark:border-slate-800")}>
       
       {/* ========================================================================= */}
       {/* 1. PERSISTENT TOP NAVIGATION BAR (Adapts smoothly from transparent to glass) */}
@@ -229,7 +246,7 @@ export function PropertyPanel({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-full w-full overflow-y-auto custom-scrollbar relative flex flex-col"
+        className="h-full w-full overflow-y-auto overscroll-y-contain custom-scrollbar relative flex flex-col"
       >
         {/* ======================================================================= */}
         {/* HERO SECTION: Sticky backdrop with GPU parallax & ambient blur        */}
@@ -238,11 +255,12 @@ export function PropertyPanel({
           "w-full sticky top-0 z-0 bg-slate-950 overflow-hidden shrink-0 select-none",
           isMaximized ? "h-[50vh] sm:h-[58vh] min-h-[360px] max-h-[520px]" : "h-[42vh] sm:h-[46vh] min-h-[290px] max-h-[380px]"
         )}>
-          {/* Parallax Image Container */}
+          {/* Parallax & Scale Container */}
           <div 
             ref={heroImgRef}
-            className="absolute inset-0 w-full h-full will-change-transform will-change-[filter] origin-top"
+            className="absolute inset-0 w-full h-full will-change-transform origin-top"
           >
+            {/* Crisp Base Image */}
             <img 
               src={images[currentImageIndex] || fallbackImage} 
               alt={`${property.title} photo ${currentImageIndex + 1}`} 
@@ -251,6 +269,29 @@ export function PropertyPanel({
               }}
               onClick={() => setIsLightboxOpen(true)}
               className="w-full h-full object-cover cursor-zoom-in" 
+            />
+
+            {/* Pre-blurred Crossfade Layer: 100% GPU compositor opacity blend, zero shader recalculations */}
+            <div 
+              ref={heroBlurRef}
+              className="absolute inset-0 w-full h-full pointer-events-none will-change-opacity overflow-hidden"
+              style={{ opacity: 0 }}
+            >
+              <img 
+                src={images[currentImageIndex] || fallbackImage} 
+                alt="" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = fallbackImage;
+                }}
+                className="w-full h-full object-cover blur-xl scale-105" 
+              />
+            </div>
+
+            {/* Ambient Dimming Overlay */}
+            <div 
+              ref={heroDimRef}
+              className="absolute inset-0 bg-slate-950 pointer-events-none will-change-opacity"
+              style={{ opacity: 0 }}
             />
           </div>
 

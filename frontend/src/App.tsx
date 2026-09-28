@@ -1229,7 +1229,7 @@ function App() {
           />
 
           {/* Modal Container */}
-          <div className="relative w-full max-w-5xl h-full max-h-[92vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 z-10 animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-5xl h-full max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-white/60 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 z-10 animate-in zoom-in-95 duration-200">
             <ErrorBoundary>
               <PropertyPanel 
                 property={activeModalProperty} 

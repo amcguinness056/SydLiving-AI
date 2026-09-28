@@ -629,9 +629,17 @@ function App() {
   }, [chatHistory, currentSessionId, handleAgentAction]);
 
   const handleAskAgent = useCallback((prompt: string) => {
+    // If viewing the enlarged property modal, compare modal, or mobile drawer,
+    // close them immediately so Kai opens straight away in the foreground
+    setMaximizedPanel(null);
+    setIsCompareOpen(false);
+    if (isMobile) {
+      setModalPropertyId(null);
+      setSelectedProperty(null);
+    }
     setIsChatOpen(true);
     handleSendMessage(prompt);
-  }, [handleSendMessage]);
+  }, [handleSendMessage, isMobile]);
 
   const handleSelectSession = useCallback(async (sessionId: string | null) => {
     setCurrentSessionId(sessionId);
@@ -715,7 +723,7 @@ function App() {
       return "fixed inset-0 z-[160] bg-white dark:bg-slate-900 rounded-none shadow-none border-0 overflow-hidden pointer-events-auto animate-in slide-in-from-bottom duration-300 flex flex-col";
     }
     if (maximizedPanel === 'chat') {
-      return "fixed inset-4 z-[120] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-300";
+      return "fixed inset-4 z-[160] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-300";
     }
     const widthClass = chatWidth === 'wide' ? 'w-[720px] max-w-[calc(100vw-2rem)]' : 'w-[520px] max-w-[calc(100vw-2rem)]';
     return `${widthClass} h-[680px] max-h-[88vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/50 dark:border-slate-800 overflow-hidden pointer-events-auto transition-all duration-300 relative z-10`;
@@ -1270,7 +1278,8 @@ function App() {
       {/* Floating AI Chat Widget */}
       <div 
         className={cn(
-          "fixed z-[110] flex flex-col items-end gap-4 transition-all duration-300",
+          "fixed flex flex-col items-end gap-4 transition-all duration-300",
+          isChatOpen ? "z-[160]" : "z-[110]",
           isMobile 
             ? (isChatOpen ? "inset-0 pointer-events-auto" : "bottom-20 right-3 pointer-events-none") 
             : "bottom-6 right-6 pointer-events-none"

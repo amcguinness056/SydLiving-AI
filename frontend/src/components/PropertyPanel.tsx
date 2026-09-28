@@ -385,7 +385,7 @@ export function PropertyPanel({
               {/* Match Factors / Bullets */}
               {kaiMatch.reasons.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {kaiMatch.reasons.map((reason, idx) => (
+                  {kaiMatch.reasons.map((reason: string, idx: number) => (
                     <span 
                       key={idx}
                       className="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-blue-100 dark:border-slate-700 text-[10.5px] font-semibold flex items-center gap-1 shadow-2xs"

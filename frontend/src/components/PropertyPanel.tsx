@@ -35,11 +35,8 @@ export function PropertyPanel({
   const [isScrolled, setIsScrolled] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const heroImgRef = useRef<HTMLDivElement>(null);
-  const heroBlurRef = useRef<HTMLDivElement>(null);
   const heroDimRef = useRef<HTMLDivElement>(null);
   const isScrolledRef = useRef(false);
-  const isTickingRef = useRef(false);
   const fallbackImage = "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800&auto=format&fit=crop&q=80";
 
   // Build the list of available images (deduped)
@@ -61,60 +58,31 @@ export function PropertyPanel({
     setCurrentImageIndex(0);
     setIsScrolled(false);
     isScrolledRef.current = false;
-    isTickingRef.current = false;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
-    }
-    if (heroImgRef.current) {
-      heroImgRef.current.style.transform = "translate3d(0, 0px, 0) scale(1)";
-    }
-    if (heroBlurRef.current) {
-      heroBlurRef.current.style.opacity = "0";
     }
     if (heroDimRef.current) {
       heroDimRef.current.style.opacity = "0";
     }
   }, [property?.id, isMaximized]);
 
-  // Buttery 120fps/60fps compositor scroll handler:
-  // 1. Ticking throttle prevents frame starvation from high-frequency input events
-  // 2. Opacity crossfade of pre-rendered blur texture avoids costly GPU Gaussian filter recalculations on large viewports
-  // 3. Dynamic maxRange adapts to side panel (320px) vs enlarged modal (480px)
+  // Native Sliding Sheet: 100% native browser compositor scrolling, zero JS transform interference
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const top = scrollRef.current.scrollTop;
 
-    // Toggle frosted header bar only when crossing 100px boundary to avoid component re-renders
+    // Toggle frosted header bar when crossing 100px boundary
     const shouldBeScrolled = top > 100;
     if (shouldBeScrolled !== isScrolledRef.current) {
       isScrolledRef.current = shouldBeScrolled;
       setIsScrolled(shouldBeScrolled);
     }
 
-    if (!isTickingRef.current) {
-      isTickingRef.current = true;
-      requestAnimationFrame(() => {
-        isTickingRef.current = false;
-        if (!scrollRef.current) return;
-        const currentTop = scrollRef.current.scrollTop;
-
-        const maxRange = isMaximized ? 480 : 320;
-        const clamped = Math.min(Math.max(currentTop, 0), maxRange);
-        const progress = clamped / maxRange; // 0.0 -> 1.0
-
-        const translateY = (clamped * 0.35).toFixed(1);
-        const scale = (1 - progress * 0.08).toFixed(3); // 1.0 -> 0.92
-
-        if (heroImgRef.current) {
-          heroImgRef.current.style.transform = `translate3d(0, ${translateY}px, 0) scale(${scale})`;
-        }
-        if (heroBlurRef.current) {
-          heroBlurRef.current.style.opacity = progress.toFixed(3);
-        }
-        if (heroDimRef.current) {
-          heroDimRef.current.style.opacity = (progress * 0.55).toFixed(3);
-        }
-      });
+    // Gentle ambient dimming of the stationary hero as the details sheet glides over it
+    if (heroDimRef.current) {
+      const maxRange = isMaximized ? 420 : 280;
+      const progress = Math.min(Math.max(top, 0), maxRange) / maxRange;
+      heroDimRef.current.style.opacity = (progress * 0.45).toFixed(2);
     }
   }, [isMaximized]);
 
@@ -255,11 +223,8 @@ export function PropertyPanel({
           "w-full sticky top-0 z-0 bg-slate-950 overflow-hidden shrink-0 select-none",
           isMaximized ? "h-[50vh] sm:h-[58vh] min-h-[360px] max-h-[520px]" : "h-[42vh] sm:h-[46vh] min-h-[290px] max-h-[380px]"
         )}>
-          {/* Parallax & Scale Container */}
-          <div 
-            ref={heroImgRef}
-            className="absolute inset-0 w-full h-full will-change-transform origin-top"
-          >
+          {/* Base Hero Photo Layer */}
+          <div className="absolute inset-0 w-full h-full">
             {/* Crisp Base Image */}
             <img 
               src={images[currentImageIndex] || fallbackImage} 
@@ -271,26 +236,10 @@ export function PropertyPanel({
               className="w-full h-full object-cover cursor-zoom-in" 
             />
 
-            {/* Pre-blurred Crossfade Layer: 100% GPU compositor opacity blend, zero shader recalculations */}
-            <div 
-              ref={heroBlurRef}
-              className="absolute inset-0 w-full h-full pointer-events-none will-change-opacity overflow-hidden"
-              style={{ opacity: 0 }}
-            >
-              <img 
-                src={images[currentImageIndex] || fallbackImage} 
-                alt="" 
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = fallbackImage;
-                }}
-                className="w-full h-full object-cover blur-xl scale-105" 
-              />
-            </div>
-
             {/* Ambient Dimming Overlay */}
             <div 
               ref={heroDimRef}
-              className="absolute inset-0 bg-slate-950 pointer-events-none will-change-opacity"
+              className="absolute inset-0 bg-slate-950 pointer-events-none transition-opacity duration-75"
               style={{ opacity: 0 }}
             />
           </div>
@@ -351,11 +300,16 @@ export function PropertyPanel({
         {/* ======================================================================= */}
         {/* DETAILS SHEET: Slides naturally over the hero on scroll               */}
         {/* ======================================================================= */}
-        <div className="relative z-10 -mt-6 sm:-mt-8 rounded-t-[28px] bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 shadow-2xl flex flex-col">
+        <div className="relative z-10 -mt-6 sm:-mt-8 rounded-t-[28px] sm:rounded-t-[32px] bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 shadow-2xl flex flex-col">
           
+          {/* Tactile Sheet Grab Indicator */}
+          <div className="w-full flex justify-center pt-2.5 pb-1 select-none pointer-events-none">
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700/80" />
+          </div>
+
           {/* Thumbnails Ribbon (if 2+ photos exist) */}
           {images.length > 1 && (
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200/80 dark:border-slate-800 flex items-center gap-2 overflow-x-auto custom-scrollbar rounded-t-[28px]">
+            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200/80 dark:border-slate-800 flex items-center gap-2 overflow-x-auto custom-scrollbar">
               {images.map((imgUrl, idx) => (
                 <button
                   key={idx}

@@ -244,42 +244,13 @@ For detailed step-by-step manual setup or infrastructure recreation, see:
 
 ---
 
-## 📸 Visual Assets & UI Verification Policy (Mandatory)
+## 📡 API Reference & OpenAPI Specification
 
-> [!IMPORTANT]
-> **All future UI/UX modifications require updating the canonical documentation screenshots.**
-> Whenever components, styling, or layouts are changed, you must regenerate the visual assets before opening or updating a Pull Request.
+Full interactive documentation, request/response models, and OpenAPI 3.1 specifications are automatically generated and served by FastAPI:
 
-### Canonical Visual Assets:
-1. `docs/screenshots/dark_mode_commute_map.png` — Main application canvas in dark mode showing map, 252 property listings, and Kai's Concierge Capsule with proactive greeting bubble.
-2. `docs/screenshots/kai_ai_concierge_chat.png` — Active chat drawer showing Kai's multi-agent streaming responses, local advice, and property links.
-3. `docs/screenshots/shortlist_compare_modal.png` — Shortlist comparison modal showing side-by-side properties and the "Ask Kai to Compare" action bar.
-
-### Automated Screenshot Capture:
-With both frontend (`npm run dev`) and backend (`uvicorn main:app`) running, execute:
-
-```bash
-./scripts/update_screenshots.sh
-```
-
-This automated Playwright script sets up dark mode, loads sample shortlists, interacts with Kai, and updates all three canonical screenshot assets in `docs/screenshots/`.
-
----
-
-## 📡 API Endpoints Reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Service health check |
-| `GET` | `/api/hubs` | Retrieve all Sydney destination CBD hubs |
-| `GET` | `/api/properties` | Search properties with filters: `keyword`, `property_type`, `max_rent`, `min_bedrooms`, `circle`, `polygon` |
-| `GET` | `/api/properties/{id}` | Retrieve individual property listing details |
-| `GET` | `/api/properties/saved` | Fetch saved/shortlisted properties for authenticated user |
-| `POST` | `/api/properties/saved/{id}` | Toggle saved property |
-| `GET` | `/api/commute` | Lookup transit duration and route between `origin_suburb` and `destination_cbd_hub` |
-| `POST` | `/api/chat/deep` | Streaming Server-Sent Events (SSE) endpoint for LangChain Deep Multi-Agent chat |
-| `GET` | `/api/chat/sessions` | Fetch conversation history for authenticated user |
-| `DELETE` | `/api/chat/sessions/{id}` | Delete a chat session |
+- **OpenAPI 3.1 Specification:** [`docs/openapi.json`](docs/openapi.json) (or raw JSON at [`/openapi.json`](https://sydliving.com/openapi.json))
+- **Interactive Swagger UI:** [`https://sydliving.com/docs`](https://sydliving.com/docs) (local: `http://localhost:8000/docs`)
+- **ReDoc API Documentation:** [`https://sydliving.com/redoc`](https://sydliving.com/redoc) (local: `http://localhost:8000/redoc`)
 
 ---
 

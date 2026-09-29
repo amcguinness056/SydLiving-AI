@@ -1,0 +1,2389 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SydLiving AI API",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hubs": {
+      "get": {
+        "summary": "Get Hubs",
+        "operationId": "get_hubs_api_hubs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/isochrones": {
+      "get": {
+        "summary": "Get Isochrones",
+        "operationId": "get_isochrones_api_isochrones_get",
+        "parameters": [
+          {
+            "name": "destination_hub",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The destination hub name or id",
+              "default": "Barangaroo",
+              "title": "Destination Hub"
+            },
+            "description": "The destination hub name or id"
+          },
+          {
+            "name": "max_minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Max commute duration in minutes",
+              "default": 60,
+              "title": "Max Minutes"
+            },
+            "description": "Max commute duration in minutes"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IsochroneResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login",
+        "operationId": "login_api_auth_login_post",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/google": {
+      "post": {
+        "summary": "Google Auth",
+        "operationId": "google_auth_api_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/user/profile": {
+      "get": {
+        "summary": "Get User Profile",
+        "operationId": "get_user_profile_api_user_profile_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "ID of the user",
+              "title": "User Id"
+            },
+            "description": "ID of the user"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update User Profile",
+        "operationId": "update_user_profile_api_user_profile_put",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "ID of the user",
+              "title": "User Id"
+            },
+            "description": "ID of the user"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync/listings": {
+      "post": {
+        "summary": "Trigger Listing Sync",
+        "description": "Admin or Cloud Scheduler endpoint to trigger active Sydney listing synchronization.",
+        "operationId": "trigger_listing_sync_api_sync_listings_post",
+        "parameters": [
+          {
+            "name": "only_real",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether to purge synthetic listings and keep only real listings",
+              "default": true,
+              "title": "Only Real"
+            },
+            "description": "Whether to purge synthetic listings and keep only real listings"
+          },
+          {
+            "name": "X-Admin-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingSyncResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/properties": {
+      "get": {
+        "summary": "Search Properties",
+        "operationId": "search_properties_api_properties_get",
+        "parameters": [
+          {
+            "name": "suburbs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "List of suburbs to filter by",
+              "title": "Suburbs"
+            },
+            "description": "List of suburbs to filter by"
+          },
+          {
+            "name": "max_rent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum weekly rent in AUD",
+              "title": "Max Rent"
+            },
+            "description": "Maximum weekly rent in AUD"
+          },
+          {
+            "name": "min_bedrooms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum number of bedrooms",
+              "title": "Min Bedrooms"
+            },
+            "description": "Minimum number of bedrooms"
+          },
+          {
+            "name": "destination_hub",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Destination hub for commute calculation",
+              "title": "Destination Hub"
+            },
+            "description": "Destination hub for commute calculation"
+          },
+          {
+            "name": "max_commute_mins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum commute time in minutes",
+              "title": "Max Commute Mins"
+            },
+            "description": "Maximum commute time in minutes"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keyword search in title",
+              "title": "Keyword"
+            },
+            "description": "Keyword search in title"
+          },
+          {
+            "name": "property_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Property type filter",
+              "title": "Property Type"
+            },
+            "description": "Property type filter"
+          },
+          {
+            "name": "pet_friendly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter for pet-friendly properties",
+              "title": "Pet Friendly"
+            },
+            "description": "Filter for pet-friendly properties"
+          },
+          {
+            "name": "needs_parking",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter for properties with parking spaces",
+              "title": "Needs Parking"
+            },
+            "description": "Filter for properties with parking spaces"
+          },
+          {
+            "name": "has_air_con",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter for properties with air conditioning",
+              "title": "Has Air Con"
+            },
+            "description": "Filter for properties with air conditioning"
+          },
+          {
+            "name": "circle",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Circle filter: lat,lng,radius_m",
+              "title": "Circle"
+            },
+            "description": "Circle filter: lat,lng,radius_m"
+          },
+          {
+            "name": "polygon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Polygon filter: lat,lng;lat,lng...",
+              "title": "Polygon"
+            },
+            "description": "Polygon filter: lat,lng;lat,lng..."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertySearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/properties/saved/sync": {
+      "post": {
+        "summary": "Sync Saved Properties",
+        "operationId": "sync_saved_properties_api_properties_saved_sync_post",
+        "parameters": [
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedPropertiesSyncPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Property"
+                  },
+                  "title": "Response Sync Saved Properties Api Properties Saved Sync Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/properties/saved": {
+      "get": {
+        "summary": "Get Saved Properties",
+        "operationId": "get_saved_properties_api_properties_saved_get",
+        "parameters": [
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/properties/saved/{property_id}": {
+      "post": {
+        "summary": "Save Property",
+        "operationId": "save_property_api_properties_saved__property_id__post",
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Property Id"
+            }
+          },
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Unsave Property",
+        "operationId": "unsave_property_api_properties_saved__property_id__delete",
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Property Id"
+            }
+          },
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/properties/{property_id}": {
+      "get": {
+        "summary": "Get Property By Id",
+        "operationId": "get_property_by_id_api_properties__property_id__get",
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Property Id"
+            }
+          },
+          {
+            "name": "destination_hub",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional destination hub for commute calculation",
+              "title": "Destination Hub"
+            },
+            "description": "Optional destination hub for commute calculation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Property"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/commute": {
+      "get": {
+        "summary": "Get Commute",
+        "operationId": "get_commute_api_commute_get",
+        "parameters": [
+          {
+            "name": "origin_suburb",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The origin suburb",
+              "title": "Origin Suburb"
+            },
+            "description": "The origin suburb"
+          },
+          {
+            "name": "destination_cbd_hub",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The destination CBD hub",
+              "title": "Destination Cbd Hub"
+            },
+            "description": "The destination CBD hub"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommuteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/places": {
+      "get": {
+        "summary": "Get Places",
+        "operationId": "get_places_api_places_get",
+        "parameters": [
+          {
+            "name": "suburb",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The suburb to search for places",
+              "title": "Suburb"
+            },
+            "description": "The suburb to search for places"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Type of place (e.g., cafe, gym, transit_station)",
+              "default": "cafe",
+              "title": "Type"
+            },
+            "description": "Type of place (e.g., cafe, gym, transit_station)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/sessions": {
+      "get": {
+        "summary": "Get Chat Sessions",
+        "operationId": "get_chat_sessions_api_chat_sessions_get",
+        "parameters": [
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/sessions/{session_id}/messages": {
+      "get": {
+        "summary": "Get Chat Messages",
+        "operationId": "get_chat_messages_api_chat_sessions__session_id__messages_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/sessions/{session_id}": {
+      "delete": {
+        "summary": "Delete Chat Session",
+        "operationId": "delete_chat_session_api_chat_sessions__session_id__delete",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Chat Session",
+        "operationId": "update_chat_session_api_chat_sessions__session_id__patch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatSessionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSession"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "summary": "Chat Endpoint",
+        "operationId": "chat_endpoint_api_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/deep": {
+      "post": {
+        "summary": "Chat Deep Endpoint",
+        "operationId": "chat_deep_endpoint_api_chat_deep_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/deep/stream": {
+      "post": {
+        "summary": "Chat Deep Stream Endpoint",
+        "operationId": "chat_deep_stream_endpoint_api_chat_deep_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentAction": {
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_type",
+          "data"
+        ],
+        "title": "AgentAction"
+      },
+      "ChatMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "role",
+          "content",
+          "created_at"
+        ],
+        "title": "ChatMessage"
+      },
+      "ChatMessageResponse": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "ChatMessageResponse"
+      },
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "history": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest"
+      },
+      "ChatResponse": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAction"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          },
+          "latency_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Seconds"
+          },
+          "agent_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Type",
+            "default": "standard"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply"
+        ],
+        "title": "ChatResponse"
+      },
+      "ChatSession": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ChatSession"
+      },
+      "ChatSessionResponse": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/ChatSession"
+            },
+            "type": "array",
+            "title": "Sessions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "title": "ChatSessionResponse"
+      },
+      "ChatSessionUpdate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ChatSessionUpdate"
+      },
+      "CommuteMatrix": {
+        "properties": {
+          "origin_suburb": {
+            "type": "string",
+            "title": "Origin Suburb"
+          },
+          "destination_cbd_hub": {
+            "type": "string",
+            "title": "Destination Cbd Hub"
+          },
+          "transit_mode": {
+            "type": "string",
+            "title": "Transit Mode"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "peak_frequency_mins": {
+            "type": "integer",
+            "title": "Peak Frequency Mins"
+          },
+          "transfers": {
+            "type": "integer",
+            "title": "Transfers",
+            "default": 0
+          },
+          "estimated_opal_fare": {
+            "type": "number",
+            "title": "Estimated Opal Fare",
+            "default": 4.2
+          },
+          "route_summary": {
+            "type": "string",
+            "title": "Route Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin_suburb",
+          "destination_cbd_hub",
+          "transit_mode",
+          "duration_minutes",
+          "peak_frequency_mins"
+        ],
+        "title": "CommuteMatrix"
+      },
+      "CommuteResponse": {
+        "properties": {
+          "commutes": {
+            "items": {
+              "$ref": "#/components/schemas/CommuteMatrix"
+            },
+            "type": "array",
+            "title": "Commutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commutes"
+        ],
+        "title": "CommuteResponse"
+      },
+      "DestinationHub": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "hub_type": {
+            "type": "string",
+            "title": "Hub Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "latitude",
+          "longitude",
+          "hub_type"
+        ],
+        "title": "DestinationHub"
+      },
+      "GoogleAuthPayload": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GoogleAuthPayload"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HubsResponse": {
+        "properties": {
+          "hubs": {
+            "items": {
+              "$ref": "#/components/schemas/DestinationHub"
+            },
+            "type": "array",
+            "title": "Hubs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hubs"
+        ],
+        "title": "HubsResponse"
+      },
+      "IsochroneResponse": {
+        "properties": {
+          "hub": {
+            "$ref": "#/components/schemas/DestinationHub"
+          },
+          "max_minutes": {
+            "type": "integer",
+            "title": "Max Minutes"
+          },
+          "suburbs_within_reach": {
+            "items": {
+              "$ref": "#/components/schemas/IsochroneSuburb"
+            },
+            "type": "array",
+            "title": "Suburbs Within Reach"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hub",
+          "max_minutes",
+          "suburbs_within_reach"
+        ],
+        "title": "IsochroneResponse"
+      },
+      "IsochroneSuburb": {
+        "properties": {
+          "suburb": {
+            "type": "string",
+            "title": "Suburb"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "transit_mode": {
+            "type": "string",
+            "title": "Transit Mode"
+          },
+          "transfers": {
+            "type": "integer",
+            "title": "Transfers"
+          },
+          "peak_frequency_mins": {
+            "type": "integer",
+            "title": "Peak Frequency Mins"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suburb",
+          "latitude",
+          "longitude",
+          "duration_minutes",
+          "transit_mode",
+          "transfers",
+          "peak_frequency_mins"
+        ],
+        "title": "IsochroneSuburb"
+      },
+      "ListingSyncResponse": {
+        "properties": {
+          "synced_count": {
+            "type": "integer",
+            "title": "Synced Count"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "synced_count",
+          "message",
+          "source"
+        ],
+        "title": "ListingSyncResponse"
+      },
+      "Place": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "vicinity": {
+            "type": "string",
+            "title": "Vicinity"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "vicinity"
+        ],
+        "title": "Place"
+      },
+      "PlaceResponse": {
+        "properties": {
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "type": "array",
+            "title": "Places"
+          }
+        },
+        "type": "object",
+        "required": [
+          "places"
+        ],
+        "title": "PlaceResponse"
+      },
+      "Property": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "suburb": {
+            "type": "string",
+            "title": "Suburb"
+          },
+          "bedrooms": {
+            "type": "integer",
+            "title": "Bedrooms"
+          },
+          "bathrooms": {
+            "type": "integer",
+            "title": "Bathrooms"
+          },
+          "weekly_rent": {
+            "type": "number",
+            "title": "Weekly Rent"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "distance_to_beach_km": {
+            "type": "number",
+            "title": "Distance To Beach Km"
+          },
+          "available_date": {
+            "type": "string",
+            "title": "Available Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "photo_url": {
+            "type": "string",
+            "title": "Photo Url",
+            "default": ""
+          },
+          "parking_spaces": {
+            "type": "integer",
+            "title": "Parking Spaces",
+            "default": 0
+          },
+          "pet_friendly": {
+            "type": "boolean",
+            "title": "Pet Friendly",
+            "default": false
+          },
+          "has_air_con": {
+            "type": "boolean",
+            "title": "Has Air Con",
+            "default": false
+          },
+          "inspection_time": {
+            "type": "string",
+            "title": "Inspection Time",
+            "default": ""
+          },
+          "is_real_listing": {
+            "type": "boolean",
+            "title": "Is Real Listing",
+            "default": true
+          },
+          "external_url": {
+            "type": "string",
+            "title": "External Url",
+            "default": ""
+          },
+          "image_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Image Urls",
+            "default": []
+          },
+          "features_list": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Features List",
+            "default": []
+          },
+          "agency_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agency Name",
+            "default": ""
+          },
+          "agency_logo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agency Logo",
+            "default": ""
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name",
+            "default": ""
+          },
+          "agent_photo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Photo",
+            "default": ""
+          },
+          "agent_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Phone",
+            "default": ""
+          },
+          "property_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Type",
+            "default": "Apartment"
+          },
+          "commute_duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commute Duration Minutes"
+          },
+          "transit_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transit Mode"
+          },
+          "transfers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfers"
+          },
+          "estimated_opal_fare": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Opal Fare"
+          },
+          "route_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "suburb",
+          "bedrooms",
+          "bathrooms",
+          "weekly_rent",
+          "address",
+          "latitude",
+          "longitude",
+          "distance_to_beach_km",
+          "available_date"
+        ],
+        "title": "Property"
+      },
+      "PropertySearchResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/Property"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results",
+          "total"
+        ],
+        "title": "PropertySearchResponse"
+      },
+      "SavedPropertiesSyncPayload": {
+        "properties": {
+          "property_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Property Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "SavedPropertiesSyncPayload"
+      },
+      "User": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "auth_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Provider",
+            "default": "google"
+          },
+          "workplace_hub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workplace Hub",
+            "default": "Martin Place"
+          },
+          "max_commute_mins": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Commute Mins",
+            "default": 45
+          },
+          "max_weekly_rent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Weekly Rent",
+            "default": 1000.0
+          },
+          "min_bedrooms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Bedrooms",
+            "default": 1
+          },
+          "has_pets": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Pets",
+            "default": false
+          },
+          "needs_parking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Parking",
+            "default": false
+          },
+          "lifestyle_vibes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifestyle Vibes",
+            "default": []
+          },
+          "preferred_transit_modes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Transit Modes",
+            "default": []
+          },
+          "kai_verbosity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kai Verbosity",
+            "default": "concise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "title": "User"
+      },
+      "UserProfileUpdate": {
+        "properties": {
+          "workplace_hub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workplace Hub"
+          },
+          "max_commute_mins": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Commute Mins"
+          },
+          "max_weekly_rent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Weekly Rent"
+          },
+          "min_bedrooms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Bedrooms"
+          },
+          "has_pets": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Pets"
+          },
+          "needs_parking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Parking"
+          },
+          "lifestyle_vibes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifestyle Vibes"
+          },
+          "preferred_transit_modes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Transit Modes"
+          },
+          "kai_verbosity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kai Verbosity"
+          }
+        },
+        "type": "object",
+        "title": "UserProfileUpdate"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

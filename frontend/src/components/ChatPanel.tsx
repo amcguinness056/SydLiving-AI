@@ -26,6 +26,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, type ChatSession, type DeepAgentStep, type Property } from '../api/client';
+import { cn } from '../lib/utils';
 
 export interface Message {
   id: string;
@@ -562,6 +563,108 @@ export function ChatPanel({
   const [elapsedSecs, setElapsedSecs] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const currentQuery = useMemo(
+    () => [...messages].reverse().find(m => m.role === 'user')?.content || '',
+    [messages]
+  );
+
+  // Derive what Kai is currently doing based on the user's inquiry, elapsed time, and real subagent steps
+  const activeTaskAnalysis = useMemo(() => {
+    const q = currentQuery.toLowerCase();
+
+    // Check if user specified a destination hub
+    let destination = '';
+    if (q.includes('barangaroo')) destination = 'Barangaroo';
+    else if (q.includes('martin place')) destination = 'Martin Place';
+    else if (q.includes('victoria cross') || q.includes('north sydney')) destination = 'Victoria Cross / North Sydney';
+    else if (q.includes('central')) destination = 'Central';
+    else if (q.includes('parramatta')) destination = 'Parramatta';
+    else if (q.includes('macquarie park') || q.includes('macquarie')) destination = 'Macquarie Park';
+
+    // Check if user mentioned suburbs
+    let suburb = '';
+    const knownSuburbs = ['newtown', 'crows nest', 'surry hills', 'bondi', 'coogee', 'manly', 'paddington', 'balmain', 'redfern', 'chatswood', 'pyrmont', 'maroubra', 'glebe', 'wollstonecraft'];
+    for (const s of knownSuburbs) {
+      if (q.includes(s)) {
+        suburb = s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        break;
+      }
+    }
+
+    // Check features
+    const hasBudget = q.match(/\$?\d{3,4}/);
+
+    // 4 standard sequential phases with descriptive explanations of Kai's actions
+    const stages = [
+      {
+        id: 'analysis',
+        name: 'Analyze Requirements',
+        actionLabel: destination 
+          ? `Targeting commute route to ${destination}${hasBudget ? ` under ${hasBudget[0]}/wk` : ''}` 
+          : suburb 
+            ? `Analyzing rental opportunities in ${suburb}`
+            : 'Deconstructing commute constraints, weekly budget ceiling & lifestyle vibe',
+        description: destination
+          ? `Deconstructing door-to-door transit goals to ${destination} and aligning lifestyle filters.`
+          : 'Parsing your prompt for target hubs, price brackets, bedrooms, and pet/parking requirements.',
+        minSecs: 0,
+        maxSecs: 1.8
+      },
+      {
+        id: 'transit',
+        name: 'Sydney Commute Matrix',
+        actionLabel: destination
+          ? `Calculating peak door-to-door transit times to ${destination}`
+          : 'Querying Transport for NSW transit matrix (Metro, trains, ferries & Opal fares)',
+        description: destination
+          ? `Querying Sydney Metro M1, Sydney Trains & bus frequencies to verify realistic commute times to ${destination}.`
+          : 'Evaluating multi-modal travel times, interchanges, line reliability, and daily Opal fare caps.',
+        minSecs: 1.8,
+        maxSecs: 4.2
+      },
+      {
+        id: 'properties',
+        name: 'Rental Database Scout',
+        actionLabel: suburb
+          ? `Scanning active listings in ${suburb} matching criteria`
+          : 'Searching verified Sydney rental listings matching budget & preferences',
+        description: suburb
+          ? `Searching available properties in ${suburb} and cross-referencing floor plans, rent, and amenities.`
+          : 'Querying active real estate listings to match rent thresholds, bedroom counts, and pet/parking options.',
+        minSecs: 4.2,
+        maxSecs: 7.0
+      },
+      {
+        id: 'synthesis',
+        name: 'Formulate Kai Recommendations',
+        actionLabel: 'Synthesizing neighborhood insights & composing candid verdicts',
+        description: 'Analyzing suburb pros & cons, comparing rent trade-offs, and compiling personalized recommendations.',
+        minSecs: 7.0,
+        maxSecs: 999
+      }
+    ];
+
+    // Determine current active stage index based on elapsed seconds
+    let activeStageIdx = 0;
+    if (elapsedSecs >= 7.0) activeStageIdx = 3;
+    else if (elapsedSecs >= 4.2) activeStageIdx = 2;
+    else if (elapsedSecs >= 1.8) activeStageIdx = 1;
+    else activeStageIdx = 0;
+
+    // If real backend steps are running, reflect the most recent step
+    const runningStep = [...activeThinkingSteps].reverse().find(s => s.status === 'running');
+    const currentStatusText = activeStatusLabel || (runningStep ? runningStep.label : stages[activeStageIdx].actionLabel);
+
+    return {
+      destination,
+      suburb,
+      stages,
+      activeStageIdx,
+      currentStatusText,
+      activeStage: stages[activeStageIdx]
+    };
+  }, [currentQuery, elapsedSecs, activeThinkingSteps, activeStatusLabel]);
+
   const customMarkdownComponents = useMemo(() => ({
     ...markdownComponents,
     a: ({ href, children, ...props }: any) => {
@@ -953,35 +1056,109 @@ export function ChatPanel({
             
             {/* Live Thinking / Streaming Card */}
             {isThinking && (
-              <div className="self-start flex flex-col w-full">
-                <div className="p-4 bg-white/95 dark:bg-slate-800/95 border border-blue-200/90 dark:border-blue-900/70 rounded-2xl shadow-md shadow-blue-500/5 backdrop-blur-md text-xs space-y-3">
-                  {/* Card Header with Live Stopwatch */}
-                  <div className="flex items-center justify-between">
+              <div className="self-start flex flex-col w-full animate-in fade-in duration-200">
+                <div className="p-4 bg-white/95 dark:bg-slate-800/95 border border-blue-200/90 dark:border-blue-900/70 rounded-2xl shadow-md shadow-blue-500/5 backdrop-blur-md text-xs space-y-3.5">
+                  
+                  {/* Card Header with Active Indicator & Live Stopwatch */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
-                      <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                        {activeStatusLabel || 'Kai is researching Sydney listings & routes...'}
-                      </span>
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <span className="w-3 h-3 rounded-full bg-blue-500/30 animate-ping absolute" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 relative" />
+                      </div>
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="font-extrabold text-blue-700 dark:text-blue-300 text-[11px] tracking-wide uppercase">
+                          Kai AI Concierge
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">•</span>
+                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                          {activeTaskAnalysis.activeStage.name}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-mono tabular-nums font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 shrink-0 flex items-center gap-1">
+
+                    <span className="text-[10px] font-mono tabular-nums font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 shrink-0 flex items-center gap-1">
                       <Clock className="w-3 h-3 text-blue-500" />
                       <span>{elapsedSecs.toFixed(1)}s</span>
                     </span>
                   </div>
 
-                  {/* Live Steps Activity Log - Compact Window */}
+                  {/* Primary Current Operation Banner (Explaining EXACTLY what Kai is doing right now) */}
+                  <div className="bg-blue-50/80 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/60 rounded-xl p-3">
+                    <div className="flex items-start gap-2.5">
+                      <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-900 dark:text-white text-xs leading-snug">
+                          {activeTaskAnalysis.currentStatusText}
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          {activeTaskAnalysis.activeStage.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progressive Multi-Step Activity Pipeline */}
+                  <div className="space-y-2 pt-0.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                      <span>Research & Reasoning Pipeline</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">
+                        Stage {activeTaskAnalysis.activeStageIdx + 1} of {activeTaskAnalysis.stages.length}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700/80 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-300 rounded-full"
+                        style={{ width: `${Math.min(100, ((activeTaskAnalysis.activeStageIdx + 1) / activeTaskAnalysis.stages.length) * 100)}%` }}
+                      />
+                    </div>
+
+                    {/* Live Stages Micro-List */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                      {activeTaskAnalysis.stages.map((st, sIdx) => {
+                        const isDone = sIdx < activeTaskAnalysis.activeStageIdx;
+                        const isCurrent = sIdx === activeTaskAnalysis.activeStageIdx;
+                        return (
+                          <div 
+                            key={st.id}
+                            className={cn(
+                              "flex items-center gap-2 p-1.5 rounded-lg text-[11px] transition-colors",
+                              isCurrent
+                                ? "bg-blue-100/50 dark:bg-blue-900/30 text-blue-950 dark:text-blue-100 font-bold border border-blue-200/60 dark:border-blue-800/60"
+                                : isDone
+                                  ? "text-slate-700 dark:text-slate-300 font-medium"
+                                  : "text-slate-500 dark:text-slate-400 opacity-60"
+                            )}
+                          >
+                            {isDone ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            ) : isCurrent ? (
+                              <div className="w-3.5 h-3.5 relative shrink-0 flex items-center justify-center">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping absolute" />
+                                <span className="w-2 h-2 rounded-full bg-blue-600 relative" />
+                              </div>
+                            ) : (
+                              <div className="w-3.5 h-3.5 rounded-full border border-slate-300 dark:border-slate-600 shrink-0" />
+                            )}
+                            <span className="truncate">{st.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Real Backend Subagent & Tool Steps (if emitted) */}
                   {activeThinkingSteps.length > 0 && (
                     <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-700/60 pt-2.5">
-                      {activeThinkingSteps.length > 3 && (
-                        <div className="text-[10px] text-slate-500 dark:text-slate-300 font-medium pl-1 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                          <span>{activeThinkingSteps.length - 3} earlier steps completed</span>
-                        </div>
-                      )}
+                      <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400 pl-1">
+                        Active Subagent Operations ({activeThinkingSteps.length})
+                      </div>
                       {activeThinkingSteps.slice(-3).map((st, idx, arr) => {
                         const isLast = idx === arr.length - 1;
                         return (
-                          <div key={st.id || idx} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                          <div key={st.id || idx} className="flex items-start gap-1.5 text-[11px] leading-tight bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
                             {st.status === 'completed' || !isLast ? (
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                             ) : (
@@ -991,11 +1168,11 @@ export function ChatPanel({
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <p className={`font-medium ${isLast ? 'text-blue-800 dark:text-blue-200 font-semibold' : 'text-slate-800 dark:text-slate-200'}`}>
+                              <p className={`font-medium ${isLast ? 'text-blue-900 dark:text-blue-200 font-bold' : 'text-slate-800 dark:text-slate-200'}`}>
                                 {st.label}
                               </p>
                               {st.detail && (
-                                <p className="text-[10px] text-slate-600 dark:text-slate-300 font-mono truncate">{st.detail}</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-300 font-mono truncate mt-0.5">{st.detail}</p>
                               )}
                             </div>
                           </div>

@@ -31,6 +31,12 @@ def test_deep_tools_action_collection():
         places_data = json.loads(places_res)
         assert "places" in places_data
 
+        # Test local recommendations tool
+        local_res = deep_agent.deep_get_local_recommendations_tool(suburb="Surry Hills", query="coffee")
+        local_data = json.loads(local_res)
+        assert "places" in local_data
+        assert len(local_data["places"]) > 0
+
         # Test commute reach filter tool
         reach_res = deep_agent.deep_filter_by_commute_reach_tool(destination_hub="Barangaroo", max_commute_minutes=35)
         reach_data = json.loads(reach_res)
@@ -42,6 +48,17 @@ def test_deep_tools_action_collection():
         assert "update_commute" in action_types
         assert "update_places" in action_types
         assert "update_commute_filters" in action_types
+
+        # Verify update_places action contains places with coordinates
+        places_actions = [a for a in actions if a["action_type"] == "update_places"]
+        assert len(places_actions) >= 1
+        rec_action = next(a for a in places_actions if "places" in a["data"])
+        assert len(rec_action["data"]["places"]) > 0
+        first_place = rec_action["data"]["places"][0]
+        assert "name" in first_place
+        assert "latitude" in first_place
+        assert "longitude" in first_place
+        assert "google_maps_url" in first_place
     finally:
         deep_agent._active_actions_collector.reset(token)
 

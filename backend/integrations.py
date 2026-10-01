@@ -273,7 +273,10 @@ def fetch_local_recommendations(
                         "vicinity": item.get("formatted_address", ""),
                         "distance_meters": dist_m,
                         "walking_minutes": walk_mins,
-                        "place_id": item.get("place_id")
+                        "place_id": item.get("place_id"),
+                        "latitude": p_lat,
+                        "longitude": p_lng,
+                        "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote((item.get('name') or '') + ' ' + (item.get('formatted_address') or ''))}"
                     })
         except Exception as e:
             print(f"[Integrations] Google Places API lookup failed, falling back to curated dataset: {e}")
@@ -355,7 +358,10 @@ def fetch_local_recommendations(
                     "distance_meters": dist_m,
                     "walking_minutes": walk_mins,
                     "specialty": venue.get("specialty", ""),
-                    "place_id": f"syd_curated_{venue['name'].lower().replace(' ', '_')}"
+                    "place_id": f"syd_curated_{venue['name'].lower().replace(' ', '_')}",
+                    "latitude": venue.get("lat"),
+                    "longitude": venue.get("lng"),
+                    "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(venue['name'] + ' ' + venue['address'])}"
                 })
 
         # If still no candidates found, expand type matching slightly
@@ -387,23 +393,11 @@ def fetch_local_recommendations(
                         "distance_meters": dist_m,
                         "walking_minutes": walk_mins,
                         "specialty": venue.get("specialty", ""),
-                        "place_id": f"syd_curated_{venue['name'].lower().replace(' ', '_')}"
+                        "place_id": f"syd_curated_{venue['name'].lower().replace(' ', '_')}",
+                        "latitude": venue.get("lat"),
+                        "longitude": venue.get("lng"),
+                        "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(venue['name'] + ' ' + venue['address'])}"
                     })
-
-                candidates.append({
-                    "name": venue["name"],
-                    "type": venue["type"],
-                    "rating": rating,
-                    "user_ratings_total": reviews,
-                    "credibility_score": credibility,
-                    "price_level": venue.get("price_level", 2),
-                    "address": venue["address"],
-                    "vicinity": venue["address"],
-                    "distance_meters": dist_m,
-                    "walking_minutes": walk_mins,
-                    "specialty": venue.get("specialty", ""),
-                    "place_id": f"syd_curated_{venue['name'].lower().replace(' ', '_')}"
-                })
 
     # Deduplicate candidates by name
     seen = set()

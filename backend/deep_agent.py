@@ -122,6 +122,12 @@ def deep_get_local_recommendations_tool(
             longitude=lng,
             radius_meters=radius_meters
         )
+        _record_action("update_places", {
+            "suburb": suburb,
+            "query": query,
+            "property_id": property_id,
+            "places": results[:5]
+        })
         return json.dumps({
             "places": results,
             "suburb": suburb,
@@ -291,11 +297,12 @@ def create_deep_sydliving_agent(
         "When recommending local cafes, restaurants, bakeries, coffee, or dining spots for a listing or neighborhood:\n"
         "- ALWAYS use `deep_get_local_recommendations_tool` (or `deep_get_places_tool`) passing the property ID or coordinates and suburb.\n"
         "- Deliver exactly the **Top 3** spots, carefully weighing up both high star ratings (e.g. 4.5+) AND substantial review counts (e.g. hundreds or thousands of reviews) so recommendations are proven, beloved Sydney institutions.\n"
-        "- Format each of the 3 recommendations clearly:\n"
-        "  - **[Venue Name]** — ⭐ [Rating] ([Number of reviews] reviews)\n"
+        "- ALWAYS format each of the 3 recommendations with the venue name as a clickable link using `place:<Venue Name>`:\n"
+        "  - [Venue Name](place:<Venue Name>) — ⭐ [Rating] ([Number of reviews] reviews)\n"
         "  - 🚶 **Distance / Walk**: [e.g. 450m • 6 min walk from the listing]\n"
         "  - 🏷️ **Type & Price**: [e.g. Specialty Coffee & Brunch • $$]\n"
         "  - 💡 **Kai's Insider Takeaway**: Specific must-order dish or drink and why it matches their query (e.g. 'Order the signature batch brew and scrambled eggs; leafy courtyard fills fast by 9:30 AM').\n"
+        "- NEVER output a venue name as plain text without linking its `place:<name>`. Example: `[Paramount Coffee Project](place:Paramount+Coffee+Project)` or `[Single O Surry Hills](place:Single+O+Surry+Hills)`. This allows users to click the business in chat to highlight it on the map and view directions.\n"
         "- Finish with 🎯 My Verdict on the immediate neighborhood vibe and culinary scene."
     )
 
@@ -786,6 +793,36 @@ async def stream_deep_chat(
                             if s.get("id") == run_id:
                                 s["status"] = "completed"
                         yield sse("step_done", {"id": run_id, "name": name})
+
+                        # If this was a places/local recommendation tool, stream update_places action
+                        if name in ("deep_get_local_recommendations_tool", "get_local_recommendations_tool", "deep_get_places_tool", "get_places_tool"):
+                            tool_out = ev.get("data", {}).get("output")
+                            if tool_out:
+                                try:
+                                    if hasattr(tool_out, "content"):
+                                        tool_out = tool_out.content
+                                    if isinstance(tool_out, str):
+                                        p_data = json.loads(tool_out)
+                                    elif isinstance(tool_out, dict):
+                                        p_data = tool_out
+                                    else:
+                                        p_data = {}
+                                    p_list = p_data.get("places") or []
+                                    if p_list:
+                                        p_action = {
+                                            "action_type": "update_places",
+                                            "data": {
+                                                "places": p_list[:5],
+                                                "suburb": p_data.get("suburb"),
+                                                "query": p_data.get("query"),
+                                                "property_id": p_data.get("property_id")
+                                            }
+                                        }
+                                        collected_actions.append(p_action)
+                                        yield sse("action", p_action)
+                                except Exception as parse_err:
+                                    print(f"[DeepAgent] Error parsing places tool output: {parse_err}")
+
                         yield sse("status", {
                             "stage": "synthesizing",
                             "label": "⚡ Synthesizing agent research and evaluating matches..."

@@ -226,11 +226,12 @@ LOCAL CAFE & RESTAURANT RECOMMENDATIONS RULE:
 When a user asks for local cafes, restaurants, bakeries, coffee, or dining recommendations (especially for a specific listing or neighborhood):
 - ALWAYS call `get_local_recommendations_tool` (or `get_places_tool`) passing the property_id or suburb and query.
 - Deliver exactly the **Top 3** spots, carefully weighing up both high star ratings (e.g. 4.5+) AND substantial review counts (e.g. hundreds or thousands of reviews) so recommendations are proven, beloved Sydney institutions.
-- Format each of the 3 recommendations clearly:
-  - **[Venue Name]** — ⭐ [Rating] ([Number of reviews] reviews)
+- ALWAYS format each of the 3 recommendations with the venue name as a clickable link using `place:<Venue Name>`:
+  - [Venue Name](place:<Venue Name>) — ⭐ [Rating] ([Number of reviews] reviews)
   - 🚶 **Distance / Walk**: [e.g. 450m • 6 min walk from the listing]
   - 🏷️ **Type & Price**: [e.g. Specialty Coffee & Brunch • $$]
   - 💡 **Kai's Insider Takeaway**: Specific must-order dish or drink and why it matches their query (e.g. "Order the ricotta hotcakes and batch brew; sunny courtyard fills fast by 9:30 AM").
+- NEVER output a venue name as plain text without linking its `place:<name>`. Example: `[Paramount Coffee Project](place:Paramount+Coffee+Project)` or `[Single O Surry Hills](place:Single+O+Surry+Hills)`. This enables interactive in-app map highlighting and Google Maps links.
 - Finish with 🎯 My Verdict on the immediate neighborhood vibe and culinary scene.
 {verbosity_instruction}"""
         

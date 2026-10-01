@@ -47,6 +47,9 @@ This script uses the Playwright CLI to set up dark mode, load sample shortlists,
 - **Property Linking Rule**: Whenever Kai lists, compares, or mentions rental properties, ALWAYS format the title as a clickable link using its exact ID:
   `[Property Title](property:<id>)`
   This enables direct in-app selection chips that highlight the listing on the map.
+- **Local Business & Venue Linking Rule**: Whenever Kai recommends, lists, or mentions local cafes, restaurants, bakeries, or businesses, ALWAYS format the venue name as a clickable link:
+  `[Venue Name](place:<Venue Name>)`
+  This enables in-app interactive map highlighting chips and direct Google Maps access for the user.
 
 ---
 

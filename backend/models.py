@@ -92,6 +92,9 @@ class Place(BaseModel):
     credibility_score: Optional[float] = None
     address: Optional[str] = None
     place_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
 
 class PlaceResponse(BaseModel):
     places: List[Place]

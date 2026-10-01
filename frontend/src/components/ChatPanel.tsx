@@ -22,7 +22,9 @@ import {
   Pencil,
   Check,
   MessageSquare,
-  Lock
+  Lock,
+  Coffee,
+  MapPin
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -56,6 +58,7 @@ interface ChatPanelProps {
   properties?: Property[];
   activeProperty?: Property | null;
   onSelectProperty?: (propertyId: string) => void;
+  onSelectPlace?: (placeName: string | null) => void;
   onRequireAuth?: () => void;
 }
 
@@ -555,6 +558,7 @@ export function ChatPanel({
   properties = [],
   activeProperty = null,
   onSelectProperty,
+  onSelectPlace,
   onRequireAuth
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
@@ -866,6 +870,70 @@ export function ChatPanel({
           </button>
         );
       }
+      if (href?.startsWith('place:') || href?.startsWith('venue:')) {
+        const placeQuery = decodeURIComponent(href.replace(/^(place|venue):/, '').replace(/\+/g, ' '));
+        const suburbContext = activeProperty?.suburb ? ` ${activeProperty.suburb}` : '';
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQuery + suburbContext + ' Sydney')}`;
+        return (
+          <span className="inline-flex items-center gap-1 my-0.5 align-middle">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectPlace?.(placeQuery);
+              }}
+              className="inline-flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-100 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border border-amber-300/80 dark:border-amber-700/80 px-2 py-0.5 rounded-lg shadow-2xs transition-all cursor-pointer text-left hover:scale-[1.02]"
+              title={`Highlight ${placeQuery} on map`}
+            >
+              <Coffee className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{children}</span>
+              <MapPin className="w-3 h-3 text-amber-600 dark:text-amber-400 opacity-70 ml-0.5" />
+            </button>
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              title="Open in Google Maps"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </span>
+        );
+      }
+      if (href && (href.includes('google.com/maps') || href.includes('maps.google'))) {
+        const labelText = typeof children === 'string' ? children : String(children);
+        return (
+          <span className="inline-flex items-center gap-1 my-0.5 align-middle">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectPlace?.(labelText);
+              }}
+              className="inline-flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-100 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border border-amber-300/80 dark:border-amber-700/80 px-2 py-0.5 rounded-lg shadow-2xs transition-all cursor-pointer text-left hover:scale-[1.02]"
+              title={`Highlight ${labelText} on map`}
+            >
+              <Coffee className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{children}</span>
+              <MapPin className="w-3 h-3 text-amber-600 dark:text-amber-400 opacity-70 ml-0.5" />
+            </button>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              title="Open in Google Maps"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </span>
+        );
+      }
       return (
         <a
           href={href}
@@ -879,7 +947,7 @@ export function ChatPanel({
         </a>
       );
     }
-  }), [onSelectProperty]);
+  }), [onSelectProperty, onSelectPlace, activeProperty]);
 
   const handleToggleExpand = useCallback((id: string) => {
     setExpandedStepsMap(prev => ({ ...prev, [id]: !prev[id] }));

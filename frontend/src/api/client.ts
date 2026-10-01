@@ -88,6 +88,9 @@ export interface Place {
   credibility_score?: number | null;
   address?: string | null;
   place_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  google_maps_url?: string | null;
 }
 
 export interface ChatResponse {

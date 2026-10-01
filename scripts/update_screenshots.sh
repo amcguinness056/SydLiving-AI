@@ -36,11 +36,13 @@ playwright-cli eval "async () => {
   try {
     const res = await fetch('http://127.0.0.1:8000/api/properties');
     const data = await res.json();
-    const list = data.results || data;
-    const ids = list.slice(0, 3).map(p => p.id);
-    localStorage.setItem('sydliving_shortlist', JSON.stringify(ids));
+    const list = data.results || (Array.isArray(data) ? data : []);
+    if (list.length > 0) {
+      const ids = list.slice(0, 3).map(p => p.id);
+      localStorage.setItem('sydliving_shortlist', JSON.stringify(ids));
+    }
   } catch (e) {
-    localStorage.setItem('sydliving_shortlist', JSON.stringify(['18328999', '18335001', '18314911']));
+    console.error('Failed to seed shortlist for screenshots:', e);
   }
 }"
 playwright-cli reload

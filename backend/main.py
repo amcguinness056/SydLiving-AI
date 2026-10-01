@@ -301,6 +301,7 @@ def format_property_dict(row: sqlite3.Row) -> dict:
 @app.get("/api/properties", response_model=PropertySearchResponse)
 def search_properties(
     suburbs: Optional[List[str]] = Query(None, description="List of suburbs to filter by"),
+    property_ids: Optional[List[str]] = Query(None, description="List of property IDs to filter by"),
     max_rent: Optional[float] = Query(None, description="Maximum weekly rent in AUD"),
     min_bedrooms: Optional[int] = Query(None, description="Minimum number of bedrooms"),
     destination_hub: Optional[str] = Query(None, description="Destination hub for commute calculation"),
@@ -337,6 +338,11 @@ def search_properties(
             params.append(max_commute_mins)
     else:
         query = "SELECT p.*, NULL AS commute_duration_minutes, NULL AS transit_mode, NULL AS transfers, NULL AS estimated_opal_fare, NULL AS route_summary FROM properties p WHERE 1=1"
+
+    if property_ids:
+        placeholders = ','.join('?' * len(property_ids))
+        query += f" AND p.id IN ({placeholders})"
+        params.extend(property_ids)
 
     if suburbs:
         placeholders = ','.join('?' * len(suburbs))
@@ -423,9 +429,20 @@ def sync_saved_properties(
     cursor = db.cursor()
     for pid in payload.property_ids:
         try:
-            cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, pid))
+            cursor.execute("SELECT 1 FROM properties WHERE id = ?", (pid,))
+            if cursor.fetchone():
+                cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, pid))
         except sqlite3.Error:
             pass
+
+    # Clean up any orphaned saved_properties where property_id is not in properties
+    try:
+        cursor.execute("""
+            DELETE FROM saved_properties 
+            WHERE user_id = ? AND property_id NOT IN (SELECT id FROM properties)
+        """, (user_id,))
+    except sqlite3.Error:
+        pass
     db.commit()
 
     cursor.execute('''
@@ -454,6 +471,9 @@ def save_property(property_id: str, user_id: str = Depends(get_current_user), db
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
     cursor = db.cursor()
+    cursor.execute("SELECT 1 FROM properties WHERE id = ?", (property_id,))
+    if not cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Property not found")
     try:
         cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, property_id))
         db.commit()

@@ -410,9 +410,8 @@ function App() {
       if (Array.isArray(remoteProps)) {
         setSavedProperties(remoteProps);
         const remoteIds = remoteProps.map(p => p.id);
-        const mergedIds = Array.from(new Set([...currentShortlist, ...remoteIds]));
-        setShortlistedIds(mergedIds);
-        localStorage.setItem('sydliving_shortlist', JSON.stringify(mergedIds));
+        setShortlistedIds(remoteIds);
+        localStorage.setItem('sydliving_shortlist', JSON.stringify(remoteIds));
       }
     } catch (err) {
       console.error("Failed to sync saved properties", err);
@@ -453,12 +452,38 @@ function App() {
     loadProperties();
   }, [loadProperties]);
 
-  // When user is authenticated (on mount or after login), sync with backend
+  // Synchronize saved properties:
+  // For authenticated users, sync with backend database.
+  // For guest users, hydrate saved properties by property IDs and prune any invalid or deleted listings.
   useEffect(() => {
     if (user) {
       syncUserSavedProperties(shortlistedIdsRef.current);
     } else {
-      setSavedProperties([]);
+      const currentIds = shortlistedIdsRef.current;
+      if (currentIds.length > 0) {
+        let isMounted = true;
+        api.getProperties({ property_ids: currentIds })
+          .then(validProps => {
+            if (!isMounted) return;
+            if (Array.isArray(validProps)) {
+              setSavedProperties(validProps);
+              const validIdSet = new Set(validProps.map(p => p.id));
+              const prunedIds = currentIds.filter(id => validIdSet.has(id));
+              if (prunedIds.length !== currentIds.length) {
+                setShortlistedIds(prunedIds);
+                localStorage.setItem('sydliving_shortlist', JSON.stringify(prunedIds));
+              }
+            }
+          })
+          .catch(err => {
+            console.error("Failed to hydrate guest shortlisted properties", err);
+          });
+        return () => {
+          isMounted = false;
+        };
+      } else {
+        setSavedProperties([]);
+      }
       setShowSavedOnly(false);
     }
   }, [user, syncUserSavedProperties]);
@@ -551,9 +576,15 @@ function App() {
     if (isCurrentlySaved) {
       setSavedProperties(prev => prev.filter(p => p.id !== id));
     } else {
-      const match = properties.find(p => p.id === id);
+      const match = properties.find(p => p.id === id) || savedProperties.find(p => p.id === id);
       if (match) {
         setSavedProperties(prev => [match, ...prev.filter(p => p.id !== id)]);
+      } else {
+        api.getProperty(id).then(prop => {
+          if (prop) {
+            setSavedProperties(prev => [prop, ...prev.filter(p => p.id !== id)]);
+          }
+        }).catch(() => {});
       }
     }
 
@@ -569,7 +600,7 @@ function App() {
         console.error("Failed to sync toggle save with backend", err);
       }
     }
-  }, [shortlistedIds, user, properties]);
+  }, [shortlistedIds, user, properties, savedProperties]);
 
   const handleToggleSave = handleToggleFavorite;
 

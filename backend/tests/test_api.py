@@ -158,6 +158,45 @@ def test_saved_properties_sync_and_toggle():
     assert pid1 not in final_ids
     assert pid2 in final_ids
 
+def test_saved_properties_pruning_and_filtering():
+    """Verify property_ids filtering, orphaned ID pruning in sync, and 404 on nonexistent property save."""
+    # 1. Fetch valid properties
+    search_res = client.get("/api/properties")
+    props = search_res.json()["results"]
+    assert len(props) >= 3
+    valid_ids = [props[0]["id"], props[1]["id"]]
+    fake_ids = ["99999999_fake", "18328999_fake"]
+
+    # 2. Test GET /api/properties?property_ids=...
+    filter_res = client.get(f"/api/properties?property_ids={valid_ids[0]}&property_ids={valid_ids[1]}")
+    assert filter_res.status_code == 200
+    filtered_props = filter_res.json()["results"]
+    assert len(filtered_props) == 2
+    assert set(p["id"] for p in filtered_props) == set(valid_ids)
+
+    # 3. Login test user
+    login_res = client.post("/api/auth/login?username=prunetest_user")
+    assert login_res.status_code == 200
+    user_id = login_res.json()["id"]
+    headers = {"user-id": user_id}
+
+    # 4. Sync mixed valid and fake IDs -> only valid IDs should be saved
+    sync_res = client.post(
+        "/api/properties/saved/sync",
+        json={"property_ids": [valid_ids[0], fake_ids[0], valid_ids[1], fake_ids[1]]},
+        headers=headers
+    )
+    assert sync_res.status_code == 200
+    synced = sync_res.json()
+    assert len(synced) == 2
+    synced_ids = [p["id"] for p in synced]
+    assert set(synced_ids) == set(valid_ids)
+
+    # 5. Saving a nonexistent property directly must return 404
+    save_fake = client.post(f"/api/properties/saved/{fake_ids[0]}", headers=headers)
+    assert save_fake.status_code == 404
+
+
 def test_user_profile_crud():
     """Verify getting and updating a user's relocation and lifestyle profile."""
     # 1. Login user

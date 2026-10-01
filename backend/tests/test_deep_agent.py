@@ -116,7 +116,7 @@ def test_chat_deep_session_persistence():
 
 def test_chat_deep_stream_endpoint_mocked():
     """Verify that POST /api/chat/deep/stream yields SSE events properly."""
-    async def mock_generator(message, history, user_profile=None):
+    async def mock_generator(message, history, user_profile=None, **kwargs):
         yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
         yield "event: step\ndata: {\"id\": \"step-1\", \"type\": \"subagent\", \"name\": \"commute_specialist\", \"label\": \"Commute\", \"status\": \"running\"}\n\n"
         yield "event: chunk\ndata: {\"text\": \"Found 3 \"}\n\n"
@@ -142,7 +142,7 @@ def test_chat_deep_stream_endpoint_mocked():
 
 def test_chat_deep_stream_persistence():
     """Verify that POST /api/chat/deep/stream persists session and messages when user_id is provided."""
-    async def mock_generator(message, history, user_profile=None):
+    async def mock_generator(message, history, user_profile=None, **kwargs):
         yield "event: status\ndata: {\"stage\": \"planning\", \"label\": \"Planning search...\"}\n\n"
         yield "event: chunk\ndata: {\"text\": \"Streamed reply content\"}\n\n"
         yield "event: done\ndata: {\"reply\": \"Streamed reply content\", \"actions\": [], \"latency_seconds\": 1.2, \"steps\": []}\n\n"

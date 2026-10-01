@@ -12,7 +12,7 @@ load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from database import get_db_connection
-from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places, fetch_local_recommendations
 
 def query_properties_tool(suburb: str, max_rent: float, min_bedrooms: int) -> str:
     """Queries real-world Domain API and local database for properties matching the criteria.
@@ -43,6 +43,57 @@ def get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
         traceback.print_exc()
         return json.dumps({"error": str(e)})
 
+def get_local_recommendations_tool(
+    suburb: str = "",
+    query: str = "cafe",
+    property_id: str = "",
+    radius_meters: int = 1500
+) -> str:
+    """Discovers and ranks top local cafes, restaurants, bakeries, and eateries near a property listing or suburb.
+    Weighs up star rating and review count to deliver the most credible Sydney favorites.
+    Args:
+        suburb: Suburb name (e.g. 'Surry Hills', 'Bondi Beach', 'Newtown', 'Crows Nest', 'Manly').
+        query: Specific category or preference (e.g. 'cafe', 'specialty coffee', 'brunch', 'italian restaurant', 'dinner', 'bakery').
+        property_id: Optional ID of the rental property to calculate exact walking distance from.
+        radius_meters: Search radius in meters (default 1500 for walking distance).
+    """
+    from database import DB_PATH
+    lat, lng = None, None
+    if property_id:
+        try:
+            with sqlite3.connect(DB_PATH) as db:
+                db.row_factory = sqlite3.Row
+                cur = db.cursor()
+                cur.execute("SELECT suburb, latitude, longitude FROM properties WHERE id = ?", (property_id,))
+                row = cur.fetchone()
+                if row:
+                    if not suburb:
+                        suburb = row["suburb"]
+                    lat = row["latitude"]
+                    lng = row["longitude"]
+        except Exception as e:
+            print(f"[Agent] Error looking up property {property_id}: {e}")
+
+    try:
+        results = fetch_local_recommendations(
+            suburb=suburb,
+            query=query,
+            latitude=lat,
+            longitude=lng,
+            radius_meters=radius_meters
+        )
+        return json.dumps({
+            "places": results,
+            "suburb": suburb,
+            "query": query,
+            "property_id": property_id,
+            "count": len(results)
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": str(e)})
+
 def get_places_tool(suburb: str, place_type: str) -> str:
     """Looks up real-world Google Places (gyms, cafes, transit) in a suburb.
     Args:
@@ -50,7 +101,7 @@ def get_places_tool(suburb: str, place_type: str) -> str:
         place_type: The type of place (e.g. 'cafe', 'gym', 'transit_station', 'supermarket').
     """
     try:
-        results = fetch_google_places(suburb, place_type)
+        results = fetch_local_recommendations(suburb=suburb, query=place_type)
         return json.dumps({"places": results})
     except Exception as e:
         import traceback
@@ -100,7 +151,7 @@ def filter_by_commute_reach_tool(destination_hub: str, max_commute_minutes: int,
     finally:
         db.close()
 
-async def process_chat(message: str, history: list, user_profile: Optional[dict] = None) -> dict:
+async def process_chat(message: str, history: list, user_profile: Optional[dict] = None, property_context: Optional[dict] = None) -> dict:
     """Processes a chat message using Gemini and native tool calling."""
     import traceback
     try:
@@ -132,12 +183,12 @@ async def process_chat(message: str, history: list, user_profile: Optional[dict]
             verbosity_instruction = """
 STRICT LENGTH & CONCISENESS RULES (ACTIVE STYLE: CONCISE / PUNCHY - DEFAULT):
 - BE SHARP, PUNCHY, AND SCANNABLE. The user wants quick, high-impact advice—NOT an essay or wall of text.
-- Hard limit: Keep the ENTIRE reply under 150 words.
+- Hard limit: Keep the ENTIRE reply under 180 words.
 - NO long warmups, preambles, or repeated introductory sentences. Get straight to the answer in the first sentence.
 - NO massive multi-row markdown tables unless the user explicitly requested a table. Use 2 to 3 concise bullet points instead.
 - Reply Structure:
   1. Direct Answer (1 sentence): Instant answer to their question.
-  2. 2-3 Scannable Bullets: Key numbers, rent benchmarks, or transit facts.
+  2. 2-3 Scannable Bullets: Key numbers, rent benchmarks, transit facts, or top recommendations.
   3. 💡 Kai's Insider Tip: 1 punchy Sydney insider observation.
   4. 🎯 My Verdict: 1 decisive closing sentence."""
         elif verbosity == "balanced":
@@ -170,8 +221,30 @@ Whenever you recommend, list, or compare rental properties, ALWAYS format each p
 [Property Title](property:<id>)
 Example: [Light-Filled 1BR Studio Loft](property:08322db0-85b8-217113b88abd) in Crows Nest ($640/wk).
 Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs.
+
+LOCAL CAFE & RESTAURANT RECOMMENDATIONS RULE:
+When a user asks for local cafes, restaurants, bakeries, coffee, or dining recommendations (especially for a specific listing or neighborhood):
+- ALWAYS call `get_local_recommendations_tool` (or `get_places_tool`) passing the property_id or suburb and query.
+- Deliver exactly the **Top 3** spots, carefully weighing up both high star ratings (e.g. 4.5+) AND substantial review counts (e.g. hundreds or thousands of reviews) so recommendations are proven, beloved Sydney institutions.
+- Format each of the 3 recommendations clearly:
+  - **[Venue Name]** — ⭐ [Rating] ([Number of reviews] reviews)
+  - 🚶 **Distance / Walk**: [e.g. 450m • 6 min walk from the listing]
+  - 🏷️ **Type & Price**: [e.g. Specialty Coffee & Brunch • $$]
+  - 💡 **Kai's Insider Takeaway**: Specific must-order dish or drink and why it matches their query (e.g. "Order the ricotta hotcakes and batch brew; sunny courtyard fills fast by 9:30 AM").
+- Finish with 🎯 My Verdict on the immediate neighborhood vibe and culinary scene.
 {verbosity_instruction}"""
         
+        if property_context:
+            system_instruction += f"""
+
+CURRENTLY VIEWED LISTING CONTEXT:
+- Active Listing: [{property_context.get('title', 'Active Listing')}](property:{property_context.get('id', '')})
+- Suburb: {property_context.get('suburb', '')}
+- Address: {property_context.get('address', '')}
+- Coordinates: ({property_context.get('latitude')}, {property_context.get('longitude')})
+- Rent: ${property_context.get('weekly_rent', 0)}/week ({property_context.get('bedrooms', 1)}BR)
+When the user asks for local recommendations, cafes, restaurants, or spots "near here", "near this place", or "around the apartment", use this listing as the reference origin."""
+
         if user_profile:
             profile_lines = ["\nUSER RELOCATION & LIFESTYLE PROFILE (SAVED PREFERENCES):"]
             if user_profile.get("username"):
@@ -194,7 +267,7 @@ Never output a property name as plain text without linking its ID. This allows u
                 profile_lines.append(f"- Preferred Transit Modes: {', '.join(modes)}")
             system_instruction += "\n" + "\n".join(profile_lines)
 
-        tools = [query_properties_tool, get_commute_tool, get_places_tool, filter_by_commute_reach_tool]
+        tools = [query_properties_tool, get_commute_tool, get_places_tool, get_local_recommendations_tool, filter_by_commute_reach_tool]
         
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -242,7 +315,7 @@ Never output a property name as plain text without linking its ID. This allows u
                                 action_type = "update_properties"
                             elif fc.name == "get_commute_tool":
                                 action_type = "update_commute"
-                            elif fc.name == "get_places_tool":
+                            elif fc.name in ("get_places_tool", "get_local_recommendations_tool"):
                                 action_type = "update_places"
                             elif fc.name == "filter_by_commute_reach_tool":
                                 action_type = "update_commute_filters"

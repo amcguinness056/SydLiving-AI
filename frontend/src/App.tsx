@@ -671,13 +671,15 @@ function App() {
     }
   }, [loadProperties]);
 
-  const handleSendMessage = useCallback(async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string, referencePropertyId?: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
     setActiveThinkingSteps([]);
     setActiveStatusLabel(null);
     setStreamingContent('');
+
+    const targetPropertyId = referencePropertyId || modalPropertyId || selectedProperty?.id;
 
     try {
       let accumulatedText = '';
@@ -738,7 +740,8 @@ function App() {
               accumulatedText += `\n\n*(Note: Generation was interrupted: ${err.message})*`;
             }
           }
-        }
+        },
+        targetPropertyId
       );
 
       // Run any actions that were not executed during streaming
@@ -782,9 +785,9 @@ function App() {
       setActiveStatusLabel(null);
       setStreamingContent('');
     }
-  }, [chatHistory, currentSessionId, handleAgentAction]);
+  }, [chatHistory, currentSessionId, handleAgentAction, modalPropertyId, selectedProperty]);
 
-  const handleAskAgent = useCallback((prompt: string) => {
+  const handleAskAgent = useCallback((prompt: string, property?: Property) => {
     if (!user) {
       handleLogin('Sign in with Google to chat with Kai');
       return;
@@ -798,7 +801,7 @@ function App() {
       setSelectedProperty(null);
     }
     setIsChatOpen(true);
-    handleSendMessage(prompt);
+    handleSendMessage(prompt, property?.id);
   }, [user, handleLogin, handleSendMessage, isMobile]);
 
   const handleSelectSession = useCallback(async (sessionId: string | null) => {

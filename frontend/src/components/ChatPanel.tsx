@@ -60,9 +60,9 @@ interface ChatPanelProps {
 
 const SUGGESTIONS = [
   "Show rentals under 25 mins to Barangaroo",
+  "Top 3 rated cafes & coffee spots near here",
   "Metro-connected 2BR under $850/wk",
   "Beachside rentals under 35m to Central",
-  "Places under 30 mins to Victoria Cross",
   "Compare commute from Manly vs Bondi Beach"
 ];
 

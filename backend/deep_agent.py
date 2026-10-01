@@ -549,19 +549,94 @@ async def stream_deep_chat(
         clean_query = message.strip().replace('\n', ' ')
         query_snippet = f"'{clean_query[:48]}...'" if len(clean_query) > 48 else f"'{clean_query}'"
 
-        yield sse("status", {
-            "stage": "planning",
-            "label": f"🔍 Analyzing requirements: {query_snippet}"
-        })
+        cq_lower = clean_query.lower()
+        is_dining = any(k in cq_lower for k in [
+            "cafe", "cafes", "coffee", "restaurant", "restaurants", "dining", "food", 
+            "bakery", "bakeries", "brunch", "breakfast", "dinner", "lunch", "bar", 
+            "bars", "pub", "pubs", "drink", "drinks", "matcha", "pastry", "eats", "eateries"
+        ])
+        is_compare = any(k in cq_lower for k in [
+            "compare", "comparison", "versus", "vs", "shortlist", "which is better", "difference between"
+        ])
+        is_commute = any(k in cq_lower for k in [
+            "commute", "transit", "metro", "train", "trains", "bus", "buses", "ferry", 
+            "light rail", "how long to", "how do i get to", "travel time"
+        ])
+        is_vibe = any(k in cq_lower for k in [
+            "vibe", "atmosphere", "what is it like", "living in", "nightlife", "noisy", "safety"
+        ])
 
-        init_step = {
-            "id": "step_init_analysis",
-            "type": "plan",
-            "name": "requirements_analysis",
-            "label": f"📋 Deconstructing inquiry & relocation constraints",
-            "detail": f"Analyzing commute destination, weekly budget ceiling, and lifestyle vibe",
-            "status": "completed"
-        }
+        if is_dining:
+            loc_label = ""
+            if property_context and property_context.get("address"):
+                loc_label = f" near {property_context['address']}"
+            elif property_context and property_context.get("suburb"):
+                loc_label = f" in {property_context['suburb']}"
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"☕ Scouting local dining & venues: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "lifestyle_analysis",
+                "label": f"📋 Pinpointing local dining & venue preferences{loc_label}",
+                "detail": "Filtering Google Places & Sydney institutions by review volume, star ratings, and walking distance",
+                "status": "completed"
+            }
+        elif is_compare:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"⚖️ Comparing shortlist properties: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "comparison_analysis",
+                "label": "📋 Cross-referencing shortlisted properties & trade-offs",
+                "detail": "Comparing weekly rent, floor plans, commute access, and neighborhood amenities",
+                "status": "completed"
+            }
+        elif is_commute:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🚆 Analyzing commute corridors: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "commute_analysis",
+                "label": "📋 Analyzing door-to-door transit route constraints",
+                "detail": "Evaluating Sydney Metro, train and bus lines, interchange penalties, and peak travel times",
+                "status": "completed"
+            }
+        elif is_vibe:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🏙️ Evaluating neighborhood character: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "neighborhood_vibe_analysis",
+                "label": "📋 Analyzing neighborhood character & lifestyle profile",
+                "detail": "Evaluating local dining strips, noise levels, nightlife, walkability, and community culture",
+                "status": "completed"
+            }
+        else:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🔍 Analyzing requirements: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "requirements_analysis",
+                "label": "📋 Deconstructing rental requirements & budget ceiling",
+                "detail": "Analyzing target suburbs, bedroom counts, commute corridors, and lifestyle preferences",
+                "status": "completed"
+            }
+
         steps_log.append(init_step)
         yield sse("step", init_step)
 

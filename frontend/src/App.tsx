@@ -1706,6 +1706,7 @@ function App() {
               onToggleWide={() => setChatWidth(w => w === 'normal' ? 'wide' : 'normal')}
               onClose={() => setIsChatOpen(false)}
               properties={properties}
+              activeProperty={selectedProperty || (modalPropertyId ? properties.find(p => p.id === modalPropertyId) : null)}
               onSelectProperty={handleChatSelectProperty}
             />
           </div>

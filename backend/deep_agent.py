@@ -16,7 +16,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage
 from deepagents import create_deep_agent
 
-from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places, fetch_local_recommendations
 from database import DB_PATH
 
 # ContextVar to capture tool execution side-effects across the deep agent run
@@ -78,6 +78,66 @@ def deep_get_commute_tool(origin_suburb: str, destination_cbd_hub: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+def deep_get_local_recommendations_tool(
+    suburb: str = "",
+    query: str = "cafe",
+    property_id: str = "",
+    radius_meters: int = 1500
+) -> str:
+    """Discovers and ranks top local cafes, restaurants, bakeries, and dining spots near a listing or suburb.
+    Weighs up star rating and review count to deliver the most credible Sydney favorites.
+    Args:
+        suburb: Suburb name (e.g. 'Surry Hills', 'Bondi Beach', 'Newtown', 'Crows Nest', 'Manly').
+        query: Specific category or preference (e.g. 'cafe', 'specialty coffee', 'brunch', 'italian restaurant', 'dinner', 'bakery').
+        property_id: Optional ID of the rental property to calculate exact walking distance from.
+        radius_meters: Search radius in meters (default 1500 for walking distance).
+    """
+    _record_action("update_places", {
+        "suburb": suburb,
+        "query": query,
+        "property_id": property_id,
+        "radius_meters": radius_meters
+    })
+    lat, lng = None, None
+    if property_id:
+        try:
+            with sqlite3.connect(DB_PATH) as db:
+                db.row_factory = sqlite3.Row
+                cur = db.cursor()
+                cur.execute("SELECT suburb, latitude, longitude FROM properties WHERE id = ?", (property_id,))
+                row = cur.fetchone()
+                if row:
+                    if not suburb:
+                        suburb = row["suburb"]
+                    lat = row["latitude"]
+                    lng = row["longitude"]
+        except Exception as e:
+            print(f"[DeepAgent] Error looking up property {property_id}: {e}")
+
+    try:
+        results = fetch_local_recommendations(
+            suburb=suburb,
+            query=query,
+            latitude=lat,
+            longitude=lng,
+            radius_meters=radius_meters
+        )
+        _record_action("update_places", {
+            "suburb": suburb,
+            "query": query,
+            "property_id": property_id,
+            "places": results[:5]
+        })
+        return json.dumps({
+            "places": results,
+            "suburb": suburb,
+            "query": query,
+            "property_id": property_id,
+            "count": len(results)
+        })
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 def deep_get_places_tool(suburb: str, place_type: str) -> str:
     """Looks up real-world Google Places (gyms, cafes, transit, supermarkets) in a suburb.
     Args:
@@ -89,7 +149,7 @@ def deep_get_places_tool(suburb: str, place_type: str) -> str:
         "place_type": place_type
     })
     try:
-        results = fetch_google_places(suburb, place_type)
+        results = fetch_local_recommendations(suburb=suburb, query=place_type)
         return json.dumps({"places": results})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -168,15 +228,20 @@ commute_subagent = {
 
 lifestyle_subagent = {
     "name": "lifestyle_scout",
-    "description": "Specialist in researching neighborhood amenities like gyms, coffee shops, beaches, and supermarkets in Sydney suburbs.",
+    "description": "Specialist in researching neighborhood amenities like cafes, bakeries, restaurants, gyms, and local facilities in Sydney suburbs.",
     "system_prompt": (
-        "You analyze neighborhood quality of life and proximity to daily amenities. "
-        "Always use deep_get_places_tool to check cafes, gyms, and local facilities."
+        "You analyze neighborhood quality of life, cafe culture, and proximity to daily dining and amenities. "
+        "Always use deep_get_local_recommendations_tool or deep_get_places_tool to check cafes, restaurants, bakeries, and local facilities. "
+        "Prioritize spots with high star ratings and substantial review counts."
     ),
-    "tools": [deep_get_places_tool]
+    "tools": [deep_get_places_tool, deep_get_local_recommendations_tool]
 }
 
-def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: Optional[Dict[str, Any]] = None):
+def create_deep_sydliving_agent(
+    model_name: Optional[str] = None, 
+    user_profile: Optional[Dict[str, Any]] = None,
+    property_context: Optional[Dict[str, Any]] = None
+):
     """Instantiates a Deep Agent compiled graph with subagents and planning capabilities."""
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not gemini_key:
@@ -198,6 +263,7 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: 
         deep_query_properties_tool,
         deep_get_commute_tool,
         deep_get_places_tool,
+        deep_get_local_recommendations_tool,
         deep_filter_by_commute_reach_tool
     ]
 
@@ -221,13 +287,35 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: 
         "You orchestrate a team of specialized subagents to gather accurate facts:\n"
         " - property_scout: Searches verified Domain and local database listings.\n"
         " - commute_specialist: Computes real door-to-door transit times across Metro M1, trains, ferries, and buses.\n"
-        " - lifestyle_scout: Checks cafes, gyms, beaches, grocers, and amenities via Google Places.\n\n"
+        " - lifestyle_scout: Checks cafes, bakeries, restaurants, gyms, and dining scenes via Google Places and local catalogs.\n\n"
         "CRITICAL PROPERTY LINKING RULE:\n"
         "Whenever you recommend, list, or compare rental properties, ALWAYS format each property title as a clickable markdown link using its exact 'id' from the tool results or user prompt:\n"
         "[Property Title](property:<id>)\n"
         "Example: [Light-Filled 1BR Studio Loft](property:08322db0-85b8-217113b88abd) in Crows Nest ($640/wk)\n"
-        "Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs."
+        "Never output a property name as plain text without linking its ID. This allows users to click the listing in the chat interface to highlight it on the map and view full specs.\n\n"
+        "LOCAL CAFE & RESTAURANT RECOMMENDATIONS RULE:\n"
+        "When recommending local cafes, restaurants, bakeries, coffee, or dining spots for a listing or neighborhood:\n"
+        "- ALWAYS use `deep_get_local_recommendations_tool` (or `deep_get_places_tool`) passing the property ID or coordinates and suburb.\n"
+        "- Deliver exactly the **Top 3** spots, carefully weighing up both high star ratings (e.g. 4.5+) AND substantial review counts (e.g. hundreds or thousands of reviews) so recommendations are proven, beloved Sydney institutions.\n"
+        "- ALWAYS format each of the 3 recommendations with the venue name as a clickable link using `place:<Venue Name>`:\n"
+        "  - [Venue Name](place:<Venue Name>) — ⭐ [Rating] ([Number of reviews] reviews)\n"
+        "  - 🚶 **Distance / Walk**: [e.g. 450m • 6 min walk from the listing]\n"
+        "  - 🏷️ **Type & Price**: [e.g. Specialty Coffee & Brunch • $$]\n"
+        "  - 💡 **Kai's Insider Takeaway**: Specific must-order dish or drink and why it matches their query (e.g. 'Order the signature batch brew and scrambled eggs; leafy courtyard fills fast by 9:30 AM').\n"
+        "- NEVER output a venue name as plain text without linking its `place:<name>`. Example: `[Paramount Coffee Project](place:Paramount+Coffee+Project)` or `[Single O Surry Hills](place:Single+O+Surry+Hills)`. This allows users to click the business in chat to highlight it on the map and view directions.\n"
+        "- Finish with 🎯 My Verdict on the immediate neighborhood vibe and culinary scene."
     )
+
+    if property_context:
+        system_prompt += (
+            f"\n\nCURRENTLY VIEWED LISTING CONTEXT:\n"
+            f"- Active Listing: [{property_context.get('title', 'Active Listing')}](property:{property_context.get('id', '')})\n"
+            f"- Suburb: {property_context.get('suburb', '')}\n"
+            f"- Address: {property_context.get('address', '')}\n"
+            f"- Coordinates: ({property_context.get('latitude')}, {property_context.get('longitude')})\n"
+            f"- Rent: ${property_context.get('weekly_rent', 0)}/week ({property_context.get('bedrooms', 1)}BR)\n"
+            f"When the user asks for local recommendations, cafes, restaurants, or spots 'near here', 'near this place', or 'around the apartment', use this listing as the reference origin."
+        )
 
     verbosity = "concise"
     if user_profile and user_profile.get("kai_verbosity"):
@@ -301,7 +389,12 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: 
         system_prompt=system_prompt
     )
 
-async def process_deep_chat(message: str, history: list, user_profile: Optional[Dict[str, Any]] = None) -> dict:
+async def process_deep_chat(
+    message: str, 
+    history: list, 
+    user_profile: Optional[Dict[str, Any]] = None,
+    property_context: Optional[Dict[str, Any]] = None
+) -> dict:
     """Processes a user message using LangChain Deep Agents with execution tracking and action collection."""
     start_time = time.time()
     try:
@@ -345,7 +438,11 @@ async def process_deep_chat(message: str, history: list, user_profile: Optional[
         try:
             for m_idx, current_model in enumerate(models_to_try):
                 try:
-                    agent = create_deep_sydliving_agent(model_name=current_model, user_profile=user_profile)
+                    agent = create_deep_sydliving_agent(
+                        model_name=current_model, 
+                        user_profile=user_profile, 
+                        property_context=property_context
+                    )
                     res = agent.invoke({"messages": langchain_messages})
                     break
                 except Exception as e:
@@ -384,7 +481,7 @@ async def process_deep_chat(message: str, history: list, user_profile: Optional[
                             action_type = "update_properties"
                         elif name in ("deep_get_commute_tool", "get_commute_tool"):
                             action_type = "update_commute"
-                        elif name in ("deep_get_places_tool", "get_places_tool"):
+                        elif name in ("deep_get_places_tool", "get_places_tool", "deep_get_local_recommendations_tool", "get_local_recommendations_tool"):
                             action_type = "update_places"
                         elif name in ("deep_filter_by_commute_reach_tool", "filter_by_commute_reach_tool"):
                             action_type = "update_commute_filters"
@@ -435,7 +532,12 @@ async def process_deep_chat(message: str, history: list, user_profile: Optional[
             "agent_type": "deep_agent"
         }
 
-async def stream_deep_chat(message: str, history: list, user_profile: Optional[Dict[str, Any]] = None):
+async def stream_deep_chat(
+    message: str, 
+    history: list, 
+    user_profile: Optional[Dict[str, Any]] = None,
+    property_context: Optional[Dict[str, Any]] = None
+):
     """Streams real-time thinking steps, subagent delegations, tool calls, and text chunks via SSE."""
     start_time = time.time()
     steps_log = []
@@ -454,19 +556,94 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
         clean_query = message.strip().replace('\n', ' ')
         query_snippet = f"'{clean_query[:48]}...'" if len(clean_query) > 48 else f"'{clean_query}'"
 
-        yield sse("status", {
-            "stage": "planning",
-            "label": f"🔍 Analyzing requirements: {query_snippet}"
-        })
+        cq_lower = clean_query.lower()
+        is_dining = any(k in cq_lower for k in [
+            "cafe", "cafes", "coffee", "restaurant", "restaurants", "dining", "food", 
+            "bakery", "bakeries", "brunch", "breakfast", "dinner", "lunch", "bar", 
+            "bars", "pub", "pubs", "drink", "drinks", "matcha", "pastry", "eats", "eateries"
+        ])
+        is_compare = any(k in cq_lower for k in [
+            "compare", "comparison", "versus", "vs", "shortlist", "which is better", "difference between"
+        ])
+        is_commute = any(k in cq_lower for k in [
+            "commute", "transit", "metro", "train", "trains", "bus", "buses", "ferry", 
+            "light rail", "how long to", "how do i get to", "travel time"
+        ])
+        is_vibe = any(k in cq_lower for k in [
+            "vibe", "atmosphere", "what is it like", "living in", "nightlife", "noisy", "safety"
+        ])
 
-        init_step = {
-            "id": "step_init_analysis",
-            "type": "plan",
-            "name": "requirements_analysis",
-            "label": f"📋 Deconstructing inquiry & relocation constraints",
-            "detail": f"Analyzing commute destination, weekly budget ceiling, and lifestyle vibe",
-            "status": "completed"
-        }
+        if is_dining:
+            loc_label = ""
+            if property_context and property_context.get("address"):
+                loc_label = f" near {property_context['address']}"
+            elif property_context and property_context.get("suburb"):
+                loc_label = f" in {property_context['suburb']}"
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"☕ Scouting local dining & venues: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "lifestyle_analysis",
+                "label": f"📋 Pinpointing local dining & venue preferences{loc_label}",
+                "detail": "Filtering Google Places & Sydney institutions by review volume, star ratings, and walking distance",
+                "status": "completed"
+            }
+        elif is_compare:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"⚖️ Comparing shortlist properties: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "comparison_analysis",
+                "label": "📋 Cross-referencing shortlisted properties & trade-offs",
+                "detail": "Comparing weekly rent, floor plans, commute access, and neighborhood amenities",
+                "status": "completed"
+            }
+        elif is_commute:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🚆 Analyzing commute corridors: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "commute_analysis",
+                "label": "📋 Analyzing door-to-door transit route constraints",
+                "detail": "Evaluating Sydney Metro, train and bus lines, interchange penalties, and peak travel times",
+                "status": "completed"
+            }
+        elif is_vibe:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🏙️ Evaluating neighborhood character: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "neighborhood_vibe_analysis",
+                "label": "📋 Analyzing neighborhood character & lifestyle profile",
+                "detail": "Evaluating local dining strips, noise levels, nightlife, walkability, and community culture",
+                "status": "completed"
+            }
+        else:
+            yield sse("status", {
+                "stage": "planning",
+                "label": f"🔍 Analyzing requirements: {query_snippet}"
+            })
+            init_step = {
+                "id": "step_init_analysis",
+                "type": "plan",
+                "name": "requirements_analysis",
+                "label": "📋 Deconstructing rental requirements & budget ceiling",
+                "detail": "Analyzing target suburbs, bedroom counts, commute corridors, and lifestyle preferences",
+                "status": "completed"
+            }
+
         steps_log.append(init_step)
         yield sse("step", init_step)
 
@@ -495,7 +672,11 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
 
         for m_idx, current_model in enumerate(models_to_try):
             try:
-                agent = create_deep_sydliving_agent(model_name=current_model, user_profile=user_profile)
+                agent = create_deep_sydliving_agent(
+                    model_name=current_model, 
+                    user_profile=user_profile, 
+                    property_context=property_context
+                )
 
                 async for ev in agent.astream_events({"messages": langchain_messages}, version="v2"):
                     ev_type = ev.get("event")
@@ -583,15 +764,15 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
                                 collected_actions.append(action_item)
                                 yield sse("action", action_item)
 
-                        elif name in ("deep_get_places_tool", "get_places_tool"):
+                        elif name in ("deep_get_places_tool", "get_places_tool", "deep_get_local_recommendations_tool", "get_local_recommendations_tool"):
                             sub = input_data.get("suburb", "")
-                            ptype = input_data.get("place_type", "cafe")
+                            ptype = input_data.get("query") or input_data.get("place_type", "cafe")
                             step_obj = {
                                 "id": run_id,
                                 "type": "tool",
                                 "name": "places",
-                                "label": f"☕ Scouting {ptype}s in {sub}",
-                                "detail": f"Local cafes, gyms, and lifestyle spots",
+                                "label": f"☕ Scouting top-rated {ptype}s in {sub or 'the neighborhood'}",
+                                "detail": f"Filtering by star ratings, review volume & walking distance",
                                 "status": "running"
                             }
                             action_item = {"action_type": "update_places", "data": input_data}
@@ -612,6 +793,36 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
                             if s.get("id") == run_id:
                                 s["status"] = "completed"
                         yield sse("step_done", {"id": run_id, "name": name})
+
+                        # If this was a places/local recommendation tool, stream update_places action
+                        if name in ("deep_get_local_recommendations_tool", "get_local_recommendations_tool", "deep_get_places_tool", "get_places_tool"):
+                            tool_out = ev.get("data", {}).get("output")
+                            if tool_out:
+                                try:
+                                    if hasattr(tool_out, "content"):
+                                        tool_out = tool_out.content
+                                    if isinstance(tool_out, str):
+                                        p_data = json.loads(tool_out)
+                                    elif isinstance(tool_out, dict):
+                                        p_data = tool_out
+                                    else:
+                                        p_data = {}
+                                    p_list = p_data.get("places") or []
+                                    if p_list:
+                                        p_action = {
+                                            "action_type": "update_places",
+                                            "data": {
+                                                "places": p_list[:5],
+                                                "suburb": p_data.get("suburb"),
+                                                "query": p_data.get("query"),
+                                                "property_id": p_data.get("property_id")
+                                            }
+                                        }
+                                        collected_actions.append(p_action)
+                                        yield sse("action", p_action)
+                                except Exception as parse_err:
+                                    print(f"[DeepAgent] Error parsing places tool output: {parse_err}")
+
                         yield sse("status", {
                             "stage": "synthesizing",
                             "label": "⚡ Synthesizing agent research and evaluating matches..."

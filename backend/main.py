@@ -18,15 +18,16 @@ from pydantic import BaseModel
 
 import json
 import asyncio
+import re
 import database
 from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
     ChatRequest, ChatResponse, AgentAction, HubsResponse, DestinationHub,
     IsochroneResponse, IsochroneSuburb, User, UserProfileUpdate, ListingSyncResponse,
-    ChatSession, ChatSessionUpdate, ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse
+    ChatSession, ChatSessionUpdate, ChatMessage, ChatSessionResponse, ChatMessageResponse, PlaceResponse, Place
 )
-from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places
+from integrations import fetch_domain_properties, fetch_google_commute, fetch_google_places, fetch_local_recommendations
 from sync_listings import sync_active_listings
 from starlette.middleware.gzip import GZipMiddleware
 from session_titler import clean_heuristic_title, update_session_title_async
@@ -542,11 +543,68 @@ def get_commute(
 
 @app.get("/api/places", response_model=PlaceResponse)
 def get_places(
-    suburb: str = Query(..., description="The suburb to search for places"),
-    type: str = Query("cafe", description="Type of place (e.g., cafe, gym, transit_station)")
+    suburb: Optional[str] = Query(None, description="The suburb to search for places"),
+    type: str = Query("cafe", description="Type of place (e.g., cafe, gym, restaurant, bakery)"),
+    latitude: Optional[float] = Query(None, description="Optional property latitude for walking distance calculation"),
+    longitude: Optional[float] = Query(None, description="Optional property longitude for walking distance calculation"),
+    radius_meters: int = Query(1500, description="Search radius in meters")
 ):
-    places = fetch_google_places(suburb, type)
-    return PlaceResponse(places=places)
+    places = fetch_local_recommendations(
+        suburb=suburb or "",
+        query=type,
+        latitude=latitude,
+        longitude=longitude,
+        radius_meters=radius_meters
+    )
+    return PlaceResponse(places=[Place(**p) for p in places])
+
+def resolve_property_context(
+    active_property_id: Optional[str],
+    message: str,
+    history: list,
+    db: sqlite3.Connection
+) -> Optional[dict]:
+    """Resolves rental property details if an active listing is set or mentioned in prompt/history."""
+    target_id = active_property_id
+
+    # If no active_property_id passed from frontend, inspect message for [Title](property:<id>) or property:<id>
+    if not target_id and message:
+        m = re.search(r'property:([a-zA-Z0-9_\-]+)', message)
+        if m:
+            target_id = m.group(1)
+
+    # If still not found, inspect recent history messages in reverse
+    if not target_id and history:
+        for h in reversed(history[-4:]):
+            parts = h.get("parts", "")
+            if isinstance(parts, str):
+                m = re.search(r'property:([a-zA-Z0-9_\-]+)', parts)
+                if m:
+                    target_id = m.group(1)
+                    break
+
+    if target_id:
+        try:
+            cursor = db.cursor()
+            cursor.execute("SELECT * FROM properties WHERE id = ?", (target_id,))
+            row = cursor.fetchone()
+            if row:
+                row_dict = dict(row)
+                return {
+                    "id": row_dict.get("id"),
+                    "title": row_dict.get("title"),
+                    "suburb": row_dict.get("suburb"),
+                    "address": row_dict.get("address", ""),
+                    "latitude": row_dict.get("latitude"),
+                    "longitude": row_dict.get("longitude"),
+                    "weekly_rent": row_dict.get("weekly_rent"),
+                    "bedrooms": row_dict.get("bedrooms"),
+                    "bathrooms": row_dict.get("bathrooms")
+                }
+        except Exception as e:
+            print(f"[Main] Error resolving property context for {target_id}: {e}")
+
+    return None
 
 @app.get("/api/chat/sessions", response_model=ChatSessionResponse)
 def get_chat_sessions(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
@@ -635,7 +693,8 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
-        result = await agent.process_chat(request.message, request.history, user_profile=user_profile)
+        property_context = resolve_property_context(request.active_property_id, request.message, request.history or [], db)
+        result = await agent.process_chat(request.message, request.history, user_profile=user_profile, property_context=property_context)
         
         if session_id:
             msg_id = str(uuid.uuid4())
@@ -688,7 +747,8 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
-        result = await deep_agent.process_deep_chat(request.message, request.history, user_profile=user_profile)
+        property_context = resolve_property_context(request.active_property_id, request.message, request.history or [], db)
+        result = await deep_agent.process_deep_chat(request.message, request.history, user_profile=user_profile, property_context=property_context)
         
         if session_id:
             msg_id = str(uuid.uuid4())
@@ -720,13 +780,14 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
         session_id = request.session_id
         now = datetime.now().isoformat()
         user_profile = None
+        property_context = None
         
         # 1. If user is logged in, create or update session and save user message
-        if request.user_id:
-            try:
-                with sqlite3.connect(database.DB_PATH) as conn:
-                    conn.row_factory = sqlite3.Row
-                    cursor = conn.cursor()
+        try:
+            with sqlite3.connect(database.DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                if request.user_id:
                     cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
                     u_row = cursor.fetchone()
                     if u_row:
@@ -748,8 +809,11 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
                     )
                     cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                     conn.commit()
-            except Exception as db_err:
-                print(f"[DeepStream] Error saving user message to DB: {db_err}")
+
+                # Resolve property context from active property ID or message/history
+                property_context = resolve_property_context(request.active_property_id, request.message, request.history or [], conn)
+        except Exception as db_err:
+            print(f"[DeepStream] Error resolving context or saving user message to DB: {db_err}")
 
         # Yield set_session action event immediately if session_id is available
         if session_id:
@@ -761,7 +825,12 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
         saved_model_message = False
 
         try:
-            async for sse_chunk in deep_agent.stream_deep_chat(request.message, request.history, user_profile=user_profile):
+            async for sse_chunk in deep_agent.stream_deep_chat(
+                request.message, 
+                request.history, 
+                user_profile=user_profile, 
+                property_context=property_context
+            ):
                 # If we encounter the "done" event, make sure set_session action is in its actions array
                 if session_id and "event: done" in sse_chunk:
                     try:

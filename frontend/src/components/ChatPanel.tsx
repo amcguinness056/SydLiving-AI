@@ -22,7 +22,9 @@ import {
   Pencil,
   Check,
   MessageSquare,
-  Lock
+  Lock,
+  Coffee,
+  MapPin
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,15 +56,17 @@ interface ChatPanelProps {
   onToggleWide?: () => void;
   onClose?: () => void;
   properties?: Property[];
+  activeProperty?: Property | null;
   onSelectProperty?: (propertyId: string) => void;
+  onSelectPlace?: (placeName: string | null) => void;
   onRequireAuth?: () => void;
 }
 
 const SUGGESTIONS = [
   "Show rentals under 25 mins to Barangaroo",
+  "Top 3 rated cafes & coffee spots near here",
   "Metro-connected 2BR under $850/wk",
   "Beachside rentals under 35m to Central",
-  "Places under 30 mins to Victoria Cross",
   "Compare commute from Manly vs Bondi Beach"
 ];
 
@@ -552,7 +556,9 @@ export function ChatPanel({
   onToggleWide,
   onClose,
   properties = [],
+  activeProperty = null,
   onSelectProperty,
+  onSelectPlace,
   onRequireAuth
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
@@ -571,7 +577,7 @@ export function ChatPanel({
     [messages]
   );
 
-  // Derive what Kai is currently doing based on the user's inquiry, elapsed time, and real subagent steps
+  // Derive what Kai is currently doing based on the user's inquiry, active property context, elapsed time, and real subagent steps
   const activeTaskAnalysis = useMemo(() => {
     const q = currentQuery.toLowerCase();
 
@@ -584,89 +590,264 @@ export function ChatPanel({
     else if (q.includes('parramatta')) destination = 'Parramatta';
     else if (q.includes('macquarie park') || q.includes('macquarie')) destination = 'Macquarie Park';
 
-    // Check if user mentioned suburbs
-    let suburb = '';
-    const knownSuburbs = ['newtown', 'crows nest', 'surry hills', 'bondi', 'coogee', 'manly', 'paddington', 'balmain', 'redfern', 'chatswood', 'pyrmont', 'maroubra', 'glebe', 'wollstonecraft'];
-    for (const s of knownSuburbs) {
-      if (q.includes(s)) {
-        suburb = s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        break;
+    // Resolve property context (from activeProperty prop, markdown property:ID, or recent messages)
+    let resolvedProperty: Property | null = activeProperty || null;
+    if (!resolvedProperty) {
+      const match = currentQuery.match(/property:([a-zA-Z0-9_-]+)/);
+      if (match) {
+        resolvedProperty = properties.find(p => p.id === match[1]) || null;
+      }
+    }
+    if (!resolvedProperty) {
+      for (const m of [...messages].reverse()) {
+        const match = m.content.match(/property:([a-zA-Z0-9_-]+)/);
+        if (match) {
+          const found = properties.find(p => p.id === match[1]);
+          if (found) {
+            resolvedProperty = found;
+            break;
+          }
+        }
       }
     }
 
-    // Check features
+    // Check if user mentioned suburbs
+    let suburb = resolvedProperty?.suburb || '';
+    if (!suburb) {
+      const knownSuburbs = [
+        'newtown', 'crows nest', 'surry hills', 'bondi beach', 'bondi', 'coogee', 
+        'manly', 'paddington', 'balmain', 'redfern', 'chatswood', 'pyrmont', 
+        'maroubra', 'glebe', 'wollstonecraft', 'marrickville', 'parramatta', 'barangaroo'
+      ];
+      for (const s of knownSuburbs) {
+        if (q.includes(s)) {
+          suburb = s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          break;
+        }
+      }
+    }
+
+    // Detect user query intent domain
+    const isDiningLifestyle = /\b(cafe|cafes|coffee|restaurant|restaurants|dining|food|bakery|bakeries|brunch|breakfast|dinner|lunch|bar|bars|pub|pubs|drink|drinks|matcha|croissant|pastry|eats|eateries|takeaway|gym|gyms|supermarket|groceries|shopping)\b/.test(q);
+    const isComparison = /\b(compare|comparison|versus|vs|shortlist|which (is|one)|difference|better between|trade-?off)\b/.test(q);
+    const isCommute = /\b(commute|transit|metro|train|trains|bus|buses|ferry|ferries|light rail|opal|travel time|how long to|how do i get to|reach|station|interchange|peak hour)\b/.test(q);
+    const isSuburbVibe = /\b(vibe|atmosphere|what('s| is) it like|living in|safety|nightlife|culture|crowd|noisy|flight path|character|reputation|demographics)\b/.test(q);
+
     const hasBudget = q.match(/\$?\d{3,4}/);
 
-    // 4 standard sequential phases with descriptive explanations of Kai's actions
-    const stages = [
-      {
-        id: 'analysis',
-        name: 'Analyze Requirements',
-        actionLabel: destination 
-          ? `Targeting commute route to ${destination}${hasBudget ? ` under ${hasBudget[0]}/wk` : ''}` 
-          : suburb 
-            ? `Analyzing rental opportunities in ${suburb}`
-            : 'Deconstructing commute constraints, weekly budget ceiling & lifestyle vibe',
-        description: destination
-          ? `Deconstructing door-to-door transit goals to ${destination} and aligning lifestyle filters.`
-          : 'Parsing your prompt for target hubs, price brackets, bedrooms, and pet/parking requirements.',
-        minSecs: 0,
-        maxSecs: 1.8
-      },
-      {
-        id: 'transit',
-        name: 'Sydney Commute Matrix',
-        actionLabel: destination
-          ? `Calculating peak door-to-door transit times to ${destination}`
-          : 'Querying Transport for NSW transit matrix (Metro, trains, ferries & Opal fares)',
-        description: destination
-          ? `Querying Sydney Metro M1, Sydney Trains & bus frequencies to verify realistic commute times to ${destination}.`
-          : 'Evaluating multi-modal travel times, interchanges, line reliability, and daily Opal fare caps.',
-        minSecs: 1.8,
-        maxSecs: 4.2
-      },
-      {
-        id: 'properties',
-        name: 'Rental Database Scout',
-        actionLabel: suburb
-          ? `Scanning active listings in ${suburb} matching criteria`
-          : 'Searching verified Sydney rental listings matching budget & preferences',
-        description: suburb
-          ? `Searching available properties in ${suburb} and cross-referencing floor plans, rent, and amenities.`
-          : 'Querying active real estate listings to match rent thresholds, bedroom counts, and pet/parking options.',
-        minSecs: 4.2,
-        maxSecs: 7.0
-      },
-      {
-        id: 'synthesis',
-        name: 'Formulate Kai Recommendations',
-        actionLabel: 'Synthesizing neighborhood insights & composing candid verdicts',
-        description: 'Analyzing suburb pros & cons, comparing rent trade-offs, and compiling personalized recommendations.',
-        minSecs: 7.0,
-        maxSecs: 999
-      }
-    ];
+    let pipelineTitle = 'Rental Research & Reasoning Pipeline';
+    let stages: Array<{
+      id: string;
+      name: string;
+      actionLabel: string;
+      description: string;
+    }> = [];
 
-    // Determine current active stage index based on elapsed seconds
+    if (isDiningLifestyle) {
+      pipelineTitle = 'Local Venue & Dining Pipeline';
+      const locTarget = resolvedProperty ? resolvedProperty.address : (suburb ? suburb : 'the neighborhood');
+      stages = [
+        {
+          id: 'pinpoint',
+          name: 'Pinpoint Location & Intent',
+          actionLabel: resolvedProperty 
+            ? `Pinpointing ${resolvedProperty.address} walking radius & venue preferences`
+            : suburb 
+              ? `Targeting local spots in ${suburb}`
+              : 'Pinpointing venue preferences & walking radius',
+          description: resolvedProperty 
+            ? `Mapping coordinates for ${resolvedProperty.address} (~1.5 km walking radius) and matching cuisine criteria.`
+            : 'Analyzing neighborhood boundary, cuisine style, and walking distance thresholds.'
+        },
+        {
+          id: 'scout_venues',
+          name: 'Scout Local Institutions',
+          actionLabel: `Scouting Google Places & Sydney institutions near ${suburb || locTarget}`,
+          description: `Querying high-volume Sydney venues, Google Places API, and verified neighborhood favorites in ${suburb || locTarget}.`
+        },
+        {
+          id: 'filter_ratings',
+          name: 'Filter Ratings & Walk Times',
+          actionLabel: 'Weighing review volume, star ratings & walking duration',
+          description: 'Calculating walking minutes at 80m/min and filtering out low-review noise via credibility weighting.'
+        },
+        {
+          id: 'curate_spots',
+          name: 'Curate Top 3 Spots & Tips',
+          actionLabel: 'Compiling top 3 curated spots & Kai insider tips',
+          description: 'Selecting the 3 standout spots, calculating exact walk times, and drafting candid insider ordering advice.'
+        }
+      ];
+    } else if (isComparison) {
+      pipelineTitle = 'Shortlist Comparison Pipeline';
+      stages = [
+        {
+          id: 'inspect_specs',
+          name: 'Inspect Shortlist Specs',
+          actionLabel: 'Retrieving property specifications, rent & amenities',
+          description: 'Deconstructing weekly rents, bedroom layouts, parking, and building amenities across listings.'
+        },
+        {
+          id: 'compare_commutes',
+          name: 'Compare Commute Corridors',
+          actionLabel: 'Cross-referencing door-to-door transit times & line access',
+          description: 'Querying Sydney Metro, rail and bus connections to key CBD hubs and employment centers.'
+        },
+        {
+          id: 'evaluate_tradeoffs',
+          name: 'Evaluate Value & Lifestyle',
+          actionLabel: 'Analyzing price-per-room, floor plans & neighborhood vibe',
+          description: 'Weighing rent premiums against walkability, street noise, dining strips, and lifestyle amenities.'
+        },
+        {
+          id: 'compose_verdict',
+          name: 'Compose Head-to-Head Verdict',
+          actionLabel: 'Synthesizing trade-offs and declaring Kai’s verdict',
+          description: 'Highlighting who each home suits best and delivering Kai’s candid, no-BS recommendation.'
+        }
+      ];
+    } else if (isCommute) {
+      pipelineTitle = 'Commute & Transit Pipeline';
+      stages = [
+        {
+          id: 'route_constraints',
+          name: 'Deconstruct Route Constraints',
+          actionLabel: destination 
+            ? `Targeting commute route to ${destination}` 
+            : 'Mapping origin suburb to employment hub',
+          description: destination 
+            ? `Analyzing door-to-door transit goals to ${destination} and frequency needs.` 
+            : 'Parsing transit origin, interchange preferences, and arrival deadlines.'
+        },
+        {
+          id: 'transit_matrix',
+          name: 'Query Transport for NSW Matrix',
+          actionLabel: 'Querying Sydney Metro M1, rail, ferry & bus timetables',
+          description: 'Evaluating peak service frequencies, direct rail lines, and transfer penalties across corridors.'
+        },
+        {
+          id: 'reliability_fares',
+          name: 'Assess Reliability & Opal Fares',
+          actionLabel: 'Calculating walking connections, transfers & fare caps',
+          description: 'Checking first/last mile walk legs, interchange friction, and daily/weekly Opal fare ceilings.'
+        },
+        {
+          id: 'transit_strategy',
+          name: 'Deliver Transit Recommendations',
+          actionLabel: 'Formulating fastest door-to-door commute strategy',
+          description: 'Recommending optimal transit lines, backup routes during trackwork, and commute tips.'
+        }
+      ];
+    } else if (isSuburbVibe) {
+      pipelineTitle = 'Neighborhood Intelligence Pipeline';
+      stages = [
+        {
+          id: 'demographics',
+          name: 'Profile Suburb Demographics',
+          actionLabel: suburb 
+            ? `Analyzing ${suburb} resident demographic & character` 
+            : 'Analyzing neighborhood character & resident mix',
+          description: suburb 
+            ? `Evaluating ${suburb} community demographics, architecture, and streetscape.` 
+            : 'Profiling neighborhood demographic trends, residential density, and vibe.'
+        },
+        {
+          id: 'culture_dining',
+          name: 'Scout Culture, Dining & Nightlife',
+          actionLabel: suburb 
+            ? `Reviewing ${suburb} dining strips & entertainment` 
+            : 'Scouting dining strips, coffee culture & social scene',
+          description: 'Evaluating main street energy, cafe culture, pub scenes, parks, and weekend vibrancy.'
+        },
+        {
+          id: 'livability',
+          name: 'Assess Livability & Noise Trade-Offs',
+          actionLabel: 'Auditing noise levels, parking pressure & density',
+          description: 'Checking flight paths, traffic corridors, weekend foot traffic, and parking permit realities.'
+        },
+        {
+          id: 'insider_verdict',
+          name: 'Deliver Candid Insider Verdict',
+          actionLabel: 'Composing Kai’s authentic local verdict & insider tip',
+          description: 'Providing candid insider takeaways on what living here is really like day-to-day.'
+        }
+      ];
+    } else {
+      pipelineTitle = 'Rental Research & Scouting Pipeline';
+      stages = [
+        {
+          id: 'analysis',
+          name: 'Analyze Requirements & Budget',
+          actionLabel: destination 
+            ? `Targeting commute route to ${destination}${hasBudget ? ` under ${hasBudget[0]}/wk` : ''}` 
+            : suburb 
+              ? `Analyzing rental opportunities in ${suburb}`
+              : 'Deconstructing commute constraints, weekly budget ceiling & layout',
+          description: 'Parsing price brackets, bedroom counts, pet policies, parking, and lifestyle requirements.'
+        },
+        {
+          id: 'commute_reach',
+          name: 'Sydney Commute Matrix',
+          actionLabel: destination
+            ? `Calculating peak door-to-door transit times to ${destination}`
+            : 'Querying Transport for NSW transit matrix (Metro, trains, ferries & Opal fares)',
+          description: 'Evaluating Sydney Metro M1, rail and bus frequencies to identify realistic commute corridors.'
+        },
+        {
+          id: 'database_scout',
+          name: 'Rental Database Scout',
+          actionLabel: suburb
+            ? `Scanning active listings in ${suburb} matching criteria`
+            : 'Searching verified Sydney rental listings matching budget & preferences',
+          description: 'Searching available properties, checking photos, floor plans, rent thresholds, and amenities.'
+        },
+        {
+          id: 'synthesis',
+          name: 'Curate Top Matches & Verdicts',
+          actionLabel: 'Synthesizing top listings & composing candid verdicts',
+          description: 'Analyzing rent trade-offs, value per bedroom, and compiling personalized recommendations.'
+        }
+      ];
+    }
+
+    // Determine current active stage index dynamically based on streaming text, real backend steps, and elapsed time
     let activeStageIdx = 0;
-    if (elapsedSecs >= 7.0) activeStageIdx = 3;
-    else if (elapsedSecs >= 4.2) activeStageIdx = 2;
-    else if (elapsedSecs >= 1.8) activeStageIdx = 1;
-    else activeStageIdx = 0;
+    const isStreamingResponse = Boolean(streamingContent && streamingContent.length > 0);
+    const isSynthesizing = activeStatusLabel?.toLowerCase().includes('synthesizing') || false;
 
-    // If real backend steps are running, reflect the most recent step
+    const hasCompletedTool = activeThinkingSteps.some(s => s.type === 'tool' && s.status === 'completed');
+    const hasRunningTool = activeThinkingSteps.some(s => s.type === 'tool' && s.status === 'running');
+    const hasSubagent = activeThinkingSteps.some(s => s.type === 'subagent');
+
+    if (isStreamingResponse || isSynthesizing) {
+      activeStageIdx = 3;
+    } else if (hasCompletedTool) {
+      activeStageIdx = elapsedSecs >= 5.0 ? 3 : 2;
+    } else if (hasRunningTool || hasSubagent) {
+      activeStageIdx = elapsedSecs >= 3.5 ? 2 : 1;
+    } else {
+      if (elapsedSecs >= 6.8) activeStageIdx = 3;
+      else if (elapsedSecs >= 4.0) activeStageIdx = 2;
+      else if (elapsedSecs >= 1.6) activeStageIdx = 1;
+      else activeStageIdx = 0;
+    }
+
     const runningStep = [...activeThinkingSteps].reverse().find(s => s.status === 'running');
     const currentStatusText = activeStatusLabel || (runningStep ? runningStep.label : stages[activeStageIdx].actionLabel);
+    const currentStatusDetail = runningStep?.detail || stages[activeStageIdx].description;
 
     return {
       destination,
       suburb,
+      resolvedProperty,
+      pipelineTitle,
       stages,
       activeStageIdx,
       currentStatusText,
-      activeStage: stages[activeStageIdx]
+      currentStatusDetail,
+      activeStage: stages[activeStageIdx] || stages[0]
     };
-  }, [currentQuery, elapsedSecs, activeThinkingSteps, activeStatusLabel]);
+  }, [currentQuery, elapsedSecs, activeThinkingSteps, activeStatusLabel, activeProperty, properties, messages, streamingContent]);
 
   const customMarkdownComponents = useMemo(() => ({
     ...markdownComponents,
@@ -689,6 +870,70 @@ export function ChatPanel({
           </button>
         );
       }
+      if (href?.startsWith('place:') || href?.startsWith('venue:')) {
+        const placeQuery = decodeURIComponent(href.replace(/^(place|venue):/, '').replace(/\+/g, ' '));
+        const suburbContext = activeProperty?.suburb ? ` ${activeProperty.suburb}` : '';
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQuery + suburbContext + ' Sydney')}`;
+        return (
+          <span className="inline-flex items-center gap-1 my-0.5 align-middle">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectPlace?.(placeQuery);
+              }}
+              className="inline-flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-100 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border border-amber-300/80 dark:border-amber-700/80 px-2 py-0.5 rounded-lg shadow-2xs transition-all cursor-pointer text-left hover:scale-[1.02]"
+              title={`Highlight ${placeQuery} on map`}
+            >
+              <Coffee className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{children}</span>
+              <MapPin className="w-3 h-3 text-amber-600 dark:text-amber-400 opacity-70 ml-0.5" />
+            </button>
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              title="Open in Google Maps"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </span>
+        );
+      }
+      if (href && (href.includes('google.com/maps') || href.includes('maps.google'))) {
+        const labelText = typeof children === 'string' ? children : String(children);
+        return (
+          <span className="inline-flex items-center gap-1 my-0.5 align-middle">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectPlace?.(labelText);
+              }}
+              className="inline-flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-100 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border border-amber-300/80 dark:border-amber-700/80 px-2 py-0.5 rounded-lg shadow-2xs transition-all cursor-pointer text-left hover:scale-[1.02]"
+              title={`Highlight ${labelText} on map`}
+            >
+              <Coffee className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{children}</span>
+              <MapPin className="w-3 h-3 text-amber-600 dark:text-amber-400 opacity-70 ml-0.5" />
+            </button>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              title="Open in Google Maps"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </span>
+        );
+      }
       return (
         <a
           href={href}
@@ -702,7 +947,7 @@ export function ChatPanel({
         </a>
       );
     }
-  }), [onSelectProperty]);
+  }), [onSelectProperty, onSelectPlace, activeProperty]);
 
   const handleToggleExpand = useCallback((id: string) => {
     setExpandedStepsMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -1103,7 +1348,7 @@ export function ChatPanel({
                           {activeTaskAnalysis.currentStatusText}
                         </p>
                         <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                          {activeTaskAnalysis.activeStage.description}
+                          {activeTaskAnalysis.currentStatusDetail}
                         </p>
                       </div>
                     </div>
@@ -1112,7 +1357,7 @@ export function ChatPanel({
                   {/* Progressive Multi-Step Activity Pipeline */}
                   <div className="space-y-2 pt-0.5">
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                      <span>Research & Reasoning Pipeline</span>
+                      <span>{activeTaskAnalysis.pipelineTitle}</span>
                       <span className="text-slate-500 dark:text-slate-400 font-medium">
                         Stage {activeTaskAnalysis.activeStageIdx + 1} of {activeTaskAnalysis.stages.length}
                       </span>

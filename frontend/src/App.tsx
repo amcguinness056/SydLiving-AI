@@ -5,7 +5,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import { CompareModal } from './components/CompareModal';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
-import { api, type Property, type AgentAction, type User, type UserProfileUpdate, type DeepAgentStep } from './api/client';
+import { api, type Property, type AgentAction, type User, type UserProfileUpdate, type DeepAgentStep, type Place } from './api/client';
 import { ChatPanel, type Message } from './components/ChatPanel';
 import { KaiLauncher } from './components/KaiLauncher';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -360,6 +360,10 @@ function App() {
   const [activeStatusLabel, setActiveStatusLabel] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
 
+  // Recommended places state (local cafes, restaurants, venues)
+  const [recommendedPlaces, setRecommendedPlaces] = useState<Place[]>([]);
+  const [selectedPlaceName, setSelectedPlaceName] = useState<string | null>(null);
+
   // Apply dark mode class to html document
   useEffect(() => {
     if (isDarkMode) {
@@ -666,18 +670,37 @@ function App() {
         max_rent: action.data.max_rent < 99999 ? action.data.max_rent : undefined,
         min_bedrooms: action.data.min_bedrooms > 0 ? action.data.min_bedrooms : undefined
       });
+    } else if (action.action_type === 'update_places' || (action.action_type as string) === 'highlight_places') {
+      if (action.data.places && action.data.places.length > 0) {
+        setRecommendedPlaces(action.data.places);
+      } else if (action.data.suburb || action.data.latitude) {
+        api.getPlaces({
+          suburb: action.data.suburb,
+          type: action.data.query || action.data.place_type || 'cafe',
+          latitude: action.data.latitude,
+          longitude: action.data.longitude
+        }).then(res => {
+          if (res && res.length > 0) {
+            setRecommendedPlaces(res.slice(0, 5));
+          }
+        }).catch(err => {
+          console.error('[App] Failed to load places for agent action:', err);
+        });
+      }
     } else if (action.action_type === 'set_session') {
       setCurrentSessionId(action.data.session_id);
     }
   }, [loadProperties]);
 
-  const handleSendMessage = useCallback(async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string, referencePropertyId?: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
     setActiveThinkingSteps([]);
     setActiveStatusLabel(null);
     setStreamingContent('');
+
+    const targetPropertyId = referencePropertyId || modalPropertyId || selectedProperty?.id;
 
     try {
       let accumulatedText = '';
@@ -738,7 +761,8 @@ function App() {
               accumulatedText += `\n\n*(Note: Generation was interrupted: ${err.message})*`;
             }
           }
-        }
+        },
+        targetPropertyId
       );
 
       // Run any actions that were not executed during streaming
@@ -782,9 +806,9 @@ function App() {
       setActiveStatusLabel(null);
       setStreamingContent('');
     }
-  }, [chatHistory, currentSessionId, handleAgentAction]);
+  }, [chatHistory, currentSessionId, handleAgentAction, modalPropertyId, selectedProperty]);
 
-  const handleAskAgent = useCallback((prompt: string) => {
+  const handleAskAgent = useCallback((prompt: string, property?: Property) => {
     if (!user) {
       handleLogin('Sign in with Google to chat with Kai');
       return;
@@ -798,7 +822,7 @@ function App() {
       setSelectedProperty(null);
     }
     setIsChatOpen(true);
-    handleSendMessage(prompt);
+    handleSendMessage(prompt, property?.id);
   }, [user, handleLogin, handleSendMessage, isMobile]);
 
   const handleSelectSession = useCallback(async (sessionId: string | null) => {
@@ -860,6 +884,19 @@ function App() {
       }
     }, 100);
   }, [properties, savedProperties]);
+
+  const handleSelectPlace = useCallback((placeName: string | null) => {
+    setSelectedPlaceName(placeName);
+    if (placeName && isMobile) {
+      setMobileTab('map');
+      setIsChatOpen(false);
+    }
+  }, [isMobile]);
+
+  const handleClearRecommendedPlaces = useCallback(() => {
+    setRecommendedPlaces([]);
+    setSelectedPlaceName(null);
+  }, []);
 
   // Handle Escape key to restore maximized panels or close modals
   useEffect(() => {
@@ -1303,6 +1340,10 @@ function App() {
                 onSelectProperty={handleMapSelect}
                 isDarkMode={isDarkMode}
                 user={user}
+                recommendedPlaces={recommendedPlaces}
+                selectedPlaceName={selectedPlaceName}
+                onSelectPlace={setSelectedPlaceName}
+                onClearRecommendedPlaces={handleClearRecommendedPlaces}
                 onDrawCreated={(layer: any, type: string) => {
                   let spatial: any = null;
                   if (type === 'circle') {
@@ -1571,6 +1612,10 @@ function App() {
                 onToggleMaximize={() => toggleMaximize('map')}
                 isDarkMode={isDarkMode}
                 user={user}
+                recommendedPlaces={recommendedPlaces}
+                selectedPlaceName={selectedPlaceName}
+                onSelectPlace={setSelectedPlaceName}
+                onClearRecommendedPlaces={handleClearRecommendedPlaces}
                 onDrawCreated={(layer: any, type: string) => {
                   let spatial: any = null;
                   if (type === 'circle') {
@@ -1703,7 +1748,9 @@ function App() {
               onToggleWide={() => setChatWidth(w => w === 'normal' ? 'wide' : 'normal')}
               onClose={() => setIsChatOpen(false)}
               properties={properties}
+              activeProperty={selectedProperty || (modalPropertyId ? properties.find(p => p.id === modalPropertyId) : null)}
               onSelectProperty={handleChatSelectProperty}
+              onSelectPlace={handleSelectPlace}
             />
           </div>
         )}

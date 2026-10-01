@@ -76,6 +76,23 @@ export interface AgentAction {
   data: Record<string, any>;
 }
 
+export interface Place {
+  name: string;
+  type: string;
+  vicinity: string;
+  rating?: number | null;
+  user_ratings_total?: number | null;
+  price_level?: number | null;
+  distance_meters?: number | null;
+  walking_minutes?: number | null;
+  credibility_score?: number | null;
+  address?: string | null;
+  place_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  google_maps_url?: string | null;
+}
+
 export interface ChatResponse {
   reply: string;
   actions: AgentAction[];
@@ -318,22 +335,34 @@ export const api = {
     return await res.json();
   },
 
-  sendChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
+  getPlaces: async (params: { suburb?: string; type?: string; latitude?: number; longitude?: number; radius_meters?: number }): Promise<Place[]> => {
+    const searchParams = new URLSearchParams();
+    if (params.suburb) searchParams.append('suburb', params.suburb);
+    if (params.type) searchParams.append('type', params.type);
+    if (params.latitude !== undefined) searchParams.append('latitude', params.latitude.toString());
+    if (params.longitude !== undefined) searchParams.append('longitude', params.longitude.toString());
+    if (params.radius_meters !== undefined) searchParams.append('radius_meters', params.radius_meters.toString());
+    const res = await fetch(`${BASE_URL}/places?${searchParams.toString()}`);
+    const data = await res.json();
+    return data.places || [];
+  },
+
+  sendChatMessage: async (message: string, history: any[] = [], sessionId?: string, activePropertyId?: string): Promise<ChatResponse> => {
     const userId = localStorage.getItem('user_id');
     const res = await fetch(`${BASE_URL}/chat`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
+      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId, active_property_id: activePropertyId })
     });
     return await res.json();
   },
 
-  sendDeepChatMessage: async (message: string, history: any[] = [], sessionId?: string): Promise<ChatResponse> => {
+  sendDeepChatMessage: async (message: string, history: any[] = [], sessionId?: string, activePropertyId?: string): Promise<ChatResponse> => {
     const userId = localStorage.getItem('user_id');
     const res = await fetch(`${BASE_URL}/chat/deep`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
+      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId, active_property_id: activePropertyId })
     });
     return await res.json();
   },
@@ -342,7 +371,8 @@ export const api = {
     message: string, 
     history: any[] = [], 
     sessionId: string | undefined,
-    callbacks: DeepAgentStreamCallbacks
+    callbacks: DeepAgentStreamCallbacks,
+    activePropertyId?: string
   ): Promise<void> => {
     const userId = localStorage.getItem('user_id');
     const response = await fetch(`${BASE_URL}/chat/deep/stream`, {
@@ -351,7 +381,7 @@ export const api = {
         'Content-Type': 'application/json',
         ...getHeaders()
       },
-      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId })
+      body: JSON.stringify({ message, history, session_id: sessionId, user_id: userId, active_property_id: activePropertyId })
     });
 
     if (!response.ok) {

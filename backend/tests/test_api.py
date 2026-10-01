@@ -309,3 +309,101 @@ def test_chat_session_rename_endpoint():
     sessions = get_res.json()["sessions"]
     assert any(s["id"] == session_id and s["title"] == "Coogee Beach 2BR Value Check" for s in sessions)
 
+def test_fetch_local_recommendations_and_credibility_ranking():
+    """Verify that fetch_local_recommendations returns top venues with high review volumes and ratings."""
+    from integrations import fetch_local_recommendations
+    
+    # Query Surry Hills cafes near given coordinates
+    results = fetch_local_recommendations(
+        suburb="Surry Hills",
+        query="coffee",
+        latitude=-33.883,
+        longitude=151.210,
+        radius_meters=1500
+    )
+    assert len(results) >= 3
+    
+    top_3 = results[:3]
+    for r in top_3:
+        assert "name" in r
+        assert r["rating"] >= 4.0
+        assert r["user_ratings_total"] >= 500  # High review volume
+        assert r["credibility_score"] is not None
+        assert r["distance_meters"] is not None
+        assert r["walking_minutes"] is not None
+        assert r["walking_minutes"] <= 25
+
+    # Top recommendations in Surry Hills should include renowned icons
+    venue_names = [r["name"] for r in results]
+    assert any("Bourke Street Bakery" in n or "Single O" in n or "Paramount" in n for n in venue_names)
+
+def test_places_endpoint_enriched():
+    """Verify GET /api/places returns enriched places with review counts and walk metrics."""
+    response = client.get("/api/places?suburb=Bondi+Beach&type=cafe&latitude=-33.890&longitude=151.275")
+    assert response.status_code == 200
+    data = response.json()
+    assert "places" in data
+    assert len(data["places"]) >= 2
+    
+    first = data["places"][0]
+    assert first["rating"] >= 4.0
+    assert first["user_ratings_total"] is not None
+    assert first["distance_meters"] is not None
+    assert first["walking_minutes"] is not None
+
+def test_resolve_property_context():
+    """Verify resolve_property_context correctly finds listing from ID, prompt tag, and history."""
+    import sqlite3
+    from database import DB_PATH
+    from main import resolve_property_context
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, title, suburb FROM properties LIMIT 1")
+    prop = dict(cursor.fetchone())
+    prop_id = prop["id"]
+
+    # 1. Direct active property ID
+    ctx1 = resolve_property_context(prop_id, "Where should I get coffee?", [], conn)
+    assert ctx1 is not None
+    assert ctx1["id"] == prop_id
+    assert ctx1["suburb"] == prop["suburb"]
+
+    # 2. Markdown link in message
+    msg = f"What are good cafes near [{prop['title']}](property:{prop_id})?"
+    ctx2 = resolve_property_context(None, msg, [], conn)
+    assert ctx2 is not None
+    assert ctx2["id"] == prop_id
+
+    # 3. Mention in history
+    hist = [{"role": "user", "parts": f"Tell me about property:{prop_id}"}]
+    ctx3 = resolve_property_context(None, "What restaurants are nearby?", hist, conn)
+    assert ctx3 is not None
+    assert ctx3["id"] == prop_id
+
+    conn.close()
+
+def test_get_local_recommendations_tool_execution():
+    """Verify get_local_recommendations_tool retrieves venues for a valid property."""
+    import json
+    import sqlite3
+    from database import DB_PATH
+    from agent import get_local_recommendations_tool
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, suburb FROM properties LIMIT 1")
+    prop = dict(cursor.fetchone())
+    conn.close()
+
+    res_json = get_local_recommendations_tool(property_id=prop["id"], query="cafe")
+    data = json.loads(res_json)
+    assert "places" in data
+    assert data["count"] >= 3
+    first = data["places"][0]
+    assert first["user_ratings_total"] >= 100
+    assert first["rating"] >= 4.0
+
+

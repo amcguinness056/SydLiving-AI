@@ -692,11 +692,11 @@ export function PropertyPanel({
 
                 <button
                   type="button"
-                  onClick={() => onAskAgent?.(`What are the nearest cafes, supermarkets, gyms, and dining spots within walking distance of [${property.title}](property:${property.id}) on ${property.address}?`, property)}
+                  onClick={() => onAskAgent?.(`What are the top 3 best-rated cafes and restaurants near [${property.title}](property:${property.id})? Weigh them up by star rating and review count, and give me your insider recommendation on what to order.`, property)}
                   className="text-left p-2 rounded-xl bg-white dark:bg-slate-900/90 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 text-[11px] font-medium transition-all flex items-center gap-1.5 group shadow-2xs cursor-pointer"
                 >
                   <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span className="truncate">Local cafes & spots</span>
+                  <span className="truncate">Top 3 cafes & dining</span>
                 </button>
               </div>
 

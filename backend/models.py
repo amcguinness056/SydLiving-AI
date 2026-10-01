@@ -85,6 +85,16 @@ class Place(BaseModel):
     type: str
     vicinity: str
     rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None
+    price_level: Optional[int] = None
+    distance_meters: Optional[int] = None
+    walking_minutes: Optional[int] = None
+    credibility_score: Optional[float] = None
+    address: Optional[str] = None
+    place_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
 
 class PlaceResponse(BaseModel):
     places: List[Place]
@@ -150,6 +160,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     history: Optional[List[dict]] = []
+    active_property_id: Optional[str] = None
 
 class AgentAction(BaseModel):
     action_type: str  # e.g., "update_properties", "update_commute_filters", "update_commute", "update_places"

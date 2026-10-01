@@ -7,8 +7,8 @@ import {
   useMap
 } from '@vis.gl/react-google-maps';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import { type Property, type User } from '../api/client';
-import { Maximize, Minimize, Train, Trash2, Key, ExternalLink, Sparkles } from 'lucide-react';
+import { type Property, type User, type Place } from '../api/client';
+import { Maximize, Minimize, Train, Trash2, Key, ExternalLink, Sparkles, Coffee, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { computeKaiMatch } from '../lib/kaiMatch';
 
@@ -27,23 +27,67 @@ export interface GoogleMapViewProps {
   isSettingWorkplace?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
   user?: User | null;
+  recommendedPlaces?: Place[];
+  selectedPlaceName?: string | null;
+  onSelectPlace?: (placeName: string | null) => void;
+  onClearRecommendedPlaces?: () => void;
 }
 
-// Controls camera transitions for selected properties and bound adjustments
+// Controls camera transitions for selected properties, recommended venues, and bound adjustments
 function CameraController({
   properties,
-  selectedId
+  selectedId,
+  recommendedPlaces = [],
+  selectedPlace = null
 }: {
   properties: Property[];
   selectedId?: string | null;
+  recommendedPlaces?: Place[];
+  selectedPlace?: Place | null;
 }) {
   const map = useMap();
   const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
+  const prevSelectedPlaceKeyRef = useRef<string>('');
+  const prevPlacesKeyRef = useRef<string>('');
   const prevPropertyIdsKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!map) return;
 
+    // Prioritize panning to explicitly selected recommended venue
+    if (selectedPlace && selectedPlace.latitude && selectedPlace.longitude) {
+      const placeKey = `${selectedPlace.name}-${selectedPlace.latitude}-${selectedPlace.longitude}`;
+      if (placeKey !== prevSelectedPlaceKeyRef.current) {
+        prevSelectedPlaceKeyRef.current = placeKey;
+        map.panTo({ lat: selectedPlace.latitude, lng: selectedPlace.longitude });
+        map.setZoom(16);
+      }
+      return;
+    }
+    prevSelectedPlaceKeyRef.current = '';
+
+    // If both active listing and recommended venues exist, fit bounds to show both
+    if (selectedId && recommendedPlaces.length > 0) {
+      const placesKey = `${selectedId}-${recommendedPlaces.map(p => p.name).join(',')}`;
+      if (placesKey !== prevPlacesKeyRef.current) {
+        prevPlacesKeyRef.current = placesKey;
+        const activeP = properties.find(x => x.id === selectedId);
+        if (activeP) {
+          const bounds = new google.maps.LatLngBounds();
+          bounds.extend({ lat: activeP.latitude, lng: activeP.longitude });
+          recommendedPlaces.forEach(pl => {
+            if (pl.latitude && pl.longitude) {
+              bounds.extend({ lat: pl.latitude, lng: pl.longitude });
+            }
+          });
+          map.fitBounds(bounds, { top: 90, right: 90, bottom: 90, left: 90 });
+          return;
+        }
+      }
+    }
+    prevPlacesKeyRef.current = '';
+
+    // Standard selected property pan
     if (selectedId) {
       if (selectedId !== prevSelectedIdRef.current) {
         prevSelectedIdRef.current = selectedId;
@@ -69,7 +113,7 @@ function CameraController({
     } else {
       prevPropertyIdsKeyRef.current = '';
     }
-  }, [map, properties, selectedId]);
+  }, [map, properties, selectedId, recommendedPlaces, selectedPlace]);
 
   return null;
 }
@@ -438,15 +482,35 @@ export function GoogleMapView({
   onDrawDeleted,
   workplace,
   onMapClick,
-  user
+  user,
+  recommendedPlaces = [],
+  selectedPlaceName = null,
+  onSelectPlace,
+  onClearRecommendedPlaces
 }: GoogleMapViewProps) {
   const apiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '';
   const [showTransit, setShowTransit] = useState(false);
   const [markerMode, setMarkerMode] = useState<MarkerMode>('price');
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [hasSpatialFilter, setHasSpatialFilter] = useState(false);
   const [isPlacingCircle, setIsPlacingCircle] = useState(false);
   const activeCircleRef = useRef<google.maps.Circle | null>(null);
+
+  // Sync selectedPlaceName with recommendedPlaces
+  useEffect(() => {
+    if (selectedPlaceName && recommendedPlaces.length > 0) {
+      const q = selectedPlaceName.toLowerCase().trim();
+      const match = recommendedPlaces.find(p => 
+        p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase())
+      );
+      if (match) {
+        setSelectedPlace(match);
+      }
+    } else if (!selectedPlaceName) {
+      setSelectedPlace(null);
+    }
+  }, [selectedPlaceName, recommendedPlaces]);
 
   const handleClearDrawing = useCallback(() => {
     if (activeCircleRef.current) {
@@ -536,6 +600,8 @@ export function GoogleMapView({
           <CameraController
             properties={properties}
             selectedId={selectedPropertyId}
+            recommendedPlaces={recommendedPlaces}
+            selectedPlace={selectedPlace}
           />
 
           {/* Transit Layer */}
@@ -574,6 +640,113 @@ export function GoogleMapView({
             isDarkMode={isDarkMode}
             user={user}
           />
+
+          {/* Highlighted Local Recommendations Markers (Cafes, Dining, Bakeries) */}
+          {recommendedPlaces.map((place, idx) => {
+            if (!place.latitude || !place.longitude) return null;
+            const isSelected = selectedPlace?.name === place.name || Boolean(
+              selectedPlaceName && (
+                selectedPlaceName.toLowerCase().includes(place.name.toLowerCase()) ||
+                place.name.toLowerCase().includes(selectedPlaceName.toLowerCase())
+              )
+            );
+
+            return (
+              <AdvancedMarker
+                key={place.place_id || place.name || idx}
+                position={{ lat: place.latitude, lng: place.longitude }}
+                title={`${place.name} • ${place.rating || ''}★ (${place.user_ratings_total || 0} reviews)`}
+                onClick={() => {
+                  setSelectedPlace(place);
+                  onSelectPlace?.(place.name);
+                }}
+                zIndex={isSelected ? 9999 : 600}
+              >
+                <div 
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-xs shadow-md transition-all transform cursor-pointer border select-none",
+                    isSelected
+                      ? "bg-amber-500 text-white scale-110 ring-4 ring-amber-300 dark:ring-amber-500/60 shadow-amber-500/50 border-amber-400"
+                      : "bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 hover:scale-105 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                  )}
+                >
+                  <Coffee className={cn("w-3.5 h-3.5 shrink-0", isSelected ? "text-white" : "text-amber-600 dark:text-amber-400")} />
+                  <span className="truncate max-w-[130px]">{place.name}</span>
+                  {place.rating && (
+                    <span className={cn(
+                      "flex items-center text-[10px] font-extrabold px-1 py-0.2 rounded ml-0.5",
+                      isSelected ? "bg-amber-600/80 text-white" : "bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200"
+                    )}>
+                      ★{place.rating}
+                    </span>
+                  )}
+                </div>
+              </AdvancedMarker>
+            );
+          })}
+
+          {/* InfoWindow for Selected Local Recommendation */}
+          {selectedPlace && selectedPlace.latitude && selectedPlace.longitude && (
+            <InfoWindow
+              position={{
+                lat: selectedPlace.latitude,
+                lng: selectedPlace.longitude
+              }}
+              onCloseClick={() => {
+                setSelectedPlace(null);
+                onSelectPlace?.(null);
+              }}
+              pixelOffset={[0, -24]}
+            >
+              <div className="p-2 max-w-[250px] font-sans text-slate-900 dark:text-white">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <Coffee className="w-3 h-3" />
+                    Local Recommendation
+                  </span>
+                  {selectedPlace.price_level && (
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {'$'.repeat(selectedPlace.price_level)}
+                    </span>
+                  )}
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight mb-1">
+                  {selectedPlace.name}
+                </h4>
+                {selectedPlace.address && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 truncate">
+                    {selectedPlace.address}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 text-xs mb-2.5">
+                  {selectedPlace.rating && (
+                    <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                      ★ {selectedPlace.rating}
+                      {selectedPlace.user_ratings_total && (
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          ({selectedPlace.user_ratings_total.toLocaleString()})
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {selectedPlace.walking_minutes && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      🚶 {selectedPlace.walking_minutes}m walk
+                    </span>
+                  )}
+                </div>
+                <a
+                  href={selectedPlace.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlace.name + ' ' + (selectedPlace.address || ''))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <span>Open in Google Maps</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </InfoWindow>
+          )}
 
           {/* Sleek Micro-Card Tooltip on Marker Hover (Suppressed when full detail drawer is open) */}
           {hoveredProperty && !selectedPropertyId && (
@@ -683,6 +856,24 @@ export function GoogleMapView({
           <span>Dots</span>
         </button>
       </div>
+
+      {/* Recommended Local Venues Active Indicator (Top Left) */}
+      {recommendedPlaces.length > 0 && (
+        <div className="absolute top-4 left-[242px] z-20 hidden md:flex items-center gap-1.5 bg-amber-500 text-white font-bold text-xs px-3 py-1.5 rounded-2xl shadow-xl shadow-amber-500/20 animate-in fade-in">
+          <Coffee className="w-3.5 h-3.5" />
+          <span>{recommendedPlaces.length} Local Spots Highlighted</span>
+          {onClearRecommendedPlaces && (
+            <button
+              type="button"
+              onClick={onClearRecommendedPlaces}
+              className="ml-1 p-0.5 hover:bg-amber-600 rounded-full transition-colors cursor-pointer"
+              title="Dismiss local recommendations"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Floating Action Buttons (Top Right) */}
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">

@@ -8,9 +8,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: User) => void;
+  reason?: string;
 }
 
-export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps) {
   const [, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
@@ -108,7 +109,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                 Sign in to SydLiving AI
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Save properties & sync AI chat history
+                {reason || 'Save properties & sync AI chat history'}
               </p>
             </div>
           </div>

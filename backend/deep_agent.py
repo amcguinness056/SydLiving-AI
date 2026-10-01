@@ -451,10 +451,24 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
             yield sse("error", {"message": "GEMINI_API_KEY is not configured.", "latency_seconds": 0.0})
             return
 
+        clean_query = message.strip().replace('\n', ' ')
+        query_snippet = f"'{clean_query[:48]}...'" if len(clean_query) > 48 else f"'{clean_query}'"
+
         yield sse("status", {
             "stage": "planning",
-            "label": "🧠 Deep Agent is analyzing requirements and structuring relocation search..."
+            "label": f"🔍 Analyzing requirements: {query_snippet}"
         })
+
+        init_step = {
+            "id": "step_init_analysis",
+            "type": "plan",
+            "name": "requirements_analysis",
+            "label": f"📋 Deconstructing inquiry & relocation constraints",
+            "detail": f"Analyzing commute destination, weekly budget ceiling, and lifestyle vibe",
+            "status": "completed"
+        }
+        steps_log.append(init_step)
+        yield sse("step", init_step)
 
         langchain_messages = []
         for h in history:
@@ -588,12 +602,20 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
                         if step_obj:
                             steps_log.append(step_obj)
                             yield sse("step", step_obj)
+                            yield sse("status", {
+                                "stage": "executing",
+                                "label": step_obj["label"]
+                            })
 
                     elif ev_type == "on_tool_end":
                         for s in steps_log:
                             if s.get("id") == run_id:
                                 s["status"] = "completed"
                         yield sse("step_done", {"id": run_id, "name": name})
+                        yield sse("status", {
+                            "stage": "synthesizing",
+                            "label": "⚡ Synthesizing agent research and evaluating matches..."
+                        })
 
                     elif ev_type == "on_chat_model_stream":
                         chunk = ev.get("data", {}).get("chunk")

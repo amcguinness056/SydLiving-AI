@@ -130,6 +130,7 @@ export interface ChatMessage {
 
 export interface PropertyFilterParams {
   suburb?: string;
+  property_ids?: string[];
   max_rent?: number;
   min_bedrooms?: number;
   destination_hub?: string;
@@ -185,6 +186,9 @@ export const api = {
     if (filters) {
       const params = new URLSearchParams();
       if (filters.suburb) params.append('suburbs', filters.suburb);
+      if (filters.property_ids && filters.property_ids.length > 0) {
+        filters.property_ids.forEach(id => params.append('property_ids', id));
+      }
       if (filters.max_rent !== undefined && filters.max_rent !== null) params.append('max_rent', filters.max_rent.toString());
       if (filters.min_bedrooms !== undefined && filters.min_bedrooms !== null) params.append('min_bedrooms', filters.min_bedrooms.toString());
       if (filters.destination_hub) params.append('destination_hub', filters.destination_hub);

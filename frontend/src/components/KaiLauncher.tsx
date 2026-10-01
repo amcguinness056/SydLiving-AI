@@ -5,9 +5,17 @@ interface KaiLauncherProps {
   onOpenChat: () => void;
   onAskKai: (prompt: string) => void;
   isChatOpen: boolean;
+  isLoggedIn?: boolean;
+  onRequireAuth?: () => void;
 }
 
-export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherProps) {
+export function KaiLauncher({ 
+  onOpenChat, 
+  onAskKai, 
+  isChatOpen,
+  isLoggedIn = false,
+  onRequireAuth
+}: KaiLauncherProps) {
   const [showGreeting, setShowGreeting] = useState(false);
 
   useEffect(() => {
@@ -37,7 +45,19 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
     setShowGreeting(false);
     localStorage.setItem('sydliving_kai_greeting_shown', 'true');
     localStorage.setItem('sydliving_kai_greeting_dismissed', 'true');
-    onAskKai(prompt);
+    if (!isLoggedIn && onRequireAuth) {
+      onRequireAuth();
+    } else {
+      onAskKai(prompt);
+    }
+  };
+
+  const handleCapsuleClick = () => {
+    if (!isLoggedIn && onRequireAuth) {
+      onRequireAuth();
+    } else {
+      onOpenChat();
+    }
   };
 
   if (isChatOpen) return null;
@@ -111,7 +131,7 @@ export function KaiLauncher({ onOpenChat, onAskKai, isChatOpen }: KaiLauncherPro
 
       {/* Main Concierge Capsule Button */}
       <button
-        onClick={onOpenChat}
+        onClick={handleCapsuleClick}
         className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 hover:bg-white dark:hover:bg-slate-900 text-slate-900 dark:text-white rounded-full shadow-xl shadow-blue-500/20 dark:shadow-blue-950/60 border border-blue-200/80 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-600 flex items-center gap-2.5 sm:gap-3 transition-all hover:scale-105 active:scale-95 group relative z-50 cursor-pointer"
         title="Chat with Kai — Sydney AI Concierge"
         aria-label="Open chat with Kai Sydney AI Concierge"

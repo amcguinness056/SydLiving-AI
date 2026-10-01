@@ -21,7 +21,8 @@ import {
   ExternalLink,
   Pencil,
   Check,
-  MessageSquare
+  MessageSquare,
+  Lock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,6 +55,7 @@ interface ChatPanelProps {
   onClose?: () => void;
   properties?: Property[];
   onSelectProperty?: (propertyId: string) => void;
+  onRequireAuth?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -550,7 +552,8 @@ export function ChatPanel({
   onToggleWide,
   onClose,
   properties = [],
-  onSelectProperty
+  onSelectProperty,
+  onRequireAuth
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -755,12 +758,20 @@ export function ChatPanel({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isThinking) return;
+    if (!isLoggedIn) {
+      onRequireAuth?.();
+      return;
+    }
     onSendMessage(input.trim());
     setInput('');
   };
 
   const handleSuggestionClick = (query: string) => {
     if (isThinking) return;
+    if (!isLoggedIn) {
+      onRequireAuth?.();
+      return;
+    }
     onSendMessage(query);
   };
 
@@ -1198,25 +1209,41 @@ export function ChatPanel({
             )}
           </div>
           
-          {/* Input Area */}
+          {/* Input Area or Sign-In Gate */}
           <div className="p-3.5 bg-white/70 dark:bg-slate-900/80 border-t border-slate-200/70 dark:border-slate-800 backdrop-blur-md relative z-10 shrink-0">
-            <form onSubmit={handleSubmit} className="relative flex items-center">
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Kai about Sydney rentals, commutes, lifestyle..." 
-                disabled={isThinking}
-                className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-xs backdrop-blur-md shadow-xs disabled:opacity-50 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-800 dark:text-white font-medium"
-              />
-              <button 
-                type="submit"
-                disabled={!input.trim() || isThinking}
-                className="absolute right-1.5 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg transition-all shadow-xs disabled:shadow-none"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
+            {isLoggedIn ? (
+              <form onSubmit={handleSubmit} className="relative flex items-center">
+                <input 
+                  type="text" 
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask Kai about Sydney rentals, commutes, lifestyle..." 
+                  disabled={isThinking}
+                  className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-xs backdrop-blur-md shadow-xs disabled:opacity-50 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-800 dark:text-white font-medium"
+                />
+                <button 
+                  type="submit"
+                  disabled={!input.trim() || isThinking}
+                  className="absolute right-1.5 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg transition-all shadow-xs disabled:shadow-none cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between gap-3 p-1">
+                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                  <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>Sign in with Google to chat with Kai</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRequireAuth}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0 shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                >
+                  Sign In
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

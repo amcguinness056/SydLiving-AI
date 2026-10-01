@@ -15,6 +15,7 @@ import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'reac
 import { cn } from './lib/utils';
 import { computeKaiMatch } from './lib/kaiMatch';
 import { KaiConciergeHub } from './components/KaiConciergeHub';
+import { KaiOnboardingModal } from './components/KaiOnboardingModal';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -270,6 +271,8 @@ function App() {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalReason, setAuthModalReason] = useState<string | undefined>(undefined);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Shortlist State
@@ -379,14 +382,24 @@ function App() {
     const username = localStorage.getItem('username');
     const email = localStorage.getItem('user_email') || undefined;
     const avatarUrl = localStorage.getItem('user_avatar') || undefined;
+    const onboardingCompleted = localStorage.getItem('sydliving_onboarding_completed') === 'true';
+
     if (userId && username) {
       setUser({ id: userId, username, email, avatar_url: avatarUrl });
       api.getProfile(userId).then(profile => {
         if (profile) {
           setUser(prev => prev ? { ...prev, ...profile } : profile);
+          if (!onboardingCompleted || !profile.workplace_hub) {
+            setIsOnboardingOpen(true);
+          }
+        } else if (!onboardingCompleted) {
+          setIsOnboardingOpen(true);
         }
       }).catch(err => {
         console.error("Failed to load user profile", err);
+        if (!onboardingCompleted) {
+          setIsOnboardingOpen(true);
+        }
       });
     }
   }, []);
@@ -571,9 +584,10 @@ function App() {
     }
   }, [location.pathname, location.search, navigate]);
 
-  const handleLogin = () => {
+  const handleLogin = useCallback((reason?: string) => {
+    setAuthModalReason(reason);
     setIsAuthModalOpen(true);
-  };
+  }, []);
 
   const handleAuthSuccess = (newUser: User) => {
     setUser(newUser);
@@ -582,7 +596,19 @@ function App() {
     if (newUser.email) localStorage.setItem('user_email', newUser.email);
     if (newUser.avatar_url) localStorage.setItem('user_avatar', newUser.avatar_url);
     syncUserSavedProperties(shortlistedIds);
+
+    // Conversational Onboarding: If user has never completed onboarding or has no workplace_hub
+    const onboardingCompleted = localStorage.getItem('sydliving_onboarding_completed') === 'true';
+    if (!onboardingCompleted || !newUser.workplace_hub) {
+      setIsOnboardingOpen(true);
+    }
   };
+
+  const handleOnboardingComplete = useCallback((updatedUser: User) => {
+    setUser(updatedUser);
+    setIsOnboardingOpen(false);
+    navigate({ pathname: '/concierge', search: location.search });
+  }, [navigate, location.search]);
 
   const handleLogout = () => {
     setUser(null);
@@ -728,6 +754,10 @@ function App() {
   }, [chatHistory, currentSessionId, handleAgentAction]);
 
   const handleAskAgent = useCallback((prompt: string) => {
+    if (!user) {
+      handleLogin('Sign in with Google to chat with Kai');
+      return;
+    }
     // If viewing the enlarged property modal, compare modal, or mobile drawer,
     // close them immediately so Kai opens straight away in the foreground
     setMaximizedPanel(null);
@@ -738,7 +768,7 @@ function App() {
     }
     setIsChatOpen(true);
     handleSendMessage(prompt);
-  }, [handleSendMessage, isMobile]);
+  }, [user, handleLogin, handleSendMessage, isMobile]);
 
   const handleSelectSession = useCallback(async (sessionId: string | null) => {
     setCurrentSessionId(sessionId);
@@ -981,7 +1011,7 @@ function App() {
             </div>
           ) : (
             <button 
-              onClick={handleLogin} 
+              onClick={() => handleLogin()} 
               className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
@@ -1063,6 +1093,7 @@ function App() {
                 onBackToMap={() => {
                   navigate({ pathname: '/', search: location.search });
                 }}
+                onRequireAuth={() => handleLogin('Sign in with Google to unlock Kai Concierge')}
               />
             </ErrorBoundary>
           </div>
@@ -1631,6 +1662,7 @@ function App() {
               onSelectSession={handleSelectSession}
               currentSessionId={currentSessionId}
               isLoggedIn={!!user}
+              onRequireAuth={() => handleLogin('Sign in with Google to chat with Kai')}
               activeThinkingSteps={activeThinkingSteps}
               activeStatusLabel={activeStatusLabel}
               streamingContent={streamingContent}
@@ -1648,8 +1680,16 @@ function App() {
         {/* Floating Concierge Launcher (only when chat is closed) */}
         <KaiLauncher 
           isChatOpen={isChatOpen}
-          onOpenChat={() => setIsChatOpen(true)}
+          isLoggedIn={!!user}
+          onOpenChat={() => {
+            if (!user) {
+              handleLogin('Sign in with Google to chat with Kai');
+              return;
+            }
+            setIsChatOpen(true);
+          }}
           onAskKai={handleAskAgent}
+          onRequireAuth={() => handleLogin('Sign in with Google to chat with Kai')}
         />
       </div>
 
@@ -1669,6 +1709,16 @@ function App() {
           handleMapSelect(id);
         }}
       />
+
+      {/* Conversational Profile Onboarding Modal */}
+      {user && (
+        <KaiOnboardingModal
+          isOpen={isOnboardingOpen}
+          user={user}
+          onComplete={handleOnboardingComplete}
+          onClose={() => setIsOnboardingOpen(false)}
+        />
+      )}
 
       {/* User Commute & Living Profile Modal */}
       {user ? (
@@ -1693,8 +1743,12 @@ function App() {
       {/* Google Authentication Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthModalReason(undefined);
+        }}
         onSuccess={handleAuthSuccess}
+        reason={authModalReason}
       />
 
     </div>

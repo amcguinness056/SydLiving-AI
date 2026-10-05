@@ -109,6 +109,16 @@ def create_tables(cursor):
     );
     ''')
 
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS places_cache (
+        suburb TEXT NOT NULL,
+        place_type TEXT NOT NULL,
+        results_json TEXT NOT NULL,
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (suburb, place_type)
+    );
+    ''')
+
 def seed_data(cursor):
     # Destination Hubs
     hubs = [

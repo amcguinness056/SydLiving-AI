@@ -33,6 +33,12 @@ variable "frontend_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "deploy_frontend_container" {
+  description = "Set to true if deploying frontend on Cloud Run. Default is false to optimize costs by serving SPA through free Firebase CDN."
+  type        = bool
+  default     = false
+}
+
 variable "gemini_api_key" {
   description = "Google Gemini API Key for AI Agent natural language processing."
   type        = string

@@ -8,6 +8,7 @@ resource "google_cloud_run_v2_service" "backend" {
   template {
     service_account       = google_service_account.cloud_run_sa.email
     execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
+    max_instance_request_concurrency = 80
 
     scaling {
       min_instance_count = 0
@@ -109,8 +110,9 @@ resource "google_cloud_run_v2_service_iam_member" "backend_public" {
   member   = "allUsers"
 }
 
-# Frontend Cloud Run Service
+# Frontend Cloud Run Service (Optional: Disabled by default to cut hosting costs via Firebase CDN)
 resource "google_cloud_run_v2_service" "frontend" {
+  count    = var.deploy_frontend_container ? 1 : 0
   name     = "${var.app_name}-frontend"
   location = var.region
   project  = var.project_id
@@ -145,11 +147,12 @@ resource "google_cloud_run_v2_service" "frontend" {
   ]
 }
 
-# Allow public unauthenticated access to the frontend UI
+# Allow public unauthenticated access to the frontend UI (if deployed)
 resource "google_cloud_run_v2_service_iam_member" "frontend_public" {
+  count    = var.deploy_frontend_container ? 1 : 0
   project  = var.project_id
   location = var.region
-  name     = google_cloud_run_v2_service.frontend.name
+  name     = google_cloud_run_v2_service.frontend[0].name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

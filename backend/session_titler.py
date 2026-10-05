@@ -95,6 +95,7 @@ async def generate_ai_title(message: str) -> Optional[str]:
         from google.genai import types
         config = types.GenerateContentConfig(
             temperature=0.2,
+            max_output_tokens=30,
             tools=[]
         )
         

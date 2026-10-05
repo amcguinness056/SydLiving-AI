@@ -12,21 +12,21 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps) {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const handleGoogleLogin = useCallback(async (name: string, email: string, avatarUrl: string) => {
+  const handleCredentialResponse = useCallback(async (credential: string) => {
     setLoading(true);
+    setErrorMsg(null);
     try {
-      const user = await api.loginWithGoogle({
-        name,
-        email,
-        avatar_url: avatarUrl
-      });
-      onSuccess(user);
+      const authData = await api.loginWithGoogle(credential);
+      localStorage.setItem('auth_token', authData.token);
+      onSuccess({ ...authData.user, is_admin: authData.is_admin });
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Google authentication failed", err);
+      setErrorMsg(err.message || "Google sign-in failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -42,24 +42,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps
             client_id: GOOGLE_CLIENT_ID,
             callback: (response: { credential?: string }) => {
               if (!response.credential) return;
-              try {
-                const base64Url = response.credential.split(".")[1];
-                const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-                const jsonPayload = decodeURIComponent(
-                  atob(base64)
-                    .split("")
-                    .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-                    .join("")
-                );
-                const payload = JSON.parse(jsonPayload);
-                handleGoogleLogin(
-                  payload.name || payload.email || "Google User",
-                  payload.email || "",
-                  payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || "User")}&background=4285F4&color=fff&rounded=true`
-                );
-              } catch (parseErr) {
-                console.error("Error parsing Google credential", parseErr);
-              }
+              handleCredentialResponse(response.credential);
             }
           });
 
@@ -90,7 +73,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps
       }, 100);
       return () => clearInterval(timer);
     }
-  }, [isOpen, handleGoogleLogin]);
+  }, [isOpen, handleCredentialResponse]);
 
   if (!isOpen) return null;
 
@@ -123,7 +106,12 @@ export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps
 
         {/* Body */}
         <div className="p-6 flex flex-col gap-5">
-          
+          {errorMsg && (
+            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 text-xs font-medium">
+              {errorMsg}
+            </div>
+          )}
+
           {/* Real Google Identity Services Button Container */}
           <div className="w-full flex justify-center min-h-[44px]">
             <div ref={googleBtnRef} className="w-full flex justify-center" />

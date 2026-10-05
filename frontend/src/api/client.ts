@@ -89,6 +89,9 @@ export interface User {
   email?: string;
   avatar_url?: string;
   auth_provider?: string;
+  is_admin?: boolean;
+  created_at?: string;
+  last_login_at?: string;
   workplace_hub?: string;
   max_commute_mins?: number;
   max_weekly_rent?: number;
@@ -98,6 +101,169 @@ export interface User {
   lifestyle_vibes?: string[];
   preferred_transit_modes?: string[];
   kai_verbosity?: 'concise' | 'balanced' | 'detailed';
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+  is_admin: boolean;
+}
+
+export interface AdminOverview {
+  range: string;
+  include_admins: boolean;
+  total_users: number;
+  google_users: number;
+  legacy_users: number;
+  new_signups: number;
+  dau: number;
+  wau: number;
+  chat_sessions: number;
+  user_messages: number;
+  saves: number;
+  requests: number;
+  error_rate: number;
+  signups_over_time: Array<{ bucket: string; signups: number }>;
+  active_users_over_time: Array<{ bucket: string; active_users: number }>;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  username: string;
+  email?: string;
+  avatar_url?: string;
+  auth_provider?: string;
+  is_admin: boolean;
+  created_at?: string;
+  last_login_at?: string;
+  last_active_at?: string;
+  session_count: number;
+  message_count: number;
+  saved_count: number;
+}
+
+export interface AdminUserDetail {
+  profile: User;
+  saved_properties: Array<{
+    id: string;
+    title: string;
+    suburb: string;
+    weekly_rent: number;
+    bedrooms: number;
+    saved_at?: string;
+  }>;
+  sessions: Array<{
+    id: string;
+    title: string;
+    created_at: string;
+    updated_at: string;
+    message_count: number;
+  }>;
+}
+
+export interface AdminSessionTranscript {
+  session: {
+    id: string;
+    title: string;
+    created_at: string;
+    updated_at: string;
+  };
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    created_at: string;
+  }>;
+}
+
+export interface AdminChatsAnalytics {
+  range: string;
+  total_sessions: number;
+  total_user_messages: number;
+  avg_messages_per_session: number;
+  sessions_over_time: Array<{ bucket: string; sessions: number }>;
+  messages_over_time: Array<{ bucket: string; user_messages: number; model_messages: number }>;
+  most_active_users: Array<{
+    id: string;
+    username: string;
+    email?: string;
+    avatar_url?: string;
+    user_messages: number;
+    sessions: number;
+  }>;
+  recent_prompts: Array<{
+    id: string;
+    content: string;
+    created_at: string;
+    session_id: string;
+    session_title: string;
+    user_id?: string;
+    username?: string;
+  }>;
+}
+
+export interface AdminSavedAnalytics {
+  range: string;
+  total_saves: number;
+  unique_savers: number;
+  top_properties: Array<{
+    id: string;
+    title: string;
+    suburb: string;
+    weekly_rent: number;
+    bedrooms: number;
+    saves: number;
+  }>;
+  top_suburbs: Array<{
+    suburb: string;
+    saves: number;
+    avg_rent: number;
+  }>;
+  saves_over_time: Array<{ bucket: string; saves: number }>;
+}
+
+export interface AdminHealthAnalytics {
+  range: string;
+  total_requests: number;
+  server_errors: number;
+  error_rate: number;
+  p50_ms: number;
+  p95_ms: number;
+  retention_days: number;
+  requests_over_time: Array<{
+    bucket: string;
+    requests: number;
+    errors: number;
+    client_errors: number;
+    avg_latency_ms: number;
+  }>;
+  endpoints: Array<{
+    endpoint: string;
+    requests: number;
+    errors: number;
+    error_rate: number;
+    p50_ms: number;
+    p95_ms: number;
+  }>;
+  external_services: Array<{
+    service: string;
+    calls: number;
+    failures: number;
+    avg_latency_ms: number;
+    tokens_in?: number;
+    tokens_out?: number;
+  }>;
+  external_over_time: Array<{
+    bucket: string;
+    service: string;
+    calls: number;
+  }>;
+  recent_errors: Array<{
+    ts: string;
+    kind: string;
+    source: string;
+    detail: string;
+  }>;
 }
 
 export interface UserProfileUpdate {
@@ -148,6 +314,10 @@ const getHeaders = () => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const userId = localStorage.getItem('user_id');
   if (userId) {
     headers['user-id'] = userId;
@@ -156,17 +326,22 @@ const getHeaders = () => {
 };
 
 export const api = {
-  login: async (username: string): Promise<User> => {
-    const res = await fetch(`${BASE_URL}/auth/login?username=${encodeURIComponent(username)}`, { method: 'POST' });
-    return await res.json();
-  },
-
-  loginWithGoogle: async (profile: { name: string, email?: string, avatar_url?: string }): Promise<User> => {
+  loginWithGoogle: async (credential: string): Promise<AuthResponse> => {
     const res = await fetch(`${BASE_URL}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile)
+      body: JSON.stringify({ credential })
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Authentication failed');
+    }
+    return await res.json();
+  },
+
+  getMe: async (): Promise<{ user: User; is_admin: boolean }> => {
+    const res = await fetch(`${BASE_URL}/auth/me`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Not authenticated');
     return await res.json();
   },
 
@@ -211,21 +386,89 @@ export const api = {
     return data.results;
   },
 
-  getProfile: async (userId: string): Promise<User> => {
-    const res = await fetch(`${BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`, {
+  getProfile: async (_userId?: string): Promise<User> => {
+    const res = await fetch(`${BASE_URL}/user/profile`, {
       headers: getHeaders()
     });
     if (!res.ok) throw new Error('Failed to fetch user profile');
     return await res.json();
   },
 
-  updateProfile: async (userId: string, profile: UserProfileUpdate): Promise<User> => {
-    const res = await fetch(`${BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`, {
+  updateProfile: async (_userId: string | undefined, profile: UserProfileUpdate): Promise<User> => {
+    const res = await fetch(`${BASE_URL}/user/profile`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(profile)
     });
     if (!res.ok) throw new Error('Failed to update user profile');
+    return await res.json();
+  },
+
+  // Admin insights endpoints
+  getAdminOverview: async (range: string = '7d', includeAdmins: boolean = false): Promise<AdminOverview> => {
+    const res = await fetch(`${BASE_URL}/admin/overview?range=${range}&include_admins=${includeAdmins}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin overview');
+    return await res.json();
+  },
+
+  getAdminUsers: async (includeAdmins: boolean = false): Promise<AdminUserSummary[]> => {
+    const res = await fetch(`${BASE_URL}/admin/users?include_admins=${includeAdmins}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin users');
+    return await res.json();
+  },
+
+  getAdminUserDetail: async (userId: string): Promise<AdminUserDetail> => {
+    const res = await fetch(`${BASE_URL}/admin/users/${encodeURIComponent(userId)}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin user detail');
+    return await res.json();
+  },
+
+  getAdminSessionTranscript: async (userId: string, sessionId: string): Promise<AdminSessionTranscript> => {
+    const res = await fetch(`${BASE_URL}/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin session transcript');
+    return await res.json();
+  },
+
+  getAdminChatTranscript: async (sessionId: string, userId?: string): Promise<AdminSessionTranscript> => {
+    const url = userId
+      ? `${BASE_URL}/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/messages`
+      : `${BASE_URL}/admin/sessions/${encodeURIComponent(sessionId)}/messages`;
+    const res = await fetch(url, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch chat transcript');
+    return await res.json();
+  },
+
+  getAdminChats: async (range: string = '7d', includeAdmins: boolean = false): Promise<AdminChatsAnalytics> => {
+    const res = await fetch(`${BASE_URL}/admin/chats?range=${range}&include_admins=${includeAdmins}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin chats analytics');
+    return await res.json();
+  },
+
+  getAdminSaved: async (range: string = '7d', includeAdmins: boolean = false): Promise<AdminSavedAnalytics> => {
+    const res = await fetch(`${BASE_URL}/admin/saved?range=${range}&include_admins=${includeAdmins}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin saved analytics');
+    return await res.json();
+  },
+
+  getAdminHealth: async (range: string = '7d', includeAdmins: boolean = false): Promise<AdminHealthAnalytics> => {
+    const res = await fetch(`${BASE_URL}/admin/health?range=${range}&include_admins=${includeAdmins}`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch admin health analytics');
     return await res.json();
   },
 

@@ -98,37 +98,79 @@ def test_chat_no_api_key():
     assert "GEMINI_API_KEY is not set" in data["reply"]
     assert data["actions"] == []
 
-def test_login_and_google_auth():
-    resp1 = client.post("/api/auth/login?username=testuser_aaron")
-    assert resp1.status_code == 200
-    user1 = resp1.json()
-    assert user1["username"] == "testuser_aaron"
-    assert "id" in user1
+def test_google_auth_and_session_token(monkeypatch):
+    import main
 
-    resp2 = client.post("/api/auth/google", json={
-        "name": "Test Google User",
-        "email": "testgoogle@example.com",
-        "avatar_url": "https://example.com/avatar.png"
-    })
-    assert resp2.status_code == 200
-    user2 = resp2.json()
-    assert user2["username"] == "Test Google User"
-    assert user2["email"] == "testgoogle@example.com"
-    assert user2["auth_provider"] == "google"
+    # Mock verify_google_credential in main where google_auth is defined
+    def mock_verify(credential):
+        if credential == "valid_admin_token":
+            return {
+                "sub": "google-sub-admin-123",
+                "email": "aaron.manu.td24@gmail.com",
+                "email_verified": True,
+                "name": "Aaron McGuinness",
+                "picture": "https://example.com/aaron.png"
+            }
+        elif credential == "valid_user_token":
+            return {
+                "sub": "google-sub-user-456",
+                "email": "regular.user@example.com",
+                "email_verified": True,
+                "name": "Regular User",
+                "picture": "https://example.com/user.png"
+            }
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid credential")
 
-def test_saved_properties_sync_and_toggle():
-    # Login to get a valid user
-    login_res = client.post("/api/auth/login?username=synctest_user")
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
+    # 1. Invalid credential -> 401
+    bad_res = client.post("/api/auth/google", json={"credential": "invalid"})
+    assert bad_res.status_code == 401
+
+    # 2. Regular user login -> returns token, user, is_admin=False
+    user_res = client.post("/api/auth/google", json={"credential": "valid_user_token"})
+    assert user_res.status_code == 200
+    user_data = user_res.json()
+    assert "token" in user_data
+    assert user_data["user"]["email"] == "regular.user@example.com"
+    assert user_data["is_admin"] is False
+
+    # 3. Admin user login -> returns token, user, is_admin=True
+    admin_res = client.post("/api/auth/google", json={"credential": "valid_admin_token"})
+    assert admin_res.status_code == 200
+    admin_data = admin_res.json()
+    assert "token" in admin_data
+    assert admin_data["user"]["email"] == "aaron.manu.td24@gmail.com"
+    assert admin_data["is_admin"] is True
+
+    # 4. GET /api/auth/me with Bearer token
+    me_res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {admin_data['token']}"})
+    assert me_res.status_code == 200
+    assert me_res.json()["is_admin"] is True
+
+def test_saved_properties_sync_and_toggle(monkeypatch):
+    import main
+    def mock_verify(credential):
+        return {
+            "sub": "google-sub-sync-user",
+            "email": "synctest@example.com",
+            "email_verified": True,
+            "name": "Sync Test",
+            "picture": ""
+        }
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
+    login_res = client.post("/api/auth/google", json={"credential": "mock"})
     assert login_res.status_code == 200
-    user_id = login_res.json()["id"]
+    token = login_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
     # Get sample properties
     search_res = client.get("/api/properties")
     props = search_res.json()["results"]
     assert len(props) >= 2
     pid1, pid2 = props[0]["id"], props[1]["id"]
-
-    headers = {"user-id": user_id}
 
     # 1. Sync local properties
     sync_res = client.post("/api/properties/saved/sync", json={"property_ids": [pid1]}, headers=headers)
@@ -158,9 +200,19 @@ def test_saved_properties_sync_and_toggle():
     assert pid1 not in final_ids
     assert pid2 in final_ids
 
-def test_saved_properties_pruning_and_filtering():
+def test_saved_properties_pruning_and_filtering(monkeypatch):
     """Verify property_ids filtering, orphaned ID pruning in sync, and 404 on nonexistent property save."""
-    # 1. Fetch valid properties
+    import main
+    def mock_verify(credential):
+        return {
+            "sub": "google-sub-prune-user",
+            "email": "prunetest@example.com",
+            "email_verified": True,
+            "name": "Prune Test",
+            "picture": ""
+        }
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
     search_res = client.get("/api/properties")
     props = search_res.json()["results"]
     assert len(props) >= 3
@@ -175,10 +227,10 @@ def test_saved_properties_pruning_and_filtering():
     assert set(p["id"] for p in filtered_props) == set(valid_ids)
 
     # 3. Login test user
-    login_res = client.post("/api/auth/login?username=prunetest_user")
+    login_res = client.post("/api/auth/google", json={"credential": "mock"})
     assert login_res.status_code == 200
-    user_id = login_res.json()["id"]
-    headers = {"user-id": user_id}
+    token = login_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
     # 4. Sync mixed valid and fake IDs -> only valid IDs should be saved
     sync_res = client.post(
@@ -196,23 +248,33 @@ def test_saved_properties_pruning_and_filtering():
     save_fake = client.post(f"/api/properties/saved/{fake_ids[0]}", headers=headers)
     assert save_fake.status_code == 404
 
-
-def test_user_profile_crud():
+def test_user_profile_crud(monkeypatch):
     """Verify getting and updating a user's relocation and lifestyle profile."""
-    # 1. Login user
-    login_res = client.post("/api/auth/login?username=profile_tester")
+    import main
+    def mock_verify(credential):
+        return {
+            "sub": "google-sub-profile-user",
+            "email": "profiletester@example.com",
+            "email_verified": True,
+            "name": "Profile Tester",
+            "picture": ""
+        }
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
+    login_res = client.post("/api/auth/google", json={"credential": "mock"})
     assert login_res.status_code == 200
-    user_id = login_res.json()["id"]
+    token = login_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
     # 2. Get profile
-    profile_res = client.get(f"/api/user/profile?user_id={user_id}")
+    profile_res = client.get("/api/user/profile", headers=headers)
     assert profile_res.status_code == 200
     prof = profile_res.json()
-    assert prof["username"] == "profile_tester"
+    assert prof["username"] == "Profile Tester"
     assert "workplace_hub" in prof
 
     # 3. Update profile
-    update_res = client.put(f"/api/user/profile?user_id={user_id}", json={
+    update_res = client.put("/api/user/profile", headers=headers, json={
         "workplace_hub": "Barangaroo",
         "max_commute_mins": 35,
         "max_weekly_rent": 920.0,
@@ -280,32 +342,132 @@ def test_session_titler_heuristics():
     assert not t3.startswith("[Deep]")
     assert "2-bedroom rentals" in t3
 
-def test_chat_session_rename_endpoint():
-    """Verify PATCH /api/chat/sessions/{session_id} updates session title."""
-    import uuid
-    # Create user via login endpoint
-    login_res = client.post("/api/auth/login?username=session_tester")
+def test_chat_session_rename_endpoint(monkeypatch):
+    """Verify PATCH /api/chat/sessions/{session_id} updates session title with Bearer auth."""
+    import main
+    def mock_verify(credential):
+        return {
+            "sub": "google-sub-session-user",
+            "email": "sessionuser@example.com",
+            "email_verified": True,
+            "name": "Session User",
+            "picture": ""
+        }
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
+    login_res = client.post("/api/auth/google", json={"credential": "mock"})
     assert login_res.status_code == 200
-    user_id = login_res.json()["id"]
+    token = login_res.json()["token"]
+    user_id = login_res.json()["user"]["id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    import uuid
     session_id = str(uuid.uuid4())
     
     # Create session in db
     import sqlite3
     from database import DB_PATH
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", (session_id, user_id, "Old Title"))
+    conn.execute(
+        "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", 
+        (session_id, user_id, "Old Title")
+    )
     conn.commit()
     conn.close()
 
     # Update session title
-    patch_res = client.patch(f"/api/chat/sessions/{session_id}", headers={"user-id": user_id}, json={"title": "Coogee Beach 2BR Value Check"})
+    patch_res = client.patch(f"/api/chat/sessions/{session_id}", headers=headers, json={"title": "Coogee Beach 2BR Value Check"})
     assert patch_res.status_code == 200
     data = patch_res.json()
     assert data["title"] == "Coogee Beach 2BR Value Check"
 
     # Verify get sessions returns new title
-    get_res = client.get("/api/chat/sessions", headers={"user-id": user_id})
+    get_res = client.get("/api/chat/sessions", headers=headers)
     assert get_res.status_code == 200
     sessions = get_res.json()["sessions"]
     assert any(s["id"] == session_id and s["title"] == "Coogee Beach 2BR Value Check" for s in sessions)
+
+def test_admin_endpoints_security_and_insights(monkeypatch):
+    """Verify admin endpoints: 401 without auth, 403 for non-admin, 200 for admin, and correct analytics shapes."""
+    import main
+    def mock_verify(credential):
+        if credential == "admin_creds":
+            return {
+                "sub": "google-admin-id",
+                "email": "aaron.manu.td24@gmail.com",
+                "email_verified": True,
+                "name": "Aaron McGuinness",
+                "picture": ""
+            }
+        return {
+            "sub": "google-regular-id",
+            "email": "regular@example.com",
+            "email_verified": True,
+            "name": "Regular User",
+            "picture": ""
+        }
+    monkeypatch.setattr(main, "verify_google_credential", mock_verify)
+
+    # 1. Unauthenticated request -> 401
+    assert client.get("/api/admin/overview").status_code == 401
+    assert client.get("/api/admin/users").status_code == 401
+    assert client.get("/api/admin/health").status_code == 401
+
+    # 2. Non-admin request -> 403
+    reg_login = client.post("/api/auth/google", json={"credential": "user_creds"}).json()
+    reg_headers = {"Authorization": f"Bearer {reg_login['token']}"}
+    assert client.get("/api/admin/overview", headers=reg_headers).status_code == 403
+    assert client.get("/api/admin/users", headers=reg_headers).status_code == 403
+    assert client.get("/api/admin/health", headers=reg_headers).status_code == 403
+
+    # 3. Admin request -> 200
+    admin_login = client.post("/api/auth/google", json={"credential": "admin_creds"}).json()
+    admin_headers = {"Authorization": f"Bearer {admin_login['token']}"}
+
+    overview_res = client.get("/api/admin/overview?range=7d", headers=admin_headers)
+    assert overview_res.status_code == 200
+    overview_data = overview_res.json()
+    assert "total_users" in overview_data
+    assert "new_signups" in overview_data
+    assert "dau" in overview_data
+    assert "signups_over_time" in overview_data
+
+    users_res = client.get("/api/admin/users", headers=admin_headers)
+    assert users_res.status_code == 200
+    users_list = users_res.json()
+    assert isinstance(users_list, list)
+    assert len(users_list) > 0
+    test_user_id = users_list[0]["id"]
+
+    detail_res = client.get(f"/api/admin/users/{test_user_id}", headers=admin_headers)
+    assert detail_res.status_code == 200
+    assert "profile" in detail_res.json()
+    assert "sessions" in detail_res.json()
+
+    chats_res = client.get("/api/admin/chats?range=7d", headers=admin_headers)
+    assert chats_res.status_code == 200
+    assert "total_sessions" in chats_res.json()
+    assert "recent_prompts" in chats_res.json()
+
+    saved_res = client.get("/api/admin/saved?range=7d", headers=admin_headers)
+    assert saved_res.status_code == 200
+    assert "total_saves" in saved_res.json()
+    assert "top_suburbs" in saved_res.json()
+
+    health_res = client.get("/api/admin/health?range=7d", headers=admin_headers)
+    assert health_res.status_code == 200
+    assert "requests_over_time" in health_res.json()
+    assert "endpoints" in health_res.json()
+
+    # Session transcript test (create a session first, then inspect)
+    user_headers = {"Authorization": f"Bearer {admin_login['token']}"}
+    session_res = client.post("/api/chat", json={"message": "Admin test inquiry"}, headers=user_headers)
+    assert session_res.status_code == 200
+    created_sessions = client.get("/api/chat/sessions", headers=user_headers).json()["sessions"]
+    if created_sessions:
+        sid = created_sessions[0]["id"]
+        direct_tr = client.get(f"/api/admin/sessions/{sid}/messages", headers=admin_headers)
+        assert direct_tr.status_code == 200
+        assert "messages" in direct_tr.json()
+
 

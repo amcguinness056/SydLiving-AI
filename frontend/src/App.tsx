@@ -10,12 +10,13 @@ import { ChatPanel, type Message } from './components/ChatPanel';
 import { KaiLauncher } from './components/KaiLauncher';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal, Compass, ArrowLeft } from 'lucide-react';
+import { Sparkles, Sun, Moon, Heart, LogOut, List, Map as MapIcon, X, SlidersHorizontal, Compass, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from './lib/utils';
 import { computeKaiMatch } from './lib/kaiMatch';
 import { KaiConciergeHub } from './components/KaiConciergeHub';
 import { KaiOnboardingModal } from './components/KaiOnboardingModal';
+import { AdminPanel } from './components/AdminPanel';
 
 type MaximizedState = 'list' | 'map' | 'details' | 'chat' | null;
 
@@ -376,15 +377,33 @@ function App() {
     localStorage.setItem('sydliving_shortlist', JSON.stringify(shortlistedIds));
   }, [shortlistedIds]);
 
-  // Auth restore & fetch profile
+  // Auth restore & fetch profile / token verification
   useEffect(() => {
+    const token = localStorage.getItem('auth_token');
     const userId = localStorage.getItem('user_id');
     const username = localStorage.getItem('username');
     const email = localStorage.getItem('user_email') || undefined;
     const avatarUrl = localStorage.getItem('user_avatar') || undefined;
     const onboardingCompleted = localStorage.getItem('sydliving_onboarding_completed') === 'true';
 
-    if (userId && username) {
+    if (token) {
+      api.getMe().then(res => {
+        if (res && res.user) {
+          const combinedUser: User = { ...res.user, is_admin: res.is_admin };
+          setUser(combinedUser);
+          localStorage.setItem('user_id', combinedUser.id);
+          localStorage.setItem('username', combinedUser.username);
+          if (combinedUser.email) localStorage.setItem('user_email', combinedUser.email);
+          if (combinedUser.avatar_url) localStorage.setItem('user_avatar', combinedUser.avatar_url);
+          if (!onboardingCompleted || !combinedUser.workplace_hub) {
+            setIsOnboardingOpen(true);
+          }
+        }
+      }).catch(err => {
+        console.warn("Session token expired or invalid:", err);
+        localStorage.removeItem('auth_token');
+      });
+    } else if (userId && username) {
       setUser({ id: userId, username, email, avatar_url: avatarUrl });
       api.getProfile(userId).then(profile => {
         if (profile) {
@@ -643,6 +662,7 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem('auth_token');
     localStorage.removeItem('user_id');
     localStorage.removeItem('username');
     localStorage.removeItem('user_email');
@@ -653,6 +673,9 @@ function App() {
     setCurrentSessionId(null);
     setMessages([]);
     setChatHistory([]);
+    if (location.pathname === '/admin') {
+      navigate({ pathname: '/', search: location.search });
+    }
   };
 
   const handleAgentAction = useCallback((action: AgentAction) => {
@@ -931,6 +954,81 @@ function App() {
     return selectedProperty;
   }, [modalPropertyId, allPropertiesPool, selectedProperty]);
 
+  // If path is /admin, render the full-screen AdminPanel
+  if (location.pathname === '/admin') {
+    if (!user) {
+      return (
+        <div className="fixed inset-0 bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
+          <div className="max-w-md w-full bg-slate-800/80 border border-slate-700 p-6 rounded-2xl text-center space-y-4 shadow-xl">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-white">Admin Authentication Required</h2>
+            <p className="text-xs text-slate-400">
+              Please sign in with your authorized administrator Google account to access SydLiving Insights.
+            </p>
+            <div className="flex gap-2 justify-center pt-2">
+              <button
+                onClick={() => navigate({ pathname: '/', search: location.search })}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-750 hover:bg-slate-700 text-slate-300 border border-slate-650 transition-colors cursor-pointer"
+              >
+                Back to Map
+              </button>
+              <button
+                onClick={() => handleLogin('Sign in as an administrator to access the insights panel')}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-xs transition-colors cursor-pointer"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setAuthModalReason(undefined);
+            }}
+            onSuccess={handleAuthSuccess}
+            reason={authModalReason}
+          />
+        </div>
+      );
+    }
+
+    if (!user.is_admin) {
+      return (
+        <div className="fixed inset-0 bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
+          <div className="max-w-md w-full bg-slate-800/80 border border-slate-700 p-6 rounded-2xl text-center space-y-4 shadow-xl">
+            <div className="w-12 h-12 rounded-2xl bg-rose-600/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-white">Access Denied</h2>
+            <p className="text-xs text-slate-400">
+              Account <span className="text-slate-200 font-semibold">{user.email || user.username}</span> does not have administrative privileges.
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => navigate({ pathname: '/', search: location.search })}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-xs transition-colors cursor-pointer"
+              >
+                Return to SydLiving Map
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <AdminPanel
+        onBack={() => navigate({ pathname: '/', search: location.search })}
+        onSelectProperty={(propertyId) => {
+          navigate({ pathname: `/property/${propertyId}`, search: location.search });
+        }}
+      />
+    );
+  }
+
   return (
     <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-full bg-slate-100 dark:bg-slate-950 flex flex-col p-2 sm:p-4 gap-2 sm:gap-4 font-sans overflow-hidden transition-colors duration-300">
       
@@ -1036,6 +1134,16 @@ function App() {
                   Profile
                 </span>
               </button>
+              {user.is_admin && (
+                <button
+                  onClick={() => navigate({ pathname: '/admin', search: location.search })}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[11px] font-bold border border-blue-500/20 transition-colors cursor-pointer"
+                  title="Open SydLiving Admin Insights Panel"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Admin</span>
+                </button>
+              )}
               <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors ml-0.5 cursor-pointer" title="Logout">
                 <LogOut className="w-3.5 h-3.5" />
               </button>

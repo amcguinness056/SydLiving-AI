@@ -10,15 +10,22 @@ load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 from datetime import datetime
-from fastapi import FastAPI, Depends, Query, HTTPException, Header, Body
+from fastapi import FastAPI, Depends, Query, HTTPException, Header, Body, Request
 from starlette.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 
 import json
+import time
 import asyncio
 import database
+import analytics
+from auth import (
+    get_current_user, require_user, require_admin, verify_google_credential,
+    create_session_token, is_admin_email, peek_user_id,
+)
 from database import get_db_connection
 from models import (
     PropertySearchResponse, Property, CommuteResponse, CommuteMatrix, 
@@ -63,10 +70,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_current_user(user_id: Optional[str] = Header(None)):
-    if not user_id:
-        return None
-    return user_id
+# Paths excluded from request logging (admin dashboard polling and health probes would skew stats).
+_UNLOGGED_PREFIXES = ("/api/admin", "/api/health")
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    path = request.url.path
+    if request.method == "OPTIONS" or not path.startswith("/api") or path.startswith(_UNLOGGED_PREFIXES):
+        return await call_next(request)
+    start = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        latency_ms = (time.perf_counter() - start) * 1000
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", None) or path  # template path, e.g. /api/properties/{property_id}
+        user_id = peek_user_id(request.headers.get("authorization"))
+        await run_in_threadpool(analytics.log_request, request.method, route_path, status, latency_ms, user_id)
+
+@app.on_event("startup")
+def _prune_analytics_logs():
+    analytics.prune_logs()
 
 @app.get("/api/health")
 def health_check():
@@ -125,9 +152,7 @@ def get_isochrones(
     return IsochroneResponse(hub=hub, max_minutes=max_minutes, suburbs_within_reach=suburbs)
 
 class GoogleAuthPayload(BaseModel):
-    name: str
-    email: Optional[str] = None
-    avatar_url: Optional[str] = None
+    credential: str  # Google Identity Services ID token (JWT), verified server-side
 
 def format_user_dict(d: dict) -> dict:
     """Format and deserialize database user row for User response model."""
@@ -160,51 +185,62 @@ def format_user_dict(d: dict) -> dict:
         res["min_bedrooms"] = 1
     if not res.get("kai_verbosity"):
         res["kai_verbosity"] = "concise"
+    res["is_admin"] = is_admin_email(res.get("email"))
     return res
-
-@app.post("/api/auth/login")
-def login(username: str, db: sqlite3.Connection = Depends(get_db_connection)):
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-    row = cursor.fetchone()
-    if row:
-        return User(**format_user_dict(row))
-    
-    new_id = str(uuid.uuid4())
-    cursor.execute("INSERT INTO users (id, username) VALUES (?, ?)", (new_id, username))
-    db.commit()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (new_id,))
-    new_row = cursor.fetchone()
-    return User(**format_user_dict(new_row))
 
 @app.post("/api/auth/google")
 def google_auth(payload: GoogleAuthPayload, db: sqlite3.Connection = Depends(get_db_connection)):
+    """Verify a Google ID token server-side and issue a SydLiving session token.
+
+    Identity is keyed on Google's stable `sub`. A pre-existing row with the same (now verified)
+    email is linked on first sign-in so legacy history carries over.
+    """
+    claims = verify_google_credential(payload.credential)
+    sub = claims["sub"]
+    email = claims["email"].lower()
+    name = claims.get("name") or email
+    avatar = claims.get("picture") or f"https://ui-avatars.com/api/?name={name}&background=4285F4&color=fff&rounded=true"
+    now = datetime.now().isoformat()
+
     cursor = db.cursor()
-    if payload.email:
-        cursor.execute("SELECT * FROM users WHERE email = ?", (payload.email,))
-        row = cursor.fetchone()
-        if row:
-            cursor.execute("UPDATE users SET username = ?, avatar_url = ? WHERE id = ?", (payload.name, payload.avatar_url, row["id"]))
-            db.commit()
-            cursor.execute("SELECT * FROM users WHERE id = ?", (row["id"],))
-            updated_row = cursor.fetchone()
-            return User(**format_user_dict(updated_row))
-    
-    cursor.execute("SELECT * FROM users WHERE username = ?", (payload.name,))
-    row = cursor.fetchone()
+    row = cursor.execute("SELECT * FROM users WHERE google_sub = ?", (sub,)).fetchone()
+    if not row:
+        row = cursor.execute(
+            "SELECT * FROM users WHERE lower(email) = ? AND google_sub IS NULL ORDER BY rowid LIMIT 1", (email,)
+        ).fetchone()
+
     if row:
-        return User(**format_user_dict(row))
-    
-    new_id = str(uuid.uuid4())
-    cursor.execute("INSERT INTO users (id, username, email, avatar_url, auth_provider) VALUES (?, ?, ?, ?, 'google')", 
-                   (new_id, payload.name, payload.email, payload.avatar_url))
+        user_id = row["id"]
+        cursor.execute(
+            "UPDATE users SET google_sub = ?, email = ?, username = ?, avatar_url = ?, auth_provider = 'google', "
+            "last_login_at = ?, created_at = COALESCE(created_at, ?) WHERE id = ?",
+            (sub, email, name, avatar, now, now, user_id),
+        )
+    else:
+        user_id = str(uuid.uuid4())
+        cursor.execute(
+            "INSERT INTO users (id, username, email, avatar_url, auth_provider, google_sub, created_at, last_login_at) "
+            "VALUES (?, ?, ?, ?, 'google', ?, ?, ?)",
+            (user_id, name, email, avatar, sub, now, now),
+        )
     db.commit()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (new_id,))
-    new_row = cursor.fetchone()
-    return User(**format_user_dict(new_row))
+
+    user_row = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return {
+        "token": create_session_token(user_id, email),
+        "user": User(**format_user_dict(user_row)),
+        "is_admin": is_admin_email(email),
+    }
+
+@app.get("/api/auth/me")
+def auth_me(user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
+    row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return {"user": User(**format_user_dict(row)), "is_admin": is_admin_email(row["email"])}
 
 @app.get("/api/user/profile", response_model=User)
-def get_user_profile(user_id: str = Query(..., description="ID of the user"), db: sqlite3.Connection = Depends(get_db_connection)):
+def get_user_profile(user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
@@ -214,8 +250,8 @@ def get_user_profile(user_id: str = Query(..., description="ID of the user"), db
 
 @app.put("/api/user/profile", response_model=User)
 def update_user_profile(
-    user_id: str = Query(..., description="ID of the user"),
     profile: UserProfileUpdate = Body(...),
+    user_id: str = Depends(require_user),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
     cursor = db.cursor()
@@ -421,17 +457,20 @@ class SavedPropertiesSyncPayload(BaseModel):
 @app.post("/api/properties/saved/sync", response_model=List[Property])
 def sync_saved_properties(
     payload: SavedPropertiesSyncPayload,
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(require_user),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    now = datetime.now().isoformat()
     cursor = db.cursor()
     for pid in payload.property_ids:
         try:
             cursor.execute("SELECT 1 FROM properties WHERE id = ?", (pid,))
             if cursor.fetchone():
-                cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, pid))
+                cursor.execute(
+                    "INSERT INTO saved_properties (user_id, property_id, created_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(user_id, property_id) DO NOTHING",
+                    (user_id, pid, now)
+                )
         except sqlite3.Error:
             pass
 
@@ -454,9 +493,7 @@ def sync_saved_properties(
     return [Property(**format_property_dict(row)) for row in rows]
 
 @app.get("/api/properties/saved")
-def get_saved_properties(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def get_saved_properties(user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute('''
         SELECT p.* FROM properties p
@@ -467,24 +504,25 @@ def get_saved_properties(user_id: str = Depends(get_current_user), db: sqlite3.C
     return [Property(**format_property_dict(row)) for row in rows]
 
 @app.post("/api/properties/saved/{property_id}")
-def save_property(property_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def save_property(property_id: str, user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("SELECT 1 FROM properties WHERE id = ?", (property_id,))
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Property not found")
     try:
-        cursor.execute("INSERT OR IGNORE INTO saved_properties (user_id, property_id) VALUES (?, ?)", (user_id, property_id))
+        now = datetime.now().isoformat()
+        cursor.execute(
+            "INSERT INTO saved_properties (user_id, property_id, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, property_id) DO NOTHING",
+            (user_id, property_id, now)
+        )
         db.commit()
     except sqlite3.Error:
         pass
     return {"status": "ok"}
 
 @app.delete("/api/properties/saved/{property_id}")
-def unsave_property(property_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def unsave_property(property_id: str, user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("DELETE FROM saved_properties WHERE user_id = ? AND property_id = ?", (user_id, property_id))
     db.commit()
@@ -549,18 +587,14 @@ def get_places(
     return PlaceResponse(places=places)
 
 @app.get("/api/chat/sessions", response_model=ChatSessionResponse)
-def get_chat_sessions(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def get_chat_sessions(user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
     rows = cursor.fetchall()
     return ChatSessionResponse(sessions=[ChatSession(**dict(row)) for row in rows])
 
 @app.get("/api/chat/sessions/{session_id}/messages", response_model=ChatMessageResponse)
-def get_chat_messages(session_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def get_chat_messages(session_id: str, user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
     if not cursor.fetchone():
@@ -571,9 +605,7 @@ def get_chat_messages(session_id: str, user_id: str = Depends(get_current_user),
     return ChatMessageResponse(messages=[ChatMessage(**dict(row)) for row in rows])
 
 @app.delete("/api/chat/sessions/{session_id}")
-def delete_chat_session(session_id: str, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db_connection)):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def delete_chat_session(session_id: str, user_id: str = Depends(require_user), db: sqlite3.Connection = Depends(get_db_connection)):
     cursor = db.cursor()
     cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
     cursor.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
@@ -584,11 +616,9 @@ def delete_chat_session(session_id: str, user_id: str = Depends(get_current_user
 def update_chat_session(
     session_id: str,
     payload: ChatSessionUpdate,
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(require_user),
     db: sqlite3.Connection = Depends(get_db_connection)
 ):
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
     clean_title = payload.title.strip()
     if not clean_title:
         raise HTTPException(status_code=400, detail="Title cannot be empty")
@@ -604,15 +634,20 @@ def update_chat_session(
     return ChatSession(**dict(row))
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
+async def chat_endpoint(
+    request: ChatRequest, 
+    auth_user_id: Optional[str] = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
     try:
         session_id = request.session_id
         cursor = db.cursor()
         now = datetime.now().isoformat()
+        user_id = auth_user_id
         
         user_profile = None
-        if request.user_id:
-            cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+        if user_id:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
             u_row = cursor.fetchone()
             if u_row:
                 user_profile = format_user_dict(u_row)
@@ -622,7 +657,7 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
                 title = clean_heuristic_title(request.message)
                 cursor.execute(
                     "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (session_id, request.user_id, title, now, now)
+                    (session_id, user_id, title, now, now)
                 )
                 asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
             
@@ -635,7 +670,20 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
+        start_time = time.perf_counter()
         result = await agent.process_chat(request.message, request.history, user_profile=user_profile)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        
+        usage = result.get("usage") or {}
+        analytics.log_external_call(
+            service="gemini",
+            operation="process_chat",
+            success=result.get("error") is None,
+            latency_ms=elapsed_ms,
+            tokens_in=usage.get("tokens_in"),
+            tokens_out=usage.get("tokens_out"),
+            error=result.get("error")
+        )
         
         if session_id:
             msg_id = str(uuid.uuid4())
@@ -657,15 +705,20 @@ async def chat_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/deep", response_model=ChatResponse)
-async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depends(get_db_connection)):
+async def chat_deep_endpoint(
+    request: ChatRequest, 
+    auth_user_id: Optional[str] = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
     try:
         session_id = request.session_id
         cursor = db.cursor()
         now = datetime.now().isoformat()
+        user_id = auth_user_id
         
         user_profile = None
-        if request.user_id:
-            cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+        if user_id:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
             u_row = cursor.fetchone()
             if u_row:
                 user_profile = format_user_dict(u_row)
@@ -675,7 +728,7 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
                 title = clean_heuristic_title(request.message)
                 cursor.execute(
                     "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (session_id, request.user_id, title, now, now)
+                    (session_id, user_id, title, now, now)
                 )
                 asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
             
@@ -688,7 +741,17 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
                 cursor.execute("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", (now, session_id))
                 db.commit()
 
+        start_time = time.perf_counter()
         result = await deep_agent.process_deep_chat(request.message, request.history, user_profile=user_profile)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        analytics.log_external_call(
+            service="gemini_deep",
+            operation="process_deep_chat",
+            success=result.get("error") is None,
+            latency_ms=elapsed_ms,
+            error=result.get("error")
+        )
         
         if session_id:
             msg_id = str(uuid.uuid4())
@@ -715,19 +778,23 @@ async def chat_deep_endpoint(request: ChatRequest, db: sqlite3.Connection = Depe
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/deep/stream")
-async def chat_deep_stream_endpoint(request: ChatRequest):
+async def chat_deep_stream_endpoint(
+    request: ChatRequest,
+    auth_user_id: Optional[str] = Depends(get_current_user)
+):
     async def event_generator():
         session_id = request.session_id
         now = datetime.now().isoformat()
         user_profile = None
+        user_id = auth_user_id
         
         # 1. If user is logged in, create or update session and save user message
-        if request.user_id:
+        if user_id:
             try:
                 with sqlite3.connect(database.DB_PATH) as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
-                    cursor.execute("SELECT * FROM users WHERE id = ?", (request.user_id,))
+                    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
                     u_row = cursor.fetchone()
                     if u_row:
                         user_profile = format_user_dict(u_row)
@@ -737,7 +804,7 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
                         title = clean_heuristic_title(request.message)
                         cursor.execute(
                             "INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                            (session_id, request.user_id, title, now, now)
+                            (session_id, user_id, title, now, now)
                         )
                         asyncio.create_task(update_session_title_async(session_id, request.message, database.DB_PATH))
                     
@@ -778,7 +845,7 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
                             sse_chunk = f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
                             # Persist model reply immediately upon done
-                            if request.user_id and accumulated_text:
+                            if user_id and accumulated_text:
                                 try:
                                     with sqlite3.connect(database.DB_PATH) as conn:
                                         c = conn.cursor()
@@ -809,7 +876,7 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
                 yield sse_chunk
         finally:
             # 3. On completion (or interruption), save model reply to DB if not already saved
-            if request.user_id and session_id and accumulated_text and not saved_model_message:
+            if user_id and session_id and accumulated_text and not saved_model_message:
                 try:
                     with sqlite3.connect(database.DB_PATH) as conn:
                         cursor = conn.cursor()
@@ -828,5 +895,78 @@ async def chat_deep_stream_endpoint(request: ChatRequest):
         event_generator(),
         media_type="text/event-stream"
     )
+
+# ---------------------------------------------------------------------------
+# Admin Insights API (read-only, guarded by require_admin)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/overview")
+def admin_overview(
+    range: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
+    include_admins: bool = Query(False),
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    return analytics.overview(db, range_key=range, include_admins=include_admins)
+
+@app.get("/api/admin/users")
+def admin_users_list(
+    include_admins: bool = Query(False),
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    return analytics.list_users(db, include_admins=include_admins)
+
+@app.get("/api/admin/users/{user_id}")
+def admin_user_detail(
+    user_id: str,
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    detail = analytics.user_detail(db, user_id=user_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="User not found")
+    return detail
+
+@app.get("/api/admin/sessions/{session_id}/messages")
+@app.get("/api/admin/users/{user_id}/sessions/{session_id}/messages")
+def admin_session_transcript(
+    session_id: str,
+    user_id: Optional[str] = None,
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    transcript = analytics.session_transcript(db, session_id=session_id, user_id=user_id)
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Session or transcript not found")
+    return transcript
+
+@app.get("/api/admin/chats")
+def admin_chats_analytics(
+    range: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
+    include_admins: bool = Query(False),
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    return analytics.chats(db, range_key=range, include_admins=include_admins)
+
+@app.get("/api/admin/saved")
+def admin_saved_analytics(
+    range: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
+    include_admins: bool = Query(False),
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    return analytics.saved(db, range_key=range, include_admins=include_admins)
+
+@app.get("/api/admin/health")
+def admin_health_analytics(
+    range: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
+    include_admins: bool = Query(False),
+    admin: dict = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db_connection)
+):
+    return analytics.health(db, range_key=range, include_admins=include_admins)
+
 
 

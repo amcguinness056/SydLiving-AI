@@ -272,9 +272,14 @@ Never output a property name as plain text without linking its ID. This allows u
         if not reply_text:
             reply_text = "I've processed your request and updated the map and property listings accordingly!"
 
+        usage = getattr(response, "usage_metadata", None)
         return {
             "reply": reply_text,
-            "actions": actions
+            "actions": actions,
+            "usage": {
+                "tokens_in": getattr(usage, "prompt_token_count", None) if usage else None,
+                "tokens_out": getattr(usage, "candidates_token_count", None) if usage else None,
+            },
         }
     except Exception as e:
         print(f"[Agent] ERROR IN process_chat: {str(e)}")
@@ -284,15 +289,18 @@ Never output a property name as plain text without linking its ID. This allows u
         if "503" in error_msg or "UNAVAILABLE" in error_msg:
             return {
                 "reply": "I'm sorry, but my AI brain is currently experiencing high demand. Please try again in a few moments!",
-                "actions": []
+                "actions": [],
+                "error": error_msg,
             }
         elif "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
             return {
                 "reply": "I'm sorry, but we've hit our API rate limits. Please try again in a minute.",
-                "actions": []
+                "actions": [],
+                "error": error_msg,
             }
             
         return {
             "reply": f"Oops! I encountered an internal error: {type(e).__name__}. Please try again.",
-            "actions": []
+            "actions": [],
+            "error": error_msg,
         }

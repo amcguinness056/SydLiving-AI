@@ -13,14 +13,14 @@ mkdir -p "$SCREENSHOTS_DIR"
 
 export PATH="/Users/aaronmcguinness/.nvm/versions/node/v24.18.1/bin:$PATH"
 
-echo "📸 Checking frontend server availability at http://127.0.0.1:5173..."
-if ! curl -s -o /dev/null http://127.0.0.1:5173; then
-  echo "❌ Frontend server is not responding at http://127.0.0.1:5173. Please ensure 'npm run dev' is running."
+echo "📸 Checking frontend server availability at http://localhost:5173..."
+if ! curl -s -o /dev/null http://localhost:5173 && ! curl -s -o /dev/null http://127.0.0.1:5173; then
+  echo "❌ Frontend server is not responding at http://localhost:5173. Please ensure 'npm run dev' is running."
   exit 1
 fi
 
 echo "🚀 Launching Playwright CLI session..."
-playwright-cli open "http://127.0.0.1:5173"
+playwright-cli open "http://localhost:5173"
 playwright-cli resize 1440 900
 
 # Ensure dark mode is active and greeting bubble is fresh for screenshots

@@ -104,6 +104,7 @@ class User(BaseModel):
     lifestyle_vibes: Optional[List[str]] = []
     preferred_transit_modes: Optional[List[str]] = []
     kai_verbosity: Optional[str] = "concise"
+    is_admin: Optional[bool] = False
 
 class UserProfileUpdate(BaseModel):
     workplace_hub: Optional[str] = None

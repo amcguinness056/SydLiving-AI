@@ -113,8 +113,11 @@ async def process_chat(message: str, history: list, user_profile: Optional[dict]
             
         client = genai.Client(api_key=gemini_key)
         
+        # Token optimization: sliding window keeping last 6 conversation turns (3 round-trips)
+        pruned_history = history[-6:] if history and len(history) > 6 else history
+
         contents = []
-        for h in history:
+        for h in pruned_history:
             contents.append(
                 types.Content(role=h["role"], parts=[types.Part.from_text(text=h["parts"])])
             )
@@ -200,6 +203,7 @@ Never output a property name as plain text without linking its ID. This allows u
             system_instruction=system_instruction,
             tools=tools,
             temperature=0.6,
+            max_output_tokens=750,
         )
         
         model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")

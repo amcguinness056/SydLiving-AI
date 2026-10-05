@@ -76,35 +76,54 @@ else
     VITE_API_URL="${BACKEND_URL}"
 fi
 
-echo "[3/4] Building Frontend container image with VITE_API_URL=${VITE_API_URL}..."
-if [ "${BUILD_METHOD}" = "docker" ]; then
-    docker build \
-        --build-arg VITE_API_URL="${VITE_API_URL}" \
-        -t "${FRONTEND_TAG}" ./frontend
-    docker push "${FRONTEND_TAG}"
-else
-    echo "Using Google Cloud Build for frontend..."
-    gcloud builds submit ./frontend \
+# ----------------------------------------------------
+# 3. Build & Deploy Frontend (Firebase CDN primary, Cloud Run container optional)
+# ----------------------------------------------------
+DEPLOY_FRONTEND_CONTAINER="${DEPLOY_FRONTEND_CONTAINER:-false}"
+
+if [ "${DEPLOY_FRONTEND_CONTAINER}" = "true" ]; then
+    echo "[3/4] Building Frontend container image with VITE_API_URL=${VITE_API_URL}..."
+    if [ "${BUILD_METHOD}" = "docker" ]; then
+        docker build \
+            --build-arg VITE_API_URL="${VITE_API_URL}" \
+            -t "${FRONTEND_TAG}" ./frontend
+        docker push "${FRONTEND_TAG}"
+    else
+        echo "Using Google Cloud Build for frontend..."
+        gcloud builds submit ./frontend \
+            --project="${PROJECT_ID}" \
+            --substitutions=_VITE_API_URL="${VITE_API_URL}" \
+            --tag="${FRONTEND_TAG}"
+    fi
+
+    echo "[4/4] Updating Cloud Run services with new container images..."
+    gcloud run deploy "${APP_NAME}-backend" \
         --project="${PROJECT_ID}" \
-        --substitutions=_VITE_API_URL="${VITE_API_URL}" \
-        --tag="${FRONTEND_TAG}"
+        --region="${REGION}" \
+        --image="${BACKEND_TAG}" \
+        --quiet || echo "Backend service will be created on first 'terraform apply'."
+
+    gcloud run deploy "${APP_NAME}-frontend" \
+        --project="${PROJECT_ID}" \
+        --region="${REGION}" \
+        --image="${FRONTEND_TAG}" \
+        --quiet || echo "Frontend service will be created on first 'terraform apply'."
+else
+    echo "[3/4] Deploying Frontend directly to Firebase Hosting CDN (Zero compute cost)..."
+    npm --prefix frontend ci
+    VITE_API_URL="/api" npm --prefix frontend run build
+    npx firebase-tools deploy --only hosting --project "${PROJECT_ID}"
+
+    echo "[4/4] Updating Backend Cloud Run service with new container image..."
+    gcloud run deploy "${APP_NAME}-backend" \
+        --project="${PROJECT_ID}" \
+        --region="${REGION}" \
+        --image="${BACKEND_TAG}" \
+        --quiet || echo "Backend service will be created on first 'terraform apply'."
 fi
-
-echo "[4/4] Updating Cloud Run services with new container images..."
-gcloud run deploy "${APP_NAME}-backend" \
-    --project="${PROJECT_ID}" \
-    --region="${REGION}" \
-    --image="${BACKEND_TAG}" \
-    --quiet || echo "Backend service will be created on first 'terraform apply'."
-
-gcloud run deploy "${APP_NAME}-frontend" \
-    --project="${PROJECT_ID}" \
-    --region="${REGION}" \
-    --image="${FRONTEND_TAG}" \
-    --quiet || echo "Frontend service will be created on first 'terraform apply'."
 
 echo "=========================================================="
 echo "Deployment completed successfully!"
 echo "Backend:  $(gcloud run services describe "${APP_NAME}-backend" --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)' 2>/dev/null || echo 'Pending terraform apply')"
-echo "Frontend: $(gcloud run services describe "${APP_NAME}-frontend" --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)' 2>/dev/null || echo 'Pending terraform apply')"
+echo "Frontend: https://${PROJECT_ID}.web.app (Firebase Hosting CDN)"
 echo "=========================================================="

@@ -185,6 +185,7 @@ def format_user_dict(d: dict) -> dict:
         res["min_bedrooms"] = 1
     if not res.get("kai_verbosity"):
         res["kai_verbosity"] = "concise"
+    res["is_admin"] = is_admin_email(res.get("email"))
     return res
 
 @app.post("/api/auth/google")

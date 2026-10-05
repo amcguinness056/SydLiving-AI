@@ -22,7 +22,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, reason }: AuthModalProps
     try {
       const authData = await api.loginWithGoogle(credential);
       localStorage.setItem('auth_token', authData.token);
-      onSuccess(authData.user);
+      onSuccess({ ...authData.user, is_admin: authData.is_admin });
       onClose();
     } catch (err: any) {
       console.error("Google authentication failed", err);

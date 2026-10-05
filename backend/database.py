@@ -87,6 +87,17 @@ def ensure_schema_migrations(conn: sqlite3.Connection):
             if "kai_verbosity" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN kai_verbosity TEXT DEFAULT 'concise';")
 
+        # Places cache table for Google Places API queries
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS places_cache (
+                suburb TEXT NOT NULL,
+                place_type TEXT NOT NULL,
+                results_json TEXT NOT NULL,
+                cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (suburb, place_type)
+            );
+        """)
+
         # Chat session titles migration
         try:
             from session_titler import migrate_legacy_session_titles

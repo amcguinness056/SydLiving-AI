@@ -4,8 +4,8 @@ output "backend_url" {
 }
 
 output "frontend_url" {
-  description = "The public URL of the deployed SydLiving frontend service."
-  value       = google_cloud_run_v2_service.frontend.uri
+  description = "The public URL of the deployed SydLiving frontend service (if Cloud Run container is enabled)."
+  value       = var.deploy_frontend_container ? google_cloud_run_v2_service.frontend[0].uri : "Firebase CDN: https://${var.project_id}.web.app"
 }
 
 output "artifact_registry_repository" {

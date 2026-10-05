@@ -191,6 +191,7 @@ def create_deep_sydliving_agent(model_name: Optional[str] = None, user_profile: 
         model=active_model,
         google_api_key=gemini_key,
         temperature=0.6,
+        max_output_tokens=750,
         max_retries=1
     )
 
@@ -314,9 +315,12 @@ async def process_deep_chat(message: str, history: list, user_profile: Optional[
                 "agent_type": "deep_agent"
             }
 
+        # Token optimization: sliding window keeping last 6 conversation turns (3 round-trips)
+        pruned_history = history[-6:] if history and len(history) > 6 else history
+
         # Format history into LangChain messages
         langchain_messages = []
-        for h in history:
+        for h in pruned_history:
             role = h.get("role")
             content = h.get("parts", "")
             if role == "user":
@@ -470,8 +474,11 @@ async def stream_deep_chat(message: str, history: list, user_profile: Optional[D
         steps_log.append(init_step)
         yield sse("step", init_step)
 
+        # Token optimization: sliding window keeping last 6 conversation turns (3 round-trips)
+        pruned_history = history[-6:] if history and len(history) > 6 else history
+
         langchain_messages = []
-        for h in history:
+        for h in pruned_history:
             role = h.get("role")
             content = h.get("parts", "")
             if role == "user":

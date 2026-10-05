@@ -418,21 +418,24 @@ async def process_deep_chat(message: str, history: list, user_profile: Optional[
                 "reply": "I'm sorry, but my Deep Agent brain is currently experiencing high demand. Please try again shortly!",
                 "actions": [],
                 "latency_seconds": elapsed,
-                "agent_type": "deep_agent"
+                "agent_type": "deep_agent",
+                "error": error_msg,
             }
         elif "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
             return {
                 "reply": "I'm sorry, but we've temporarily hit API rate limits for complex multi-agent reasoning. Please try again in a minute.",
                 "actions": [],
                 "latency_seconds": elapsed,
-                "agent_type": "deep_agent"
+                "agent_type": "deep_agent",
+                "error": error_msg,
             }
 
         return {
             "reply": f"Deep Agent encountered an error ({type(e).__name__}): {str(e)}",
             "actions": [],
             "latency_seconds": elapsed,
-            "agent_type": "deep_agent"
+            "agent_type": "deep_agent",
+            "error": error_msg,
         }
 
 async def stream_deep_chat(message: str, history: list, user_profile: Optional[Dict[str, Any]] = None):

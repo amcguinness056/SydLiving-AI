@@ -127,12 +127,37 @@ Create a `.env` file in `backend/`:
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.8-flash
 
+# Google OAuth & Authentication Configuration
+GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+JWT_SECRET=your_super_secret_jwt_hmac_key_here
+
+# Administrator Emails (comma-separated, case-insensitive)
+ADMIN_EMAILS=aaron.manu.td24@gmail.com
+
 # Optional: Domain Group API Key & Google Places API Key
 DOMAIN_API_KEY=
 GOOGLE_API_KEY=
 ```
 
-### 3. Run FastAPI Backend
+Create a `.env` file in `frontend/`:
+
+```env
+VITE_GOOGLE_MAPS_API_KEY=your_maps_api_key_here
+VITE_GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+```
+
+> **Google OAuth Setup Note:** In the [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID for Web Applications. Add `http://localhost:5173` and `https://sydliving.com` to **Authorized JavaScript origins**.
+
+### 3. Administrator Insights Panel (`/admin`)
+Users logged in with an email configured under `ADMIN_EMAILS` (default: `aaron.manu.td24@gmail.com`) automatically receive an **Admin** badge in the header menu. Navigating to `/admin` provides:
+- **Overview Dashboard:** Total users, Google vs legacy signups, DAU/WAU trends, chat volume, bookmarks, and API request charts.
+- **User Directory:** Detailed user profiles, session counts, bookmarks, and full read-only chat transcript inspectors.
+- **Chats & Kai Analytics:** Message volumes, top chatters, and real-time user prompts.
+- **Shortlist Analytics:** Most saved properties and top Sydney suburbs by interest.
+- **API & System Health:** Request volumes, p50/p95 latency metrics, external LLM/Maps consumption logs, and 5xx error tracking.
+- **Admin Activity Filter:** Toggle to exclude internal admin testing activity by default.
+
+### 4. Run FastAPI Backend
 
 ```bash
 cd backend
@@ -141,7 +166,7 @@ uvicorn main:app --reload --port 8000
 - API Base: `http://localhost:8000`
 - Interactive Swagger Docs: `http://localhost:8000/docs`
 
-### 4. Run React + Vite Frontend
+### 5. Run React + Vite Frontend
 
 ```bash
 cd frontend

@@ -95,6 +95,57 @@ def ensure_schema_migrations(conn: sqlite3.Connection):
             pass
     except Exception:
         pass
+    ensure_auth_and_analytics_schema(conn)
+
+def ensure_auth_and_analytics_schema(conn: sqlite3.Connection):
+    """Verified Google identity, activity timestamps, and admin analytics log tables."""
+    try:
+        user_cols = {row[1] for row in conn.execute("PRAGMA table_info(users);").fetchall()}
+        if user_cols:
+            if "google_sub" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN google_sub TEXT;")
+                # One-time: every pre-existing account was created without a verified Google
+                # identity, so mark it legacy (kept for stats, can no longer sign in).
+                conn.execute("UPDATE users SET auth_provider = 'legacy';")
+            if "created_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN created_at TEXT;")
+            if "last_login_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT;")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;")
+
+        saved_cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_properties);").fetchall()}
+        if saved_cols and "created_at" not in saved_cols:
+            conn.execute("ALTER TABLE saved_properties ADD COLUMN created_at TEXT;")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                method TEXT NOT NULL,
+                path TEXT NOT NULL,
+                status INTEGER NOT NULL,
+                latency_ms REAL NOT NULL,
+                user_id TEXT
+            );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_api_requests_ts ON api_requests(ts);")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS external_api_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                service TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                success INTEGER NOT NULL,
+                latency_ms REAL NOT NULL,
+                tokens_in INTEGER,
+                tokens_out INTEGER,
+                error TEXT
+            );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_external_api_calls_ts ON external_api_calls(ts);")
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Auth/analytics migration error: {e}")
 
 def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
     """Dependency to get a SQLite database connection with performance optimizations."""

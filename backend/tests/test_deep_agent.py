@@ -86,14 +86,16 @@ def test_chat_deep_session_persistence():
     with patch("deep_agent.process_deep_chat", new_callable=AsyncMock) as mock_deep:
         mock_deep.return_value = mock_result
 
-        # Login first to obtain valid user
-        login_res = client.post("/api/auth/login?username=deep_test_user")
-        assert login_res.status_code == 200
-        user_id = login_res.json()["id"]
+        # Login first to obtain valid user token
+        with patch("main.verify_google_credential", return_value={
+            "sub": "sub-deep-test", "email": "deep@example.com", "name": "Deep Tester", "email_verified": True
+        }):
+            login_res = client.post("/api/auth/google", json={"credential": "mock"})
+            assert login_res.status_code == 200
+            token = login_res.json()["token"]
 
-        response = client.post("/api/chat/deep", json={
+        response = client.post("/api/chat/deep", headers={"Authorization": f"Bearer {token}"}, json={
             "message": "Find places in Surry Hills",
-            "user_id": user_id,
             "history": []
         })
         assert response.status_code == 200
@@ -147,15 +149,18 @@ def test_chat_deep_stream_persistence():
         yield "event: chunk\ndata: {\"text\": \"Streamed reply content\"}\n\n"
         yield "event: done\ndata: {\"reply\": \"Streamed reply content\", \"actions\": [], \"latency_seconds\": 1.2, \"steps\": []}\n\n"
 
-    unique_name = f"stream_user_{uuid.uuid4().hex[:8]}"
-    login_res = client.post(f"/api/auth/login?username={unique_name}")
-    assert login_res.status_code == 200
-    user_id = login_res.json()["id"]
+    unique_sub = f"stream_sub_{uuid.uuid4().hex[:8]}"
+    with patch("main.verify_google_credential", return_value={
+        "sub": unique_sub, "email": f"{unique_sub}@example.com", "name": "Stream User", "email_verified": True
+    }):
+        login_res = client.post("/api/auth/google", json={"credential": "mock"})
+        assert login_res.status_code == 200
+        token = login_res.json()["token"]
+        user_id = login_res.json()["user"]["id"]
 
     with patch("deep_agent.stream_deep_chat", side_effect=mock_generator):
-        response = client.post("/api/chat/deep/stream", json={
+        response = client.post("/api/chat/deep/stream", headers={"Authorization": f"Bearer {token}"}, json={
             "message": "Stream persistence test message",
-            "user_id": user_id,
             "history": []
         })
         assert response.status_code == 200
@@ -182,7 +187,7 @@ def test_chat_deep_stream_persistence():
         assert msgs[1][1] == "Streamed reply content"
 
         # Test delete session endpoint
-        del_res = client.delete(f"/api/chat/sessions/{session_id}", headers={"user-id": user_id})
+        del_res = client.delete(f"/api/chat/sessions/{session_id}", headers={"Authorization": f"Bearer {token}"})
         assert del_res.status_code == 200
         assert del_res.json()["status"] == "deleted"
 
